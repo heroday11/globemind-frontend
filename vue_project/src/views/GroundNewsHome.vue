@@ -1,27 +1,22 @@
 <template>
   <div class="ground-home" :style="{ '--atlas-image': `url(${atlasImage})` }">
-    <nav class="ground-subnav" aria-label="全球事件研究次级导航">
-      <span>Research Desk</span>
+    <nav class="ground-subnav" aria-label="全球新闻观察台次级导航">
+      <span>Ground News</span>
       <RouterLink to="/data-service/ground-news">事件总览</RouterLink>
       <RouterLink to="/data-service/ground-news-desk">分析工作台</RouterLink>
     </nav>
 
     <section class="home-hero" data-tour="ground-news-overview">
       <div class="home-hero__copy">
-        <span class="eyebrow">区域国别 · 全球事件快照</span>
-        <h1>全球事件研究总览</h1>
+        <span class="eyebrow">GlobeMind 事件首页</span>
+        <h1>国际焦点新闻</h1>
         <p>
-          按事件时间组织多语种报道，结合多源覆盖、来源结构与 L2 走势，辅助区域国别研判。
+          按事件时间优先呈现国际新闻，保留多源覆盖、信源光谱和 L2 走势。
         </p>
-        <div class="hero-context" aria-label="当前数据状态">
-          <span class="snapshot-pill">历史快照</span>
-          <span>更新至 {{ formatDate(metrics.latest_valid_story_date || metrics.latest_story_date) }}</span>
-          <span>多语种 · 多源聚合</span>
-        </div>
         <div class="hero-actions">
           <RouterLink class="primary-link" to="/data-service/ground-news-desk">进入分析工作台</RouterLink>
           <button class="ghost-link" :disabled="loading" @click="loadHome">
-            {{ loading ? '正在刷新' : '刷新当前快照' }}
+            {{ loading ? '刷新中' : '刷新事件流' }}
           </button>
         </div>
       </div>
@@ -29,20 +24,20 @@
       <div class="home-hero__metrics">
         <article>
           <strong>{{ formatNumber(metrics.total_stories) }}</strong>
-          <span>研究事件</span>
+          <span>故事卡</span>
         </article>
         <article>
           <strong>{{ formatNumber(metrics.total_articles) }}</strong>
-          <span>报道样本</span>
+          <span>聚合新闻</span>
         </article>
         <article>
           <strong>{{ formatDate(metrics.latest_valid_story_date || metrics.latest_story_date) }}</strong>
-          <span>快照更新至</span>
+          <span>多源最新</span>
         </article>
       </div>
     </section>
 
-    <nav v-if="sectionNavItems.length" class="section-nav" aria-label="研究栏目">
+    <nav v-if="sectionNavItems.length" class="section-nav" aria-label="新闻栏目">
       <button
         v-for="item in sectionNavItems"
         :key="`nav-${item.id}`"
@@ -69,8 +64,8 @@
       <section id="front-news" class="front-grid" aria-label="新闻首页版面">
         <article class="front-column front-column--latest" data-tour="ground-news-edition">
           <header>
-            <span class="eyebrow">Snapshot Feed</span>
-            <h2>快照快讯</h2>
+            <span class="eyebrow">Live Wire</span>
+            <h2>最新快讯</h2>
             <small>{{ editionLabel('latest') }}</small>
           </header>
           <div class="front-column__list">
@@ -90,7 +85,7 @@
 
         <article class="front-column front-column--week">
           <header>
-            <span class="eyebrow">Multi-source</span>
+            <span class="eyebrow">This Week</span>
             <h2>本周多源</h2>
             <small>{{ editionLabel('week_watch') }}</small>
           </header>
@@ -200,23 +195,23 @@
 
       <aside class="right-rail">
         <section class="rail-card daily-brief">
-          <span class="eyebrow">Research Brief</span>
-          <h2>研究概览</h2>
+          <span class="eyebrow">今日简报</span>
+          <h2>事件池状态</h2>
           <div class="brief-grid">
             <span><strong>{{ formatNumber(metrics.total_stories) }}</strong> 事件</span>
             <span><strong>{{ formatNumber(metrics.total_articles) }}</strong> 新闻</span>
             <span><strong>{{ formatNumber(metrics.product_candidate_count || metrics.candidate_count) }}</strong> 主候选</span>
-            <span><strong>{{ formatNumber(metrics.source_breakdown_coverage?.ready_stories) }}</strong> 可研判</span>
-            <span><strong>{{ formatNumber(metrics.source_breakdown_coverage?.usable_stories_7d) }}</strong> 近7日可用</span>
-            <span><strong>{{ formatDate(metrics.latest_valid_story_date || metrics.latest_story_date) }}</strong> 多源快照</span>
-            <span><strong>{{ formatDate(metrics.latest_realtime_story_date || metrics.latest_valid_story_date || metrics.latest_story_date) }}</strong> 采集最新</span>
+            <span><strong>{{ formatNumber(metrics.source_breakdown_coverage?.ready_stories) }}</strong> Ready</span>
+            <span><strong>{{ formatNumber(metrics.source_breakdown_coverage?.usable_stories_7d) }}</strong> 7日可用</span>
+            <span><strong>{{ formatDate(metrics.latest_valid_story_date || metrics.latest_story_date) }}</strong> 多源最新</span>
+            <span><strong>{{ formatDate(metrics.latest_realtime_story_date || metrics.latest_valid_story_date || metrics.latest_story_date) }}</strong> 实时最新</span>
             <span><strong>{{ formatNumber(metrics.ok_story_covers) }}</strong> 封面</span>
             <span><strong>{{ profileCoveragePct }}</strong> 评级</span>
           </div>
           <div class="edition-policy">
             <span>最新栏按事件时间优先</span>
             <span>专题栏 {{ edition.rotation_days || 3 }} 天轮换</span>
-            <span>可研判 = 3+ 信源且有评级</span>
+            <span>Ready = 3+ 信源且有评级</span>
             <span>L2 走势近期优先</span>
           </div>
           <p>
@@ -520,7 +515,6 @@ async function scrollToSection(id) {
 
 function editionLabel(key) {
   return homeEditionLabel(sectionByKey.value, edition.value, key)
-    .replaceAll('实时滚动', '按快照排序')
 }
 
 function sectionBadge(section) {
@@ -528,13 +522,7 @@ function sectionBadge(section) {
 }
 
 function displayEntityLine(story) {
-  const relation = formatRelationText(baseEntityLine(story))
-  const parts = relation.split(/\s+(?:→|↔)\s+/).map((part) => part.trim()).filter(Boolean)
-  if (parts.length !== 2) return relation
-  const [source, target] = parts
-  if (source.localeCompare(target, undefined, { sensitivity: 'accent' }) === 0) return source
-  if (['未知对象', '未知实体', 'Unknown'].includes(target)) return source
-  return relation
+  return formatRelationText(baseEntityLine(story))
 }
 
 function chainTitle(chain) {
@@ -2809,806 +2797,6 @@ function inferLanguageLabel(text) {
   .lead-brief__head strong {
     max-width: none;
     text-align: left;
-  }
-}
-
-/* Research workspace visual pass: calm surfaces, clear status, compact mobile lanes. */
-.ground-home {
-  --ink: #17283a;
-  --muted: #627181;
-  --line: rgba(31, 57, 78, 0.13);
-  --paper: rgba(255, 255, 255, 0.9);
-  --paper-solid: #ffffff;
-  --navy: #0b253d;
-  --green: #087d73;
-  --accent: #087d73;
-  --accent-soft: #e7f4f1;
-  padding: 82px 22px 52px;
-  background:
-    radial-gradient(circle at 82% 2%, rgba(69, 155, 152, 0.13), transparent 26rem),
-    linear-gradient(180deg, #edf4f4 0, #f6f8f7 430px, #f3f5f4 100%);
-}
-
-.ground-home::before {
-  display: block;
-  position: absolute;
-  inset: 64px 0 auto;
-  height: 500px;
-  background-image:
-    linear-gradient(90deg, rgba(237, 244, 244, 0.94), rgba(237, 244, 244, 0.62), rgba(237, 244, 244, 0.91)),
-    var(--atlas-image);
-  background-size: cover;
-  background-position: center 32%;
-  opacity: 0.42;
-  mix-blend-mode: normal;
-}
-
-.ground-home::after {
-  display: block;
-  position: absolute;
-  inset: 64px 0 auto;
-  height: 500px;
-  background: linear-gradient(180deg, transparent 48%, #edf4f4 100%);
-}
-
-.home-hero,
-.ground-subnav,
-.home-layout,
-.section-nav {
-  max-width: 1500px;
-}
-
-.ground-subnav {
-  min-height: 52px;
-  margin-bottom: 20px;
-  padding: 5px;
-  border-color: rgba(11, 37, 61, 0.1);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: 0 12px 34px rgba(22, 48, 65, 0.08);
-}
-
-.ground-subnav span {
-  border-right-color: rgba(11, 37, 61, 0.1);
-  color: var(--accent);
-  letter-spacing: 0.12em;
-}
-
-.ground-subnav a {
-  min-height: 40px;
-  border-radius: 11px;
-  color: #435466;
-  font-weight: 800;
-}
-
-.ground-subnav a:hover {
-  border-color: rgba(8, 125, 115, 0.18);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.ground-subnav a.router-link-exact-active {
-  border-color: transparent;
-  background: var(--navy);
-  color: #ffffff;
-  box-shadow: 0 7px 18px rgba(11, 37, 61, 0.18);
-}
-
-.home-hero {
-  grid-template-columns: minmax(0, 1.22fr) minmax(350px, 0.58fr);
-  align-items: stretch;
-  gap: 28px;
-  margin-bottom: 14px;
-  padding: clamp(26px, 3.5vw, 48px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 30px;
-  background:
-    radial-gradient(circle at 78% 8%, rgba(53, 175, 164, 0.28), transparent 24rem),
-    linear-gradient(135deg, #0a2137, #103c50 62%, #0c5a59);
-  box-shadow: 0 28px 70px rgba(18, 48, 64, 0.18);
-  color: #f7fbfb;
-  overflow: hidden;
-}
-
-.home-hero__copy {
-  align-self: center;
-}
-
-.home-hero .eyebrow {
-  color: #72d7ca;
-  letter-spacing: 0.13em;
-}
-
-.home-hero h1 {
-  margin: 8px 0 12px;
-  max-width: 780px;
-  font-family: var(--serif);
-  font-size: clamp(42px, 5vw, 72px);
-  line-height: 1.03;
-  letter-spacing: -0.035em;
-}
-
-.home-hero p {
-  max-width: 740px;
-  color: rgba(241, 249, 249, 0.78);
-  font-size: 15px;
-  line-height: 1.7;
-}
-
-.hero-context {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  margin-top: 17px;
-  color: rgba(241, 249, 249, 0.72);
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.hero-context span:not(.snapshot-pill) {
-  position: relative;
-}
-
-.hero-context span:not(.snapshot-pill) + span::before {
-  content: "";
-  position: absolute;
-  left: -8px;
-  top: 50%;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.42);
-}
-
-.snapshot-pill {
-  padding: 5px 9px;
-  border: 1px solid rgba(122, 228, 214, 0.36);
-  border-radius: 999px;
-  background: rgba(76, 199, 184, 0.12);
-  color: #91eadf;
-}
-
-.hero-actions {
-  margin-top: 20px;
-}
-
-.primary-link,
-.ghost-link,
-.story-link {
-  min-height: 42px;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  padding: 10px 15px;
-  font-weight: 850;
-  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
-}
-
-.primary-link {
-  background: #65cfc2;
-  color: #082a32;
-}
-
-.primary-link:hover,
-.story-link:hover {
-  transform: translateY(-1px);
-  background: #8be1d7;
-}
-
-.ghost-link {
-  border-color: rgba(255, 255, 255, 0.26);
-  background: rgba(255, 255, 255, 0.08);
-  color: #f5fbfb;
-}
-
-.ghost-link:hover {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.ghost-link:disabled {
-  opacity: 0.58;
-  cursor: wait;
-}
-
-.home-hero__metrics {
-  align-self: stretch;
-  grid-template-columns: 1fr;
-  gap: 0;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  overflow: hidden;
-}
-
-.home-hero__metrics article {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 14px;
-  border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 0;
-  padding: 17px 20px;
-  background: transparent;
-}
-
-.home-hero__metrics article:first-child {
-  border-top: 0;
-}
-
-.home-hero__metrics strong {
-  color: #ffffff;
-  font-family: var(--sans);
-  font-size: clamp(22px, 2.2vw, 32px);
-  letter-spacing: -0.035em;
-}
-
-.home-hero__metrics span {
-  margin: 0 0 2px;
-  color: rgba(241, 249, 249, 0.62);
-  font-size: 11px;
-}
-
-.section-nav {
-  gap: 7px;
-  margin: 0 auto 18px;
-  border: 0;
-  padding: 12px 2px;
-}
-
-.section-nav button {
-  min-height: 40px;
-  border-color: rgba(11, 37, 61, 0.1);
-  border-radius: 12px;
-  padding: 0 13px;
-  background: rgba(255, 255, 255, 0.83);
-  color: #435466;
-  box-shadow: 0 5px 15px rgba(26, 51, 68, 0.04);
-  font-weight: 800;
-}
-
-.section-nav small {
-  border: 0;
-  border-radius: 7px;
-  background: #e9f1f0;
-  color: #56716f;
-}
-
-.section-nav button:hover {
-  border-color: rgba(8, 125, 115, 0.25);
-  background: var(--accent-soft);
-  color: #08685f;
-}
-
-.section-nav button:hover small {
-  background: rgba(8, 125, 115, 0.12);
-  color: #08685f;
-}
-
-.home-layout {
-  grid-template-columns: minmax(0, 1fr) minmax(310px, 360px);
-  gap: 22px;
-}
-
-.front-grid {
-  gap: 16px;
-  padding: 0;
-  border: 0;
-}
-
-.front-column {
-  min-height: 100%;
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 14px 38px rgba(25, 52, 69, 0.07);
-  overflow: hidden;
-}
-
-.front-column:first-child {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding-left: 18px;
-}
-
-.front-column--latest {
-  background:
-    radial-gradient(circle at 88% 8%, rgba(70, 177, 165, 0.22), transparent 16rem),
-    linear-gradient(150deg, #10283e, #123f50);
-  color: #f8fbfb;
-}
-
-.front-column header {
-  min-height: 62px;
-  border-top: 0;
-  border-bottom: 1px solid var(--line);
-  padding: 0 0 12px;
-}
-
-.front-column--latest header {
-  border-bottom-color: rgba(255, 255, 255, 0.16);
-}
-
-.front-column h2 {
-  font-size: 24px;
-}
-
-.front-column header small,
-.front-column--latest header small,
-.front-column--latest .eyebrow {
-  color: rgba(229, 242, 243, 0.64);
-}
-
-.front-headline {
-  padding: 13px 0;
-}
-
-.front-column--latest .front-headline {
-  border-top-color: rgba(255, 255, 255, 0.13);
-}
-
-.front-headline span,
-.front-column--latest .front-headline span {
-  color: #5bbcaf;
-}
-
-.front-column--latest .front-headline small {
-  color: rgba(233, 243, 244, 0.62);
-}
-
-.front-headline:hover strong,
-.front-column--latest .front-headline:hover strong,
-.lead-title:hover,
-.story-card:hover h3 {
-  color: #0a786e;
-}
-
-.front-column--latest .front-headline:hover strong {
-  color: #8be1d7;
-}
-
-.front-headline :deep(.event-cover--strip) {
-  border-radius: 14px;
-}
-
-.lead-feature {
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 16px 44px rgba(25, 52, 69, 0.07);
-}
-
-.lead-cover,
-.lead-brief,
-.lead-brief__item,
-.lead-story,
-.coverage-panel,
-.lead-stats span,
-.story-kicker span,
-.story-card__meta span,
-.story-card__foot span,
-.source-strip span,
-.bias-chips span,
-.bias-mini span,
-.source-type-strip span {
-  border-radius: 10px;
-}
-
-.lead-cover {
-  border-radius: 17px;
-  overflow: hidden;
-}
-
-.lead-media :deep(.event-cover) {
-  min-height: 340px;
-}
-
-.lead-story {
-  border-left-color: var(--line);
-  padding-left: 20px;
-}
-
-.lead-title {
-  color: var(--navy);
-  font-size: clamp(30px, 3.2vw, 48px);
-  line-height: 1.08;
-}
-
-.lead-stats span,
-.coverage-panel,
-.lead-brief,
-.lead-brief__item {
-  background: #f5f8f7;
-}
-
-.story-link {
-  background: var(--navy);
-}
-
-.right-rail {
-  gap: 16px;
-}
-
-.rail-card {
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 12px 34px rgba(25, 52, 69, 0.06);
-}
-
-.rail-card h2 {
-  color: var(--navy);
-}
-
-.brief-grid span,
-.topic-cloud a,
-.source-leaders span,
-.edition-policy span {
-  border-radius: 10px;
-  background: #f4f7f6;
-}
-
-.brief-grid strong {
-  color: var(--navy);
-  font-family: var(--sans);
-}
-
-.edition-policy span {
-  border-color: rgba(8, 125, 115, 0.12);
-  background: var(--accent-soft);
-  color: #236b65;
-}
-
-.story-section {
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 14px 38px rgba(25, 52, 69, 0.06);
-}
-
-.section-title h2 {
-  color: var(--navy);
-  font-family: var(--serif);
-  font-size: 27px;
-}
-
-.story-grid {
-  gap: 12px;
-}
-
-.story-card {
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: 13px;
-  border: 1px solid rgba(31, 57, 78, 0.1);
-  border-radius: 15px;
-  padding: 10px;
-  background: #f8faf9;
-  overflow: hidden;
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
-}
-
-.story-card--editorial,
-.story-card--text-only {
-  background: #f8faf9;
-}
-
-.story-card--text-only {
-  border-left: 4px solid rgba(8, 125, 115, 0.45);
-  padding-left: 13px;
-}
-
-.story-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(8, 125, 115, 0.32);
-  background: #ffffff;
-  box-shadow: 0 13px 28px rgba(25, 52, 69, 0.1);
-}
-
-.story-card h3 {
-  color: #24384a;
-  font-family: var(--sans);
-  font-size: 15px;
-  line-height: 1.34;
-}
-
-.story-card :deep(.event-cover--card) {
-  min-height: 96px;
-  border-radius: 11px;
-}
-
-.event-cover,
-.event-cover--card,
-.event-cover--strip,
-.event-cover--large,
-.ground-home :deep(.event-cover),
-.ground-home :deep(.event-cover--card) {
-  border-radius: 14px;
-}
-
-.ground-home :deep(.bias-meter__bar) {
-  border-radius: 999px;
-}
-
-.home-loading,
-.home-error,
-.pulse-cover,
-.home-error button {
-  border-radius: 18px;
-}
-
-@media (max-width: 1280px) {
-  .home-layout,
-  .lead-feature {
-    grid-template-columns: 1fr;
-  }
-
-  .home-hero {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.5fr);
-  }
-
-  .front-grid {
-    grid-template-columns: repeat(3, minmax(310px, 1fr));
-    overflow-x: auto;
-    scroll-snap-type: x proximity;
-    scrollbar-width: thin;
-  }
-
-  .front-column {
-    scroll-snap-align: start;
-  }
-
-  .right-rail {
-    grid-row: 3;
-    grid-column: 1;
-    grid-template-columns: repeat(3, minmax(300px, 1fr));
-  }
-
-  .section-stack {
-    grid-row: 4;
-  }
-}
-
-@media (max-width: 760px) {
-  .ground-home {
-    padding: 24px 12px 30px;
-  }
-
-  .ground-home::before,
-  .ground-home::after {
-    height: 390px;
-  }
-
-  .ground-subnav {
-    margin-bottom: 12px;
-  }
-
-  .ground-subnav a {
-    min-height: 42px;
-  }
-
-  .home-hero {
-    grid-template-columns: 1fr;
-    gap: 20px;
-    padding: 23px 18px 18px;
-    border-radius: 23px;
-  }
-
-  .home-hero h1 {
-    margin: 7px 0 10px;
-    font-size: clamp(34px, 10vw, 44px);
-  }
-
-  .home-hero p {
-    font-size: 13px;
-    line-height: 1.62;
-  }
-
-  .hero-context {
-    gap: 7px 12px;
-    margin-top: 14px;
-    font-size: 11px;
-  }
-
-  .hero-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 16px;
-  }
-
-  .primary-link,
-  .ghost-link {
-    min-width: 0;
-    padding: 9px 8px;
-    font-size: 12px;
-  }
-
-  .home-hero__metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    border-radius: 15px;
-  }
-
-  .home-hero__metrics article,
-  .home-hero__metrics article:nth-child(3) {
-    grid-column: auto;
-    display: block;
-    border-top: 0;
-    border-left: 1px solid rgba(255, 255, 255, 0.13);
-    padding: 11px 8px;
-  }
-
-  .home-hero__metrics article:first-child {
-    border-left: 0;
-  }
-
-  .home-hero__metrics strong {
-    font-size: 16px;
-    white-space: nowrap;
-  }
-
-  .home-hero__metrics span {
-    margin-top: 5px;
-    font-size: 9px;
-  }
-
-  .section-nav {
-    flex-wrap: nowrap;
-    gap: 7px;
-    margin-inline: -12px;
-    padding: 10px 12px 12px;
-    overflow-x: auto;
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-  }
-
-  .section-nav::-webkit-scrollbar,
-  .front-grid::-webkit-scrollbar,
-  .right-rail::-webkit-scrollbar,
-  .story-grid::-webkit-scrollbar {
-    display: none;
-  }
-
-  .section-nav button {
-    flex: 0 0 auto;
-    min-height: 42px;
-    scroll-snap-align: start;
-  }
-
-  .front-grid {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(310px, calc(100vw - 36px));
-    gap: 12px;
-    margin-right: -12px;
-    padding: 0 12px 10px 0;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-  }
-
-  .front-column {
-    min-height: 0;
-    border-radius: 18px;
-    padding: 16px;
-    scroll-snap-align: start;
-  }
-
-  .front-column:first-child {
-    padding-left: 16px;
-  }
-
-  .front-column header {
-    min-height: 54px;
-  }
-
-  .front-column h2 {
-    font-size: 22px;
-  }
-
-  .front-headline--lead strong {
-    font-size: 25px;
-  }
-
-  .lead-feature {
-    border-radius: 19px;
-    padding: 12px;
-  }
-
-  .lead-cover :deep(.event-cover),
-  .ground-home :deep(.event-cover--large) {
-    min-height: 248px;
-  }
-
-  .lead-story {
-    border-left: 0;
-    padding: 15px 4px 4px;
-  }
-
-  .lead-title {
-    font-size: 31px;
-  }
-
-  .right-rail {
-    grid-row: 3;
-    display: grid;
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(292px, calc(100vw - 36px));
-    align-items: start;
-    gap: 12px;
-    margin-right: -12px;
-    padding: 0 12px 10px 0;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-  }
-
-  .rail-card {
-    min-height: 100%;
-    box-sizing: border-box;
-    border-radius: 18px;
-    padding: 16px;
-    scroll-snap-align: start;
-  }
-
-  .section-stack {
-    grid-row: 4;
-    gap: 16px;
-  }
-
-  .story-section {
-    border-radius: 19px;
-    padding: 16px 0 14px 14px;
-    overflow: hidden;
-  }
-
-  .section-title {
-    display: flex;
-    align-items: end;
-    padding-right: 14px;
-  }
-
-  .section-title h2 {
-    font-size: 24px;
-  }
-
-  .section-title p {
-    font-size: 12px;
-  }
-
-  .story-grid,
-  .lead-stats.story-grid {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(286px, calc(100vw - 54px));
-    align-items: stretch;
-    gap: 10px;
-    padding: 3px 14px 10px 0;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-  }
-
-  .story-card {
-    min-height: 205px;
-    box-sizing: border-box;
-    grid-template-columns: 96px minmax(0, 1fr);
-    border-radius: 14px;
-    scroll-snap-align: start;
-  }
-
-  .story-card--text-only {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .story-card :deep(.event-cover--card) {
-    min-height: 112px;
-    aspect-ratio: 4 / 5;
   }
 }
 </style>
