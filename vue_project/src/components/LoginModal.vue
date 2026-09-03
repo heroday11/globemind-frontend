@@ -1,75 +1,271 @@
 <script setup>
-import { ref } from 'vue'
+import { nextTick, onUnmounted, ref, watch } from 'vue'
 import { API_PREFIX } from '@/config/api'
+import { formatApiErrorDetail } from '@/utils/apiError'
 import { setToken, setCurrentUser } from '@/utils/auth'
+import { restoreDialogFocus, trapDialogTab } from '@/utils/dialogFocus'
 
-defineProps({ visible: Boolean })
+const props = defineProps({ visible: Boolean })
 const emit = defineEmits(['close', 'login-success'])
 
 const loginUsername = ref('')
 const loginPassword = ref('')
 const loginError = ref('')
 const loginLoading = ref(false)
+const dialogCard = ref(null)
+const usernameField = ref(null)
+const errorMessage = ref(null)
+const mfaChallenge = ref('')
+const mfaMethod = ref('totp')
+const mfaValue = ref('')
+const mfaField = ref(null)
+let returnFocusTarget = null
+
+function closeDialog() {
+  if (loginLoading.value) return
+  emit('close')
+}
+
+function handleRegisterClick(event) {
+  if (loginLoading.value) {
+    event.preventDefault()
+    return
+  }
+  emit('close')
+}
+
+function handleDialogKeydown(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeDialog()
+    return
+  }
+  trapDialogTab(event, dialogCard.value, document.activeElement)
+}
+
+function restoreOpeningFocus() {
+  restoreDialogFocus(returnFocusTarget)
+  returnFocusTarget = null
+}
+
+function resetLoginState() {
+  loginUsername.value = ''
+  loginPassword.value = ''
+  loginError.value = ''
+  mfaChallenge.value = ''
+  mfaMethod.value = 'totp'
+  mfaValue.value = ''
+}
+
+async function showLoginError(message) {
+  loginError.value = String(message || '登录失败')
+  await nextTick()
+  errorMessage.value?.focus()
+}
+
+watch(
+  () => props.visible,
+  async (visible) => {
+    if (visible) {
+      returnFocusTarget = document.activeElement
+      loginError.value = ''
+      await nextTick()
+      usernameField.value?.focus()
+      return
+    }
+    resetLoginState()
+    restoreOpeningFocus()
+  },
+  { immediate: true },
+)
+
+onUnmounted(restoreOpeningFocus)
 
 async function handleLogin() {
   loginError.value = ''
   loginLoading.value = true
   try {
-    const res = await fetch(`${API_PREFIX}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: loginUsername.value, password: loginPassword.value }),
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      loginError.value = data.detail || '登录失败'
+    let res
+    try {
+      const completingMfa = Boolean(mfaChallenge.value)
+      const payload = completingMfa
+        ? {
+            challenge: mfaChallenge.value,
+            ...(mfaMethod.value === 'totp'
+              ? { code: mfaValue.value }
+              : {
+                  recovery_code: String(mfaValue.value || '')
+                    .trim()
+                    .toUpperCase(),
+                }),
+          }
+        : { username: loginUsername.value, password: loginPassword.value }
+      res = await fetch(`${API_PREFIX}${completingMfa ? '/auth/login/mfa' : '/auth/login'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    } catch {
+      await showLoginError('网络错误，请稍后重试')
       return
     }
-    if (data.access_token) {
-      setToken(data.access_token)
-      if (data.user) setCurrentUser(data.user)
-      loginUsername.value = ''
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      await showLoginError(formatApiErrorDetail(data))
+      return
+    }
+    if (data.mfa_required === true && data.challenge && !data.access_token) {
+      mfaChallenge.value = data.challenge
       loginPassword.value = ''
+      mfaValue.value = ''
+      await nextTick()
+      mfaField.value?.focus()
+    } else if (data.access_token) {
+      try {
+        setToken(data.access_token)
+      } catch {
+        await showLoginError('已收到登录响应，但浏览器无法保存登录状态。请允许站点存储后重试。')
+        return
+      }
+      if (data.user) {
+        try {
+          setCurrentUser(data.user)
+        } catch {
+          console.warn('登录成功，但浏览器未能保存用户资料。')
+        }
+      }
+      resetLoginState()
       window.dispatchEvent(new CustomEvent('loginSuccess'))
       emit('login-success')
       emit('close')
     } else {
-      loginError.value = '未返回 token'
+      await showLoginError('登录响应无效：服务未返回访问令牌。')
     }
-  } catch {
-    loginError.value = '网络错误，请稍后重试'
   } finally {
     loginLoading.value = false
   }
 }
+
+async function restartPasswordLogin() {
+  mfaChallenge.value = ''
+  mfaValue.value = ''
+  loginError.value = ''
+  await nextTick()
+  usernameField.value?.focus()
+}
+
+watch(mfaMethod, async () => {
+  mfaValue.value = ''
+  await nextTick()
+  mfaField.value?.focus()
+})
 </script>
 
 <template>
-  <div v-if="visible" class="login-modal-overlay" @click.self="emit('close')">
-    <div class="login-modal-card" @click.stop>
-      <h2 class="login-modal-title">登录 GlobeMind</h2>
-      <p class="login-modal-subtitle">同步收藏、使用数据助手并管理你的研究报告</p>
-      <form class="login-modal-form" @submit.prevent="handleLogin">
-        <div class="login-modal-item">
-          <label>用户名</label>
-          <input v-model="loginUsername" type="text" required placeholder="请输入用户名" />
+  <div v-if="visible" class="login-modal-overlay" @click.self="closeDialog">
+    <div
+      ref="dialogCard"
+      class="login-modal-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="login-modal-title"
+      aria-describedby="login-modal-subtitle"
+      tabindex="-1"
+      @click.stop
+      @keydown="handleDialogKeydown"
+    >
+      <h2 id="login-modal-title" class="login-modal-title">
+        {{ mfaChallenge ? '完成双因素验证' : '登录 GlobeMind' }}
+      </h2>
+      <p id="login-modal-subtitle" class="login-modal-subtitle">
+        {{
+          mfaChallenge
+            ? '密码已验证；动态码或单枚恢复码验证成功后才会签发访问令牌。'
+            : '同步收藏、使用数据助手并管理你的研究报告'
+        }}
+      </p>
+      <form class="login-modal-form" :aria-busy="loginLoading" @submit.prevent="handleLogin">
+        <div v-if="!mfaChallenge" class="login-modal-item">
+          <label for="login-modal-username">用户名或邮箱</label>
+          <input
+            id="login-modal-username"
+            ref="usernameField"
+            v-model.trim="loginUsername"
+            name="username"
+            type="text"
+            required
+            autocomplete="username"
+            placeholder="请输入用户名或邮箱"
+          />
         </div>
-        <div class="login-modal-item">
-          <label>密码</label>
-          <input v-model="loginPassword" type="password" required placeholder="请输入密码" />
+        <div v-if="!mfaChallenge" class="login-modal-item">
+          <label for="login-modal-password">密码</label>
+          <input
+            id="login-modal-password"
+            v-model="loginPassword"
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password"
+            placeholder="请输入密码"
+          />
         </div>
+        <template v-else>
+          <fieldset class="login-modal-mfa-methods">
+            <legend>验证方式</legend>
+            <label><input v-model="mfaMethod" type="radio" value="totp" />动态验证码</label>
+            <label><input v-model="mfaMethod" type="radio" value="recovery" />恢复码</label>
+          </fieldset>
+          <div class="login-modal-item">
+            <label for="login-modal-mfa-code">{{
+              mfaMethod === 'totp' ? '6 位动态验证码' : '恢复码'
+            }}</label>
+            <input
+              id="login-modal-mfa-code"
+              ref="mfaField"
+              v-model="mfaValue"
+              :inputmode="mfaMethod === 'totp' ? 'numeric' : 'text'"
+              :autocomplete="mfaMethod === 'totp' ? 'one-time-code' : 'off'"
+              :pattern="
+                mfaMethod === 'totp' ? '[0-9]{6}' : '[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}'
+              "
+              required
+            />
+          </div>
+        </template>
         <div class="login-modal-buttons">
           <button type="submit" class="login-modal-submit" :disabled="loginLoading">
-            {{ loginLoading ? '登录中...' : '登录' }}
+            {{ loginLoading ? '验证中...' : mfaChallenge ? '验证并登录' : '登录' }}
           </button>
-          <button type="button" class="login-modal-cancel" @click="emit('close')" :disabled="loginLoading">
-            取消
+          <button
+            type="button"
+            class="login-modal-cancel"
+            @click="mfaChallenge ? restartPasswordLogin() : closeDialog()"
+            :disabled="loginLoading"
+          >
+            {{ mfaChallenge ? '返回密码登录' : '取消' }}
           </button>
         </div>
         <div class="login-modal-register">
-          <router-link to="/register" @click="emit('close')">注册账号</router-link>
+          <router-link
+            to="/register"
+            :aria-disabled="loginLoading"
+            :tabindex="loginLoading ? -1 : undefined"
+            @click="handleRegisterClick"
+            >注册账号</router-link
+          >
         </div>
-        <p v-if="loginError" class="login-modal-error">{{ loginError }}</p>
+        <p
+          v-if="loginError"
+          id="login-modal-error"
+          ref="errorMessage"
+          class="login-modal-error"
+          role="alert"
+          aria-live="assertive"
+          tabindex="-1"
+        >
+          {{ loginError }}
+        </p>
       </form>
     </div>
   </div>
@@ -157,7 +353,10 @@ async function handleLogin() {
   outline: none;
   color: #17375f;
   font-size: 18px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .login-modal-item input:focus {
@@ -170,6 +369,24 @@ async function handleLogin() {
 .login-modal-item input::placeholder {
   color: #999;
 }
+.login-modal-mfa-methods {
+  display: flex;
+  gap: 16px;
+  border: 1px solid rgba(47, 92, 145, 0.3);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.login-modal-mfa-methods legend {
+  padding: 0 6px;
+  color: #1f436e;
+  font-weight: 600;
+}
+.login-modal-mfa-methods label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1f436e;
+}
 
 .login-modal-error {
   position: relative;
@@ -178,6 +395,11 @@ async function handleLogin() {
   font-size: 14px;
   text-align: center;
   font-weight: 500;
+}
+
+.login-modal-error:focus-visible {
+  outline: 3px solid rgba(180, 35, 24, 0.25);
+  outline-offset: 3px;
 }
 
 .login-modal-buttons {

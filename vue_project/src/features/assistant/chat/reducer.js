@@ -9,6 +9,9 @@ export function createChatStreamMessage(overrides = {}) {
     storedFullReply: '',
     finishReason: '',
     truncated: false,
+    retryCount: 0,
+    retryReason: '',
+    agentTraces: [],
     detailIndex: 1,
     toolCalls: [],
     ...overrides,
@@ -31,6 +34,9 @@ export function createChatStreamState({
       finishReason: String(message?.finishReason || ''),
       truncated: Boolean(message?.truncated),
       toolCalls: Array.isArray(message?.toolCalls) ? [...message.toolCalls] : [],
+      agentTraces: Array.isArray(message?.agentTraces)
+        ? message.agentTraces.map((trace) => ({ ...trace }))
+        : [],
       sources: Array.isArray(message?.sources) ? [...message.sources] : [],
     },
     fullReply: String(fullReply || ''),
@@ -84,33 +90,93 @@ export function reduceChatStreamEvent(
     next.fullReply += delta
     next.message.text += delta
     effects.shouldScroll = true
+  } else if (event?.step === 'text_replace') {
+    const replacement = String(event.text || '')
+    next.fullReply = replacement
+    next.message.text = replacement
+    effects.shouldScroll = true
   } else if (event?.step === 'thinking_delta' && event.text) {
-    next.message.thinking += String(event.text)
+    if (event.agent_role === 'subagent') {
+      const sessionId = String(event.session_id || 'subagent')
+      const traces = current.message.agentTraces.map((trace) => ({ ...trace }))
+      const index = traces.findIndex((trace) => trace.sessionId === sessionId)
+      if (index >= 0) traces[index].thinking = String(traces[index].thinking || '') + String(event.text)
+      else traces.push({ sessionId, thinking: String(event.text), text: '' })
+      next.message.agentTraces = traces
+    } else {
+      next.message.thinking += String(event.text)
+    }
+    effects.shouldScroll = true
+  } else if (event?.step === 'subagent_text_delta' && event.text) {
+    const sessionId = String(event.session_id || 'subagent')
+    const traces = current.message.agentTraces.map((trace) => ({ ...trace }))
+    const index = traces.findIndex((trace) => trace.sessionId === sessionId)
+    if (index >= 0) traces[index].text = String(traces[index].text || '') + String(event.text)
+    else traces.push({ sessionId, thinking: '', text: String(event.text) })
+    next.message.agentTraces = traces
+    effects.shouldScroll = true
   } else if (event?.step === 'tool_executing') {
-    next.message.toolCalls = [
-      ...current.message.toolCalls,
-      {
-        type: 'tool_executing',
-        name: event.tool || 'tool',
-        input: event.input || {},
-        invoke: event.invoke || {},
-      },
-    ]
+    const callId = String(event.call_id || '')
+    const toolCalls = current.message.toolCalls.map((tool) => ({ ...tool }))
+    const existingIndex = callId
+      ? toolCalls.findIndex((tool) => tool.callId === callId)
+      : -1
+    const toolCall = {
+      type: 'tool_executing',
+      name: event.tool || 'tool',
+      callId,
+      sessionId: String(event.session_id || ''),
+      agentRole: String(event.agent_role || 'root'),
+      label: event.label || '',
+      input: event.input ?? null,
+      argumentsText: String(event.arguments || ''),
+      invoke: event.invoke || {},
+    }
+    if (existingIndex >= 0) toolCalls[existingIndex] = { ...toolCalls[existingIndex], ...toolCall }
+    else toolCalls.push(toolCall)
+    next.message.toolCalls = toolCalls
+    effects.pageActionPhase = 'executing'
+    effects.shouldScroll = true
+  } else if (event?.step === 'tool_update') {
+    const callId = String(event.call_id || '')
+    const toolCalls = current.message.toolCalls.map((tool) => ({ ...tool }))
+    const index = toolCalls.findIndex((tool) => tool.callId === callId)
+    const update = {
+      name: event.tool || 'tool',
+      callId,
+      sessionId: String(event.session_id || ''),
+      agentRole: String(event.agent_role || 'root'),
+      label: event.label || '',
+      input: event.input ?? null,
+      argumentsText: String(event.arguments || ''),
+      invoke: event.invoke || {},
+    }
+    if (index >= 0) toolCalls[index] = { ...toolCalls[index], ...update }
+    else toolCalls.push({ type: 'tool_executing', ...update })
+    next.message.toolCalls = toolCalls
     effects.pageActionPhase = 'executing'
     effects.shouldScroll = true
   } else if (event?.step === 'tool_finished') {
     const toolCalls = current.message.toolCalls.map((tool) => ({ ...tool }))
-    const index = toolCalls.map((tool) => tool.name).lastIndexOf(event.tool)
+    const callId = String(event.call_id || '')
+    const index = callId
+      ? toolCalls.findIndex((tool) => tool.callId === callId)
+      : toolCalls.map((tool) => tool.name).lastIndexOf(event.tool)
     if (index >= 0 && toolCalls[index].type === 'tool_executing') {
       toolCalls[index] = {
         ...toolCalls[index],
         type: 'tool_finished',
+        label: event.label || event.result?.label || toolCalls[index].label || '',
         result: event.result || {},
       }
     } else {
       toolCalls.push({
         type: 'tool_finished',
         name: event.tool || '',
+        callId,
+        sessionId: String(event.session_id || ''),
+        agentRole: String(event.agent_role || 'root'),
+        label: event.label || event.result?.label || '',
         result: event.result || {},
         invoke: {},
         input: {},
@@ -122,13 +188,52 @@ export function reduceChatStreamEvent(
       next.message.sources = mergeSourceGroups(current.message.sources, groups)
     }
     effects.pageActionPhase = 'finished'
+    effects.shouldScroll = true
+  } else if (event?.step === 'subagent_started') {
+    const callId = String(event.call_id || event.child_session_id || '')
+    const toolCalls = current.message.toolCalls.map((tool) => ({ ...tool }))
+    const index = toolCalls.findIndex((tool) => tool.callId === callId)
+    const subagent = {
+      type: 'tool_executing',
+      name: 'subagent',
+      callId,
+      label: 'subagent',
+      input: event.description ? { description: event.description } : null,
+      argumentsText: String(event.description || ''),
+      invoke: { kind: 'dsh_subagent' },
+    }
+    if (index >= 0) toolCalls[index] = { ...toolCalls[index], ...subagent }
+    else toolCalls.push(subagent)
+    next.message.toolCalls = toolCalls
+    effects.pageActionPhase = 'executing'
+    effects.shouldScroll = true
+  } else if (event?.step === 'subagent_finished') {
+    const callId = String(event.call_id || event.child_session_id || '')
+    const toolCalls = current.message.toolCalls.map((tool) => ({ ...tool }))
+    const index = toolCalls.findIndex((tool) => tool.callId === callId)
+    if (index >= 0) {
+      toolCalls[index] = {
+        ...toolCalls[index],
+        type: 'tool_finished',
+        result: event.result || { ok: true },
+      }
+    }
+    next.message.toolCalls = toolCalls
+    effects.pageActionPhase = 'finished'
+    effects.shouldScroll = true
+  } else if (event?.step === 'retry') {
+    const nextAttempt = Number(next.message.retryCount || 0) + 1
+    next.message.retryCount = Number(event.attempt || nextAttempt)
+    next.message.retryReason = String(event.reason || '')
+    effects.shouldScroll = true
   } else if (event?.step === 'done' && event.reply != null) {
     const finalReply = String(event.reply)
     next.fullReply = finalReply
     next.message.storedFullReply = finalReply
-    if (finalReply.length >= next.message.text.length) next.message.text = finalReply
+    next.message.text = finalReply
     next.message.finishReason = String(event.finish_reason || '')
     next.message.truncated = Boolean(event.truncated || event.finish_reason === 'length')
+    next.message.statusLine = ''
   } else if (event?.step === 'error') {
     next.error = chatStreamEventError(event)
   }

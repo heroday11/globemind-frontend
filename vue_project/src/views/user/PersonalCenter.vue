@@ -1,19 +1,102 @@
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/theme-chalk/el-message-box.css'
 import { API_PREFIX } from '@/config/api'
+import {
+  formatRevokedSessionCount,
+  normalizeIdentitySecuritySnapshot,
+  securityFailureMessage,
+} from '@/governance/identitySecurity'
 import { clearAuth, getToken, setCurrentUser } from '@/utils/auth'
+import DisplayPreferencesPanel from './DisplayPreferencesPanel.vue'
 
 const router = useRouter()
+const route = useRoute()
+const settingsTabs = Object.freeze([
+  { id: 'basic-info', label: '基本资料' },
+  { id: 'password', label: '修改密码' },
+  { id: 'security', label: '登录安全' },
+  { id: 'api-config', label: 'API 配置' },
+  { id: 'assistant-memory', label: '助手记忆' },
+  { id: 'privacy', label: '隐私权利' },
+  { id: 'display', label: '显示设置' },
+])
+const settingsTabIds = new Set(settingsTabs.map((tab) => tab.id))
+
+function normalizeSettingsTab(value) {
+  const tab = Array.isArray(value) ? value[0] : value
+  return settingsTabIds.has(tab) ? tab : 'basic-info'
+}
 const loading = ref(false)
 const savingProfile = ref(false)
 const changingPwd = ref(false)
+const securityLoading = ref(false)
+const securityStatus = ref(null)
+const securityCapabilities = ref(null)
+const securitySessions = ref([])
+const securityAudit = ref([])
+const securityNotice = ref('')
+const securityNoticeKind = ref('status')
+const securityNoticeElement = ref(null)
+const securityMfaLabel = computed(() => {
+  if (securityStatus.value?.enabled === true) return '已启用'
+  if (securityStatus.value?.enabled === false) return '未启用'
+  return '状态未知'
+})
+const enrollment = ref(null)
+const oneTimeRecoveryCodes = ref([])
+const mfaConfirmCode = ref('')
+const disableMode = ref('totp')
+const disableForm = reactive({ password: '', code: '', recovery_code: '' })
+let securityLoadGeneration = 0
 const savingApi = ref(false)
 const memoryLoading = ref(false)
 const clearingMemory = ref(false)
-const activeTab = ref('basic-info')
+const privacyLoading = ref(false)
+const exportingPersonalData = ref(false)
+const creatingDeletionRequest = ref(false)
+const cancellingDeletionRequestId = ref('')
+const deletionRequests = ref([])
+const deletionPlanLoading = ref(false)
+const deletionPlan = ref(null)
+const deletionPlanError = ref('')
+const deletionForm = reactive({ password: '', acknowledgement: '' })
+const activeTab = ref(normalizeSettingsTab(route.query.tab))
+const activeTabIndex = computed(() =>
+  Math.max(
+    0,
+    settingsTabs.findIndex((tab) => tab.id === activeTab.value),
+  ),
+)
+const deletionDispositionLabels = Object.freeze({
+  delete: '计划删除',
+  anonymize: '计划匿名化',
+  retain: '计划保留',
+  review_required: '需要复核',
+  unavailable: '范围不可用',
+})
+const deletionPlanSummary = computed(() => {
+  const summary = deletionPlan.value?.disposition_summary
+  if (!summary || typeof summary !== 'object') return []
+  return Object.keys(deletionDispositionLabels).map((disposition) => {
+    const item = summary[disposition] || {}
+    return {
+      disposition,
+      label: deletionDispositionLabels[disposition],
+      scopes: Number(item.scope_count) || 0,
+      records: Number(item.exact_record_count) || 0,
+      unavailable: Number(item.unavailable_scope_count) || 0,
+    }
+  })
+})
+const deletionPlanItems = computed(() =>
+  Array.isArray(deletionPlan.value?.impact_items) ? deletionPlan.value.impact_items : [],
+)
+const deletionPlanBlockers = computed(() =>
+  Array.isArray(deletionPlan.value?.external_blockers) ? deletionPlan.value.external_blockers : [],
+)
 const formData = reactive({ full_name: '', email: '', phone: '' })
 const profile = reactive({ username: '', full_name: '', email: '', phone: '', created_at: '' })
 const passwordForm = reactive({ old_password: '', new_password: '', confirm_password: '' })
@@ -136,10 +219,177 @@ response = client.chat.completions.create(
   },
 }
 
+function selectSettingsTab(tab) {
+  const normalized = normalizeSettingsTab(tab)
+  activeTab.value = normalized
+  const query = { ...route.query }
+  if (normalized === 'basic-info') delete query.tab
+  else query.tab = normalized
+  router.replace({ query })
+}
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    activeTab.value = normalizeSettingsTab(tab)
+  },
+)
+
 function authHeaders() {
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${getToken()}`,
+  }
+}
+
+function safeSecurityError(error, fallback) {
+  return error?.code === 'IDENTITY_SECURITY_SAFE_ERROR' ? error.message : fallback
+}
+
+async function announceSecurity(message, kind = 'status') {
+  securityNotice.value = message
+  securityNoticeKind.value = kind
+  await nextTick()
+  securityNoticeElement.value?.focus()
+}
+
+async function securityRequest(path, { method = 'GET', body } = {}) {
+  const response = await fetch(`${API_PREFIX}${path}`, {
+    method,
+    headers: authHeaders(),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const error = new Error(securityFailureMessage(payload))
+    error.code = 'IDENTITY_SECURITY_SAFE_ERROR'
+    throw error
+  }
+  return payload
+}
+
+async function loadSecurity() {
+  const generation = ++securityLoadGeneration
+  securityLoading.value = true
+  securityStatus.value = null
+  securityCapabilities.value = null
+  securitySessions.value = []
+  securityAudit.value = []
+  try {
+    const [status, sessions, audit] = await Promise.all([
+      securityRequest('/user/security/mfa'),
+      securityRequest('/user/security/sessions'),
+      securityRequest('/user/security/audit'),
+    ])
+    if (generation !== securityLoadGeneration) return
+    const snapshot = normalizeIdentitySecuritySnapshot(status, sessions, audit)
+    if (snapshot.contractState !== 'contract_validated') {
+      const error = new Error('身份安全状态契约不可用')
+      error.code = 'IDENTITY_SECURITY_SAFE_ERROR'
+      throw error
+    }
+    securityStatus.value = snapshot.status
+    securityCapabilities.value = snapshot.capabilities
+    securitySessions.value = snapshot.sessions
+    securityAudit.value = snapshot.audit
+  } catch (error) {
+    if (generation !== securityLoadGeneration) return
+    await announceSecurity(safeSecurityError(error, '身份安全状态加载失败'), 'error')
+  } finally {
+    if (generation === securityLoadGeneration) securityLoading.value = false
+  }
+}
+
+async function beginMfaEnrollment() {
+  securityLoading.value = true
+  oneTimeRecoveryCodes.value = []
+  try {
+    enrollment.value = await securityRequest('/user/security/mfa/enroll', { method: 'POST' })
+    await loadSecurity()
+    await announceSecurity('已生成待确认的 TOTP 密钥。完成动态码确认前不会启用 MFA。')
+  } catch (error) {
+    await announceSecurity(safeSecurityError(error, '无法开始 MFA 设置'), 'error')
+  } finally {
+    securityLoading.value = false
+  }
+}
+
+async function confirmMfaEnrollment() {
+  securityLoading.value = true
+  try {
+    const result = await securityRequest('/user/security/mfa/confirm', {
+      method: 'POST',
+      body: { code: mfaConfirmCode.value },
+    })
+    oneTimeRecoveryCodes.value = Array.isArray(result.recovery_codes) ? result.recovery_codes : []
+    enrollment.value = null
+    mfaConfirmCode.value = ''
+    await loadSecurity()
+    await announceSecurity('MFA 已启用。请立即离线保存恢复码；离开后无法再次查看。')
+  } catch (error) {
+    await announceSecurity(safeSecurityError(error, '动态码确认失败'), 'error')
+  } finally {
+    securityLoading.value = false
+  }
+}
+
+async function disableMfa() {
+  securityLoading.value = true
+  try {
+    const body =
+      disableMode.value === 'totp'
+        ? { password: disableForm.password, code: disableForm.code }
+        : {
+            recovery_code: String(disableForm.recovery_code || '')
+              .trim()
+              .toUpperCase(),
+          }
+    await securityRequest('/user/security/mfa/disable', { method: 'POST', body })
+    Object.assign(disableForm, { password: '', code: '', recovery_code: '' })
+    oneTimeRecoveryCodes.value = []
+    await loadSecurity()
+    await announceSecurity('MFA 已停用。')
+  } catch (error) {
+    await announceSecurity(safeSecurityError(error, 'MFA 停用失败'), 'error')
+  } finally {
+    securityLoading.value = false
+  }
+}
+
+async function revokeSession(session) {
+  securityLoading.value = true
+  try {
+    const result = await securityRequest(
+      `/user/security/sessions/${encodeURIComponent(session.sessionId)}/revoke`,
+      { method: 'POST', body: { reason: 'user revoked session from personal center' } },
+    )
+    if (result.current_session_revoked) {
+      clearAuth()
+      await router.replace('/login')
+      return
+    }
+    await loadSecurity()
+    await announceSecurity('会话已撤销。')
+  } catch (error) {
+    await announceSecurity(safeSecurityError(error, '会话撤销失败'), 'error')
+  } finally {
+    securityLoading.value = false
+  }
+}
+
+async function revokeOtherSessions() {
+  securityLoading.value = true
+  try {
+    const result = await securityRequest('/user/security/sessions/revoke-others', {
+      method: 'POST',
+      body: { reason: 'user revoked other sessions from personal center' },
+    })
+    await loadSecurity()
+    await announceSecurity(formatRevokedSessionCount(result.revoked_count))
+  } catch (error) {
+    await announceSecurity(safeSecurityError(error, '其他会话撤销失败'), 'error')
+  } finally {
+    securityLoading.value = false
   }
 }
 
@@ -159,12 +409,27 @@ function parseApiKeys(raw) {
 
 function syncImageApiDraftFromConfig(publicConfig = {}) {
   const keys = publicConfig && typeof publicConfig === 'object' ? publicConfig : {}
-  const image = keys.image && typeof keys.image === 'object' && !Array.isArray(keys.image) ? keys.image : {}
+  const image =
+    keys.image && typeof keys.image === 'object' && !Array.isArray(keys.image) ? keys.image : {}
   imageApiDraft.backend = image.backend || keys.image_backend || 'openai'
   const tpl = getImageBackendTemplate(imageApiDraft.backend)
   imageApiDraft.api_key = ''
-  imageApiDraft.base_url = image.base_url || image.openai_base_url || image.qwen_base_url || keys.image_base_url || keys.image_openai_base_url || keys.image_qwen_base_url || ''
-  imageApiDraft.model = image.model || image.openai_model || image.qwen_model || keys.image_model || keys.image_openai_model || keys.image_qwen_model || tpl.model
+  imageApiDraft.base_url =
+    image.base_url ||
+    image.openai_base_url ||
+    image.qwen_base_url ||
+    keys.image_base_url ||
+    keys.image_openai_base_url ||
+    keys.image_qwen_base_url ||
+    ''
+  imageApiDraft.model =
+    image.model ||
+    image.openai_model ||
+    image.qwen_model ||
+    keys.image_model ||
+    keys.image_openai_model ||
+    keys.image_qwen_model ||
+    tpl.model
 }
 
 function replaceApiKeyStatus(status = {}) {
@@ -201,7 +466,11 @@ function handleImageBackendChange(backend) {
 function formatMemoryTime(value) {
   if (!value) return '暂无更新'
   const text = String(value)
-  return text.replace('T', ' ').replace(/\.\d+/, '').replace(/\+00:00$/, '').slice(0, 19)
+  return text
+    .replace('T', ' ')
+    .replace(/\.\d+/, '')
+    .replace(/\+00:00$/, '')
+    .slice(0, 19)
 }
 
 function applyProviderTemplate(provider, { preserveKey = true, force = false } = {}) {
@@ -230,7 +499,8 @@ function buildApiKeysPayload() {
     keepStoredApiKey(tpl.keyName)
   }
   const backend = imageApiDraft.backend || 'openai'
-  const image = keys.image && typeof keys.image === 'object' && !Array.isArray(keys.image) ? keys.image : {}
+  const image =
+    keys.image && typeof keys.image === 'object' && !Array.isArray(keys.image) ? keys.image : {}
   keys.image = {
     ...image,
     backend,
@@ -322,6 +592,8 @@ async function handlePasswordSubmit() {
     passwordForm.old_password = ''
     passwordForm.new_password = ''
     passwordForm.confirm_password = ''
+    clearAuth()
+    await router.replace('/login')
   } catch (e) {
     ElMessage.error(e.message || '修改密码失败')
   } finally {
@@ -390,7 +662,7 @@ async function clearAssistantMemory() {
         type: 'warning',
         appendTo: 'body',
         lockScroll: true,
-      }
+      },
     )
   } catch {
     return
@@ -417,9 +689,159 @@ async function clearAssistantMemory() {
   }
 }
 
+async function loadDeletionRequests() {
+  privacyLoading.value = true
+  try {
+    const res = await fetch(`${API_PREFIX}/user/privacy/deletion-requests`, {
+      headers: authHeaders(),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.detail || '获取删除申请失败')
+    deletionRequests.value = Array.isArray(data.items) ? data.items : []
+  } catch (e) {
+    ElMessage.error(e.message || '获取删除申请失败')
+  } finally {
+    privacyLoading.value = false
+  }
+}
+
+async function loadDeletionImpactPlan() {
+  deletionPlanLoading.value = true
+  deletionPlanError.value = ''
+  try {
+    const res = await fetch(`${API_PREFIX}/user/privacy/deletion-impact-plan`, {
+      headers: authHeaders(),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.detail || '账号删除影响预检失败')
+    if (
+      data.schema_version !== 'account-deletion-impact-plan-v1' ||
+      data.deletion_performed !== false ||
+      data.execution_state !== 'blocked' ||
+      data.operation_mode !== 'read_only_preflight'
+    ) {
+      throw new Error('账号删除影响预检返回了不安全的执行状态')
+    }
+    deletionPlan.value = data
+  } catch (e) {
+    deletionPlan.value = null
+    deletionPlanError.value = e.message || '账号删除影响预检失败'
+  } finally {
+    deletionPlanLoading.value = false
+  }
+}
+
+async function loadPrivacyOverview() {
+  await Promise.all([loadDeletionRequests(), loadDeletionImpactPlan()])
+}
+
+async function exportPersonalData() {
+  exportingPersonalData.value = true
+  try {
+    const res = await fetch(`${API_PREFIX}/user/privacy/export`, {
+      headers: authHeaders(),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.detail || '个人数据导出失败')
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `globemind-personal-data-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    if (data.complete) {
+      ElMessage.success('个人数据导出已下载')
+    } else {
+      ElMessage.warning('已下载当前可安全导出的数据；文件内列出了未导出或截断的范围')
+    }
+  } catch (e) {
+    ElMessage.error(e.message || '个人数据导出失败')
+  } finally {
+    exportingPersonalData.value = false
+  }
+}
+
+async function createDeletionRequest() {
+  if (deletionForm.acknowledgement !== 'REQUEST ACCOUNT DELETION') {
+    ElMessage.warning('请输入完整确认短语')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '此步骤只登记删除申请，不会立即删除账号。工作区、定时任务、研究项目和法定保留范围完成核验前，申请会保持待人工执行。',
+      '登记账号删除申请',
+      {
+        confirmButtonText: '登记申请',
+        cancelButtonText: '取消',
+        type: 'warning',
+        appendTo: 'body',
+      },
+    )
+  } catch {
+    return
+  }
+  creatingDeletionRequest.value = true
+  try {
+    const res = await fetch(`${API_PREFIX}/user/privacy/deletion-requests`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(deletionForm),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.detail || '删除申请登记失败')
+    deletionForm.password = ''
+    deletionForm.acknowledgement = ''
+    await loadDeletionRequests()
+    ElMessage.success('删除申请已登记；当前尚未执行删除')
+  } catch (e) {
+    ElMessage.error(e.message || '删除申请登记失败')
+  } finally {
+    deletionForm.password = ''
+    creatingDeletionRequest.value = false
+  }
+}
+
+async function cancelDeletionRequest(requestId) {
+  try {
+    await ElMessageBox.confirm('撤销后，该申请不会进入后续人工执行流程。', '撤销删除申请', {
+      confirmButtonText: '撤销申请',
+      cancelButtonText: '保留申请',
+      type: 'warning',
+      appendTo: 'body',
+    })
+  } catch {
+    return
+  }
+  cancellingDeletionRequestId.value = requestId
+  try {
+    const res = await fetch(
+      `${API_PREFIX}/user/privacy/deletion-requests/${encodeURIComponent(requestId)}/cancel`,
+      { method: 'POST', headers: authHeaders() },
+    )
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.detail || '撤销删除申请失败')
+    await loadDeletionRequests()
+    ElMessage.success('删除申请已撤销')
+  } catch (e) {
+    ElMessage.error(e.message || '撤销删除申请失败')
+  } finally {
+    cancellingDeletionRequestId.value = ''
+  }
+}
+
+watch(activeTab, (tab) => {
+  if (tab === 'privacy') loadPrivacyOverview()
+  if (tab === 'security') loadSecurity()
+})
+
 onMounted(async () => {
   await loadProfile()
   await loadAssistantMemory()
+  if (activeTab.value === 'privacy') await loadPrivacyOverview()
+  if (activeTab.value === 'security') await loadSecurity()
 })
 
 onBeforeUnmount(() => {
@@ -434,7 +856,7 @@ onBeforeUnmount(() => {
       <div class="pc-header-body">
         <div class="pc-header-overline">ACCOUNT SETTINGS</div>
         <h1 class="pc-header-title">个人中心</h1>
-        <p class="pc-header-desc">查看账号信息，维护基本资料与登录密码</p>
+        <p class="pc-header-desc">管理账号、安全、模型与全站显示偏好</p>
       </div>
       <div class="pc-header-visual" aria-hidden="true">
         <div class="pc-header-ring pc-header-ring--1"></div>
@@ -459,19 +881,33 @@ onBeforeUnmount(() => {
               </span>
             </div>
             <svg class="pc-avatar-progress" viewBox="0 0 100 100" aria-hidden="true">
-              <circle cx="50" cy="50" r="46" fill="none" stroke="var(--pc-border-light)" stroke-width="3" />
               <circle
-                cx="50" cy="50" r="46" fill="none"
-                stroke="var(--uc-accent)" stroke-width="3"
+                cx="50"
+                cy="50"
+                r="46"
+                fill="none"
+                stroke="var(--pc-border-light)"
+                stroke-width="3"
+              />
+              <circle
+                cx="50"
+                cy="50"
+                r="46"
+                fill="none"
+                stroke="var(--uc-accent)"
+                stroke-width="3"
                 stroke-linecap="round"
-                stroke-dasharray="289" stroke-dashoffset="72"
+                stroke-dasharray="289"
+                stroke-dashoffset="72"
                 transform="rotate(-90 50 50)"
                 class="pc-avatar-arc"
               />
             </svg>
           </div>
           <div class="pc-avatar-info">
-            <span class="pc-avatar-name">{{ profile.full_name || profile.username || '未设置' }}</span>
+            <span class="pc-avatar-name">{{
+              profile.full_name || profile.username || '未设置'
+            }}</span>
             <span class="pc-avatar-handle">@{{ profile.username || '...' }}</span>
           </div>
           <div class="pc-badge">
@@ -514,42 +950,24 @@ onBeforeUnmount(() => {
       <!-- RIGHT: Settings Card -->
       <section class="pc-card pc-card--settings">
         <!-- Tab bar -->
-        <nav class="pc-tabs" data-tour="account-preferences" :data-tab="activeTab">
+        <nav
+          class="pc-tabs"
+          data-tour="account-preferences"
+          :data-tab="activeTab"
+          :style="{ '--pc-tab-index': activeTabIndex, '--pc-tab-count': settingsTabs.length }"
+          aria-label="个人设置分类"
+        >
           <button
+            v-for="(tab, index) in settingsTabs"
+            :key="tab.id"
             type="button"
             class="pc-tab"
-            :class="{ 'is-active': activeTab === 'basic-info' }"
-            @click="activeTab = 'basic-info'"
+            :class="{ 'is-active': activeTab === tab.id }"
+            :aria-current="activeTab === tab.id ? 'page' : undefined"
+            @click="selectSettingsTab(tab.id)"
           >
-            <span class="pc-tab-num">01</span>
-            <span class="pc-tab-label">基本资料</span>
-          </button>
-          <button
-            type="button"
-            class="pc-tab"
-            :class="{ 'is-active': activeTab === 'password' }"
-            @click="activeTab = 'password'"
-          >
-            <span class="pc-tab-num">02</span>
-            <span class="pc-tab-label">修改密码</span>
-          </button>
-          <button
-            type="button"
-            class="pc-tab"
-            :class="{ 'is-active': activeTab === 'api-config' }"
-            @click="activeTab = 'api-config'"
-          >
-            <span class="pc-tab-num">03</span>
-            <span class="pc-tab-label">API 配置</span>
-          </button>
-          <button
-            type="button"
-            class="pc-tab"
-            :class="{ 'is-active': activeTab === 'assistant-memory' }"
-            @click="activeTab = 'assistant-memory'"
-          >
-            <span class="pc-tab-num">04</span>
-            <span class="pc-tab-label">助手记忆</span>
+            <span class="pc-tab-num">{{ String(index + 1).padStart(2, '0') }}</span>
+            <span class="pc-tab-label">{{ tab.label }}</span>
           </button>
           <div class="pc-tab-track">
             <div class="pc-tab-thumb"></div>
@@ -566,36 +984,34 @@ onBeforeUnmount(() => {
             class="pc-form"
           >
             <div class="pc-field">
-              <label class="pc-field-label">姓名</label>
+              <label class="pc-field-label" for="profile-full-name">姓名（可选）</label>
               <el-input
+                id="profile-full-name"
                 v-model="formData.full_name"
-                placeholder="请输入您的真实姓名"
+                placeholder="可留空或清除"
                 class="pc-input"
               />
             </div>
             <div class="pc-field">
-              <label class="pc-field-label">邮箱地址</label>
+              <label class="pc-field-label" for="profile-email">邮箱地址</label>
               <el-input
+                id="profile-email"
                 v-model="formData.email"
                 placeholder="name@example.com"
                 class="pc-input"
               />
             </div>
             <div class="pc-field">
-              <label class="pc-field-label">手机号码</label>
+              <label class="pc-field-label" for="profile-phone">手机号码（可选）</label>
               <el-input
+                id="profile-phone"
                 v-model="formData.phone"
-                placeholder="请输入手机号"
+                placeholder="可留空或清除"
                 class="pc-input"
               />
             </div>
             <div class="pc-actions">
-              <el-button
-                type="primary"
-                :loading="savingProfile"
-                @click="handleSave"
-                class="pc-btn"
-              >
+              <el-button type="primary" :loading="savingProfile" @click="handleSave" class="pc-btn">
                 <span class="pc-btn-text">保存更改</span>
                 <span class="pc-btn-shimmer" aria-hidden="true"></span>
               </el-button>
@@ -654,6 +1070,209 @@ onBeforeUnmount(() => {
             </div>
           </el-form>
 
+          <section
+            v-if="activeTab === 'security'"
+            class="pc-form pc-security-panel"
+            :aria-busy="securityLoading"
+          >
+            <div class="pc-security-heading">
+              <div>
+                <span class="pc-api-kicker">ACCOUNT ASSURANCE</span>
+                <h2>登录安全</h2>
+              </div>
+              <strong
+                :class="
+                  securityStatus?.enabled === true
+                    ? 'is-enabled'
+                    : securityStatus?.enabled === false
+                      ? 'is-disabled'
+                      : 'is-unknown'
+                "
+              >
+                MFA {{ securityMfaLabel }}
+              </strong>
+            </div>
+            <p class="pc-security-boundary">
+              当前为基础 RFC 6238 TOTP 与可撤销 Web 会话；不代表机构 SSO、设备认证或独立安全验收。
+            </p>
+            <ul v-if="securityCapabilities" class="pc-security-capabilities">
+              <li>机构 SSO：未配置</li>
+              <li>安全密钥：未配置</li>
+              <li>受信设备：未配置</li>
+              <li>运行 IdP 证明：不可用</li>
+              <li>独立安全复核：未提供</li>
+            </ul>
+            <p v-else class="pc-security-boundary">能力状态契约尚不可用。</p>
+            <p
+              v-if="securityNotice"
+              ref="securityNoticeElement"
+              class="pc-security-notice"
+              :class="{ 'is-error': securityNoticeKind === 'error' }"
+              :role="securityNoticeKind === 'error' ? 'alert' : 'status'"
+              aria-live="polite"
+              tabindex="-1"
+            >
+              {{ securityNotice }}
+            </p>
+
+            <section class="pc-security-card" aria-labelledby="mfa-settings-title">
+              <h3 id="mfa-settings-title">双因素认证</h3>
+              <template v-if="securityStatus?.enabled === false">
+                <p>
+                  启用后，密码验证成功只会生成短期、单次的登录挑战；完成动态码或恢复码验证后才签发访问令牌。
+                </p>
+                <button
+                  type="button"
+                  class="pc-security-button"
+                  :disabled="securityLoading || securityStatus?.pendingEnrollment"
+                  @click="beginMfaEnrollment"
+                >
+                  {{
+                    securityStatus?.pendingEnrollment
+                      ? `待确认设置已存在（剩余 ${securityStatus.pendingAttemptsRemaining} 次）`
+                      : '开始设置 MFA'
+                  }}
+                </button>
+              </template>
+              <template v-else-if="securityStatus?.enabled === true">
+                <p>剩余未使用恢复码：{{ securityStatus.recoveryCodesRemaining }}</p>
+                <fieldset class="pc-security-methods">
+                  <legend>停用验证方式</legend>
+                  <label
+                    ><input v-model="disableMode" type="radio" value="totp" />密码 + 动态码</label
+                  >
+                  <label
+                    ><input v-model="disableMode" type="radio" value="recovery" />单枚恢复码</label
+                  >
+                </fieldset>
+                <div v-if="disableMode === 'totp'" class="pc-security-fields">
+                  <label for="mfa-disable-password">当前密码</label>
+                  <input
+                    id="mfa-disable-password"
+                    v-model="disableForm.password"
+                    type="password"
+                    autocomplete="current-password"
+                  />
+                  <label for="mfa-disable-code">6 位动态码</label>
+                  <input
+                    id="mfa-disable-code"
+                    v-model="disableForm.code"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    pattern="[0-9]{6}"
+                  />
+                </div>
+                <div v-else class="pc-security-fields">
+                  <label for="mfa-disable-recovery">恢复码</label>
+                  <input
+                    id="mfa-disable-recovery"
+                    v-model="disableForm.recovery_code"
+                    autocomplete="off"
+                    pattern="[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}"
+                  />
+                </div>
+                <button
+                  type="button"
+                  class="pc-security-button is-danger"
+                  :disabled="securityLoading"
+                  @click="disableMfa"
+                >
+                  停用 MFA
+                </button>
+              </template>
+              <p v-else>状态契约不可用时不会开放 MFA 变更操作。</p>
+
+              <div
+                v-if="enrollment"
+                class="pc-enrollment"
+                role="region"
+                aria-label="待确认 MFA 密钥"
+              >
+                <p>请将以下一次性密钥或 otpauth URI 添加到验证器。服务端仅保存 Fernet 加密密文。</p>
+                <strong>一次性密钥</strong>
+                <code>{{ enrollment.secret }}</code>
+                <strong>otpauth URI</strong>
+                <code>{{ enrollment.otpauth_uri }}</code>
+                <label for="mfa-confirm-code">验证器生成的 6 位动态码</label>
+                <input
+                  id="mfa-confirm-code"
+                  v-model="mfaConfirmCode"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  pattern="[0-9]{6}"
+                />
+                <button
+                  type="button"
+                  class="pc-security-button"
+                  :disabled="securityLoading"
+                  @click="confirmMfaEnrollment"
+                >
+                  确认并启用
+                </button>
+              </div>
+
+              <div v-if="oneTimeRecoveryCodes.length" class="pc-recovery-codes" role="alert">
+                <h4>恢复码仅显示这一次</h4>
+                <p>请立即离线保存。页面关闭或刷新后无法重新读取这些明文恢复码。</p>
+                <ul>
+                  <li v-for="code in oneTimeRecoveryCodes" :key="code">
+                    <code>{{ code }}</code>
+                  </li>
+                </ul>
+              </div>
+            </section>
+
+            <section class="pc-security-card" aria-labelledby="session-settings-title">
+              <div class="pc-security-card-heading">
+                <h3 id="session-settings-title">可撤销会话</h3>
+                <button
+                  type="button"
+                  class="pc-security-button"
+                  :disabled="securityLoading"
+                  @click="revokeOtherSessions"
+                >
+                  撤销其他活动会话
+                </button>
+              </div>
+              <p>
+                仅列出由真实登录流程签发并记录的 tracked session；旧 untracked token
+                不冒充为可撤销会话。
+              </p>
+              <ul class="pc-session-list">
+                <li v-for="session in securitySessions" :key="session.sessionId">
+                  <div>
+                    <strong
+                      >{{ session.current ? '当前会话' : '其他会话' }} ·
+                      {{ session.status }}</strong
+                    >
+                    <span>{{ session.issuedAt }} → {{ session.expiresAt }}</span>
+                    <small>last_seen：{{ session.lastSeenStatus }}</small>
+                  </div>
+                  <button
+                    v-if="session.status === 'active'"
+                    type="button"
+                    class="pc-security-button is-danger"
+                    :disabled="securityLoading"
+                    @click="revokeSession(session)"
+                  >
+                    撤销
+                  </button>
+                </li>
+              </ul>
+            </section>
+
+            <details class="pc-security-card">
+              <summary>脱敏安全审计（最近 {{ securityAudit.length }} 条）</summary>
+              <ul class="pc-audit-list">
+                <li v-for="event in securityAudit" :key="event.eventId">
+                  <strong>{{ event.action }}</strong>
+                  <span>{{ event.timestamp }} · version {{ event.sequence }}</span>
+                  <small>reason SHA-256：{{ event.reasonSha256 }}</small>
+                </li>
+              </ul>
+            </details>
+          </section>
+
           <!-- API Config Form -->
           <el-form
             v-if="activeTab === 'api-config'"
@@ -690,7 +1309,12 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     class="pc-template-apply"
-                    @click="applyProviderTemplate(apiConfig.active_provider, { preserveKey: true, force: true })"
+                    @click="
+                      applyProviderTemplate(apiConfig.active_provider, {
+                        preserveKey: true,
+                        force: true,
+                      })
+                    "
                   >
                     应用模板
                   </button>
@@ -722,9 +1346,14 @@ onBeforeUnmount(() => {
               />
               <span v-if="hasStoredApiKey(getTemplate().keyName)" class="pc-field-help">
                 已保存密钥，出于安全不会回显。留空会继续保留。
-                <el-button link type="danger" @click="clearStoredApiKey(getTemplate().keyName)">移除</el-button>
+                <el-button link type="danger" @click="clearStoredApiKey(getTemplate().keyName)"
+                  >移除</el-button
+                >
               </span>
-              <span v-else-if="apiKeysToClear.includes(getTemplate().keyName)" class="pc-field-help">
+              <span
+                v-else-if="apiKeysToClear.includes(getTemplate().keyName)"
+                class="pc-field-help"
+              >
                 保存后将移除该密钥。
                 <el-button link @click="keepStoredApiKey(getTemplate().keyName)">撤销</el-button>
               </span>
@@ -780,7 +1409,8 @@ onBeforeUnmount(() => {
                 <span class="pc-image-api-mode">公共账号优先，个人配置兜底</span>
               </div>
               <p class="pc-image-api-desc">
-                留空时仅使用平台公共图片账号；填写个人 Key 后，公共账号额度不足、失效或限流时会自动重试个人配置。
+                留空时仅使用平台公共图片账号；填写个人 Key
+                后，公共账号额度不足、失效或限流时会自动重试个人配置。
               </p>
 
               <div class="pc-api-row">
@@ -822,7 +1452,9 @@ onBeforeUnmount(() => {
                 />
                 <span v-if="hasStoredApiKey('image.api_key')" class="pc-field-help">
                   已保存图片密钥，出于安全不会回显。留空会继续保留。
-                  <el-button link type="danger" @click="clearStoredApiKey('image.api_key')">移除</el-button>
+                  <el-button link type="danger" @click="clearStoredApiKey('image.api_key')"
+                    >移除</el-button
+                  >
                 </span>
                 <span v-else-if="apiKeysToClear.includes('image.api_key')" class="pc-field-help">
                   保存后将移除图片密钥。
@@ -865,16 +1497,14 @@ onBeforeUnmount(() => {
 
             <div v-if="apiConfig.active_provider === 'deepseek'" class="pc-field pc-field--compact">
               <label class="pc-field-label">兼容说明</label>
-              <span class="pc-field-help">数据助手使用 OpenAI 兼容地址；需要 Anthropic SDK 时请在对应工具中使用 <code>https://api.deepseek.com/anthropic</code>。</span>
+              <span class="pc-field-help"
+                >数据助手使用 OpenAI 兼容地址；需要 Anthropic SDK 时请在对应工具中使用
+                <code>https://api.deepseek.com/anthropic</code>。</span
+              >
             </div>
 
             <div class="pc-actions">
-              <el-button
-                type="primary"
-                :loading="savingApi"
-                @click="handleSaveApi"
-                class="pc-btn"
-              >
+              <el-button type="primary" :loading="savingApi" @click="handleSaveApi" class="pc-btn">
                 <span class="pc-btn-text">保存 API 配置</span>
                 <span class="pc-btn-shimmer" aria-hidden="true"></span>
               </el-button>
@@ -892,7 +1522,9 @@ onBeforeUnmount(() => {
                 <span class="pc-api-kicker">HERMES MEMORY</span>
                 <h2 class="pc-api-title">助手长期记忆</h2>
               </div>
-              <span class="pc-api-status">更新于 {{ formatMemoryTime(assistantMemory.updated_at) }}</span>
+              <span class="pc-api-status"
+                >更新于 {{ formatMemoryTime(assistantMemory.updated_at) }}</span
+              >
             </div>
 
             <section class="pc-memory-card">
@@ -900,9 +1532,12 @@ onBeforeUnmount(() => {
                 <span>当前保存的用户印象</span>
                 <strong>{{ assistantMemory.memory_summary ? '已启用' : '暂无记忆' }}</strong>
               </div>
-              <pre v-if="assistantMemory.memory_summary" class="pc-memory-text">{{ assistantMemory.memory_summary }}</pre>
+              <pre v-if="assistantMemory.memory_summary" class="pc-memory-text">{{
+                assistantMemory.memory_summary
+              }}</pre>
               <div v-else class="pc-memory-empty">
-                Hermes 暂未形成长期记忆。后续对话中，系统只会保存稳定偏好、常用工作方式和长期背景摘要。
+                Hermes
+                暂未形成长期记忆。后续对话中，系统只会保存稳定偏好、常用工作方式和长期背景摘要。
               </div>
             </section>
 
@@ -926,6 +1561,205 @@ onBeforeUnmount(() => {
               <span class="pc-actions-hint">当前仅显示你自己的 Hermes 记忆</span>
             </div>
           </div>
+
+          <div
+            v-if="activeTab === 'privacy'"
+            class="pc-form pc-privacy-panel"
+            v-loading="privacyLoading"
+          >
+            <div class="pc-api-head">
+              <div>
+                <span class="pc-api-kicker">PRIVACY RIGHTS</span>
+                <h2 class="pc-api-title">个人数据访问与删除申请</h2>
+              </div>
+              <span class="pc-api-status">本人账号范围</span>
+            </div>
+
+            <section class="pc-privacy-card" aria-labelledby="personal-export-title">
+              <h3 id="personal-export-title">导出当前可访问的数据</h3>
+              <p>
+                JSON
+                导出包含账号资料、搜索记录、收藏、助手会话和助手记忆，以及可安全证明归属的工作区文件元数据、文件哈希与下载路径、定时任务和已引用报告元数据、当前项目权限下的项目元数据与本人提交内容；不包含密码哈希、重置令牌或
+                API Key
+                值。工作区或报告正文、敏感任务上下文、其他项目成员私密字段及无法安全验证的范围会明确列为
+                unavailable。
+              </p>
+              <el-button
+                type="primary"
+                class="pc-btn"
+                :loading="exportingPersonalData"
+                @click="exportPersonalData"
+              >
+                下载个人数据 JSON
+              </el-button>
+            </section>
+
+            <section
+              class="pc-privacy-card pc-deletion-plan"
+              aria-labelledby="deletion-impact-title"
+              :aria-busy="deletionPlanLoading"
+            >
+              <div class="pc-deletion-plan-head">
+                <div>
+                  <h3 id="deletion-impact-title">账号删除影响预检（只读）</h3>
+                  <p>
+                    仅统计当前能安全证明属于本人的数据范围并生成受阻执行计划；不会登记申请，也不会删除、匿名化或改写任何数据。
+                  </p>
+                </div>
+                <strong class="pc-deletion-plan-state">执行受阻</strong>
+              </div>
+
+              <p
+                v-if="deletionPlanError"
+                class="pc-deletion-plan-error"
+                role="alert"
+                aria-live="assertive"
+              >
+                {{ deletionPlanError }}。未能证明的范围不会按 0 条处理。
+              </p>
+              <p
+                v-else-if="deletionPlanLoading"
+                class="pc-memory-empty"
+                role="status"
+                aria-live="polite"
+              >
+                正在执行只读影响预检…
+              </p>
+              <div v-else-if="deletionPlan" class="pc-deletion-plan-result" aria-live="polite">
+                <p class="pc-deletion-plan-boundary" role="status">
+                  deletion_performed=false ·
+                  execution_state=blocked。保留期限、法律依据、可恢复检查点和人工授权全部完成前，本计划不可执行。
+                </p>
+                <ul class="pc-deletion-plan-summary" aria-label="处置分类汇总">
+                  <li
+                    v-for="summary in deletionPlanSummary"
+                    :key="summary.disposition"
+                    :class="`is-${summary.disposition}`"
+                  >
+                    <strong>{{ summary.label }}</strong>
+                    <span>{{ summary.scopes }} 个范围 · {{ summary.records }} 条精确记录</span>
+                    <small v-if="summary.unavailable">
+                      {{ summary.unavailable }} 个范围计数不可用
+                    </small>
+                  </li>
+                </ul>
+
+                <details class="pc-deletion-plan-details">
+                  <summary>查看范围分类明细</summary>
+                  <ul>
+                    <li v-for="item in deletionPlanItems" :key="item.scope">
+                      <span>{{ item.scope }}</span>
+                      <strong>{{
+                        deletionDispositionLabels[item.disposition] || '需要复核'
+                      }}</strong>
+                      <small>
+                        {{
+                          item.count_status === 'exact' ? `${item.record_count} 条` : '计数不可用'
+                        }}
+                      </small>
+                    </li>
+                  </ul>
+                </details>
+
+                <details class="pc-deletion-plan-details">
+                  <summary>查看外部执行阻塞项</summary>
+                  <ul>
+                    <li v-for="blocker in deletionPlanBlockers" :key="blocker.code">
+                      <span>{{ blocker.category }}</span>
+                      <strong>未完成</strong>
+                      <small>{{ blocker.required_authority }}</small>
+                    </li>
+                  </ul>
+                </details>
+              </div>
+              <el-button
+                class="pc-deletion-plan-refresh"
+                :loading="deletionPlanLoading"
+                @click="loadDeletionImpactPlan"
+              >
+                刷新只读预检
+              </el-button>
+            </section>
+
+            <section
+              class="pc-privacy-card pc-privacy-card--warning"
+              aria-labelledby="deletion-request-title"
+            >
+              <h3 id="deletion-request-title">登记账号删除申请</h3>
+              <p>
+                当前流程只安全登记和撤销申请，不会声称已经删除。工作区、运行中的定时任务、研究项目权限和法定保留范围完成核验前，状态会保持“待人工执行”。
+              </p>
+              <div class="pc-field">
+                <label class="pc-field-label" for="privacy-password">当前密码</label>
+                <el-input
+                  id="privacy-password"
+                  v-model="deletionForm.password"
+                  type="password"
+                  show-password
+                  autocomplete="current-password"
+                  class="pc-input"
+                />
+              </div>
+              <div class="pc-field">
+                <label class="pc-field-label" for="privacy-acknowledgement">
+                  输入确认短语 REQUEST ACCOUNT DELETION
+                </label>
+                <el-input
+                  id="privacy-acknowledgement"
+                  v-model="deletionForm.acknowledgement"
+                  autocomplete="off"
+                  placeholder="REQUEST ACCOUNT DELETION"
+                  class="pc-input"
+                />
+              </div>
+              <el-button
+                type="primary"
+                class="pc-btn pc-btn--danger"
+                :loading="creatingDeletionRequest"
+                :disabled="
+                  !deletionForm.password ||
+                  deletionForm.acknowledgement !== 'REQUEST ACCOUNT DELETION'
+                "
+                @click="createDeletionRequest"
+              >
+                登记删除申请
+              </el-button>
+            </section>
+
+            <section class="pc-privacy-card" aria-labelledby="deletion-history-title">
+              <div class="pc-memory-card-head">
+                <h3 id="deletion-history-title">删除申请记录</h3>
+                <el-button size="small" @click="loadDeletionRequests">刷新</el-button>
+              </div>
+              <p v-if="!deletionRequests.length" class="pc-memory-empty" role="status">
+                当前没有删除申请。
+              </p>
+              <ul v-else class="pc-privacy-requests" aria-live="polite">
+                <li v-for="item in deletionRequests" :key="item.request_id">
+                  <div>
+                    <strong>{{ item.status === 'cancelled' ? '已撤销' : '待人工执行' }}</strong>
+                    <span>{{ item.requested_at }}</span>
+                    <small
+                      >执行状态：{{
+                        item.execution_status === 'not_executed'
+                          ? '尚未执行'
+                          : item.execution_status
+                      }}</small
+                    >
+                  </div>
+                  <el-button
+                    v-if="item.status === 'pending_manual_execution'"
+                    :loading="cancellingDeletionRequestId === item.request_id"
+                    @click="cancelDeletionRequest(item.request_id)"
+                  >
+                    撤销申请
+                  </el-button>
+                </li>
+              </ul>
+            </section>
+          </div>
+
+          <DisplayPreferencesPanel v-if="activeTab === 'display'" />
         </div>
       </section>
     </div>
@@ -944,7 +1778,7 @@ onBeforeUnmount(() => {
   --pc-border-light: #f0edf6;
   --pc-text: #1a1824;
   --pc-text-secondary: #5c5870;
-  --pc-text-muted: #8b869e;
+  --pc-text-muted: #6f6a80;
   --pc-accent-soft: rgba(91, 114, 223, 0.08);
   --pc-accent-glow: rgba(91, 114, 223, 0.18);
   --pc-shadow-sm: 0 1px 2px rgba(26, 24, 36, 0.04);
@@ -962,8 +1796,14 @@ onBeforeUnmount(() => {
 }
 
 @keyframes pc-fade-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ============================================
@@ -1140,8 +1980,12 @@ onBeforeUnmount(() => {
 }
 
 @keyframes pc-arc-draw {
-  from { stroke-dashoffset: 289; }
-  to   { stroke-dashoffset: 72; }
+  from {
+    stroke-dashoffset: 289;
+  }
+  to {
+    stroke-dashoffset: 72;
+  }
 }
 
 .pc-avatar-info {
@@ -1186,8 +2030,13 @@ onBeforeUnmount(() => {
 }
 
 @keyframes pc-pulse-dot {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18); }
-  50%      { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0.06); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(34, 197, 94, 0.06);
+  }
 }
 
 .pc-badge-text {
@@ -1245,9 +2094,15 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.pc-meta-icon--email { background: #8b5cf6; }
-.pc-meta-icon--phone { background: #06b6d4; }
-.pc-meta-icon--date  { background: #f59e0b; }
+.pc-meta-icon--email {
+  background: #8b5cf6;
+}
+.pc-meta-icon--phone {
+  background: #06b6d4;
+}
+.pc-meta-icon--date {
+  background: #f59e0b;
+}
 
 .pc-meta-val {
   margin: 0;
@@ -1345,20 +2200,11 @@ onBeforeUnmount(() => {
 
 .pc-tab-thumb {
   height: 100%;
-  width: 25%;
+  width: calc(100% / var(--pc-tab-count, 5));
   background: var(--uc-accent, #5b72df);
   border-radius: 2px;
+  transform: translateX(calc(var(--pc-tab-index, 0) * 100%));
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-[data-tab="password"] .pc-tab-thumb {
-  transform: translateX(100%);
-}
-[data-tab="api-config"] .pc-tab-thumb {
-  transform: translateX(200%);
-}
-[data-tab="assistant-memory"] .pc-tab-thumb {
-  transform: translateX(300%);
 }
 
 /* ---- Form Stage ---- */
@@ -1471,7 +2317,10 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 3px;
   font-family: inherit;
-  transition: border-color var(--pc-transition), background var(--pc-transition), box-shadow var(--pc-transition);
+  transition:
+    border-color var(--pc-transition),
+    background var(--pc-transition),
+    box-shadow var(--pc-transition);
 }
 
 .pc-provider-card:hover {
@@ -1538,7 +2387,10 @@ onBeforeUnmount(() => {
   font-family: inherit;
   font-size: 0.78rem;
   font-weight: 650;
-  transition: background var(--pc-transition), border-color var(--pc-transition), color var(--pc-transition);
+  transition:
+    background var(--pc-transition),
+    border-color var(--pc-transition),
+    color var(--pc-transition);
 }
 
 .pc-template-apply {
@@ -1741,13 +2593,447 @@ onBeforeUnmount(() => {
   line-height: 1.55;
 }
 
+.pc-privacy-panel {
+  --api-ink: #172033;
+  --api-line: #dfe6f3;
+}
+
+.pc-privacy-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 18px;
+  border: 1px solid #dfe6f3;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+.pc-privacy-card--warning {
+  border-color: #fed7aa;
+  background: #fffaf5;
+}
+
+.pc-privacy-card h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.94rem;
+}
+
+.pc-privacy-card p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+.pc-deletion-plan {
+  border-color: #c7d2fe;
+  background: #f8faff;
+}
+
+.pc-deletion-plan-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pc-deletion-plan-head > div {
+  display: grid;
+  gap: 8px;
+}
+
+.pc-deletion-plan-state {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: #9a3412;
+  font-size: 0.74rem;
+  background: #ffedd5;
+}
+
+.pc-deletion-plan-result {
+  display: grid;
+  gap: 12px;
+}
+
+.pc-deletion-plan-boundary {
+  border-left: 3px solid #f59e0b;
+  padding: 9px 11px;
+  color: #78350f !important;
+  background: #fffbeb;
+}
+
+.pc-deletion-plan-error {
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #991b1b !important;
+  background: #fef2f2;
+}
+
+.pc-deletion-plan-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pc-deletion-plan-summary li {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #dfe6f3;
+  border-radius: 8px;
+  padding: 10px 11px;
+  background: #fff;
+}
+
+.pc-deletion-plan-summary strong {
+  color: #334155;
+  font-size: 0.78rem;
+}
+
+.pc-deletion-plan-summary span,
+.pc-deletion-plan-summary small {
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.pc-deletion-plan-summary .is-unavailable {
+  border-color: #fed7aa;
+  background: #fffaf5;
+}
+
+.pc-deletion-plan-details {
+  border: 1px solid #dfe6f3;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.pc-deletion-plan-details summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pc-deletion-plan-details summary:focus-visible {
+  border-radius: 8px;
+  outline: 3px solid #818cf8;
+  outline-offset: 2px;
+}
+
+.pc-deletion-plan-details ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #e8eef8;
+  list-style: none;
+}
+
+.pc-deletion-plan-details li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #eef2f7;
+  color: #475569;
+  font-size: 0.72rem;
+}
+
+.pc-deletion-plan-details li:last-child {
+  border-bottom: 0;
+}
+
+.pc-deletion-plan-details li span {
+  overflow-wrap: anywhere;
+}
+
+.pc-deletion-plan-details li strong {
+  color: #334155;
+}
+
+.pc-deletion-plan-details li small {
+  color: #64748b;
+}
+
+.pc-deletion-plan-refresh {
+  justify-self: start;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.pc-privacy-requests {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pc-privacy-requests li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e8eef8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.pc-privacy-requests li div {
+  display: grid;
+  gap: 3px;
+}
+
+.pc-privacy-requests strong {
+  color: #9a3412;
+  font-size: 0.82rem;
+}
+
+.pc-privacy-requests span,
+.pc-privacy-requests small {
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.pc-security-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.pc-security-heading,
+.pc-security-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pc-security-heading h2,
+.pc-security-card h3,
+.pc-security-card h4 {
+  margin: 0;
+  color: var(--pc-text);
+}
+
+.pc-security-heading > strong {
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.78rem;
+}
+
+.pc-security-heading > strong.is-enabled {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.pc-security-heading > strong.is-disabled {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.pc-security-heading > strong.is-unknown {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.pc-security-boundary,
+.pc-security-card p {
+  margin: 0;
+  color: var(--pc-text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+.pc-security-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  color: var(--pc-text-secondary);
+  font-size: 0.78rem;
+  list-style: none;
+}
+
+.pc-security-notice {
+  margin: 0;
+  border-radius: 9px;
+  padding: 11px 13px;
+  color: #166534;
+  background: #ecfdf5;
+}
+
+.pc-security-notice.is-error {
+  color: #991b1b;
+  background: #fef2f2;
+}
+
+.pc-security-notice:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
+
+.pc-security-card,
+.pc-enrollment,
+.pc-recovery-codes {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #dfe6f3;
+  border-radius: 10px;
+  padding: 16px;
+  background: #fbfdff;
+}
+
+.pc-enrollment,
+.pc-recovery-codes {
+  background: #fff;
+}
+
+.pc-recovery-codes {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.pc-recovery-codes ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pc-security-methods {
+  display: flex;
+  gap: 18px;
+  margin: 0;
+  border: 1px solid #dfe6f3;
+  border-radius: 9px;
+  padding: 10px 12px;
+}
+
+.pc-security-methods label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pc-security-fields {
+  display: grid;
+  gap: 7px;
+}
+
+.pc-security-fields input,
+.pc-enrollment input {
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--pc-border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--pc-text);
+  background: #fff;
+  font: inherit;
+}
+
+.pc-enrollment code,
+.pc-recovery-codes code {
+  overflow-wrap: anywhere;
+  border-radius: 7px;
+  padding: 9px;
+  color: #1e3a5f;
+  background: #eef5ff;
+}
+
+.pc-security-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  color: #fff;
+  background: var(--uc-accent, #5b72df);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pc-security-button.is-danger {
+  background: #b91c1c;
+}
+
+.pc-security-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.pc-security-button:focus-visible,
+.pc-security-fields input:focus-visible,
+.pc-enrollment input:focus-visible {
+  outline: 3px solid rgba(91, 114, 223, 0.35);
+  outline-offset: 2px;
+}
+
+.pc-session-list,
+.pc-audit-list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pc-session-list li,
+.pc-audit-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #e8eef8;
+  padding-top: 10px;
+}
+
+.pc-session-list li div,
+.pc-audit-list li {
+  min-width: 0;
+}
+
+.pc-session-list strong,
+.pc-session-list span,
+.pc-session-list small,
+.pc-audit-list strong,
+.pc-audit-list span,
+.pc-audit-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.pc-session-list span,
+.pc-session-list small,
+.pc-audit-list span,
+.pc-audit-list small {
+  color: var(--pc-text-muted);
+  font-size: 0.72rem;
+}
+
 /* ---- Input overrides ---- */
 .pc-input :deep(.el-input__wrapper) {
   background: var(--pc-surface-warm);
   border-radius: var(--pc-radius-sm);
   padding: 6px 14px;
   box-shadow: 0 0 0 1px var(--pc-border) inset;
-  transition: box-shadow var(--pc-transition), background var(--pc-transition);
+  transition:
+    box-shadow var(--pc-transition),
+    background var(--pc-transition);
 }
 
 .pc-input :deep(.el-input__wrapper:hover) {
@@ -1934,6 +3220,34 @@ onBeforeUnmount(() => {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+  }
+
+  .pc-security-heading,
+  .pc-security-card-heading,
+  .pc-session-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pc-deletion-plan-head,
+  .pc-deletion-plan-details li {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .pc-deletion-plan-state {
+    align-self: flex-start;
+  }
+
+  .pc-recovery-codes ul {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1200px) {
+  .pc-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

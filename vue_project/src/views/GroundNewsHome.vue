@@ -11,17 +11,17 @@
         <span class="eyebrow">GlobeMind 事件首页</span>
         <h1>国际焦点新闻</h1>
         <p>
-          按事件时间优先呈现国际新闻，保留多源覆盖、信源光谱和 L2 走势。
+          {{ historicalMode ? '按数据截止时间呈现已收录历史新闻' : '按事件时间优先呈现已收录新闻' }}，保留来源目录、报道切面和关联线索。
         </p>
         <div class="hero-actions">
           <RouterLink class="primary-link" to="/data-service/ground-news-desk">进入分析工作台</RouterLink>
-          <button class="ghost-link" :disabled="loading" @click="loadHome">
+          <button type="button" class="ghost-link" :disabled="loading" @click="loadHome">
             {{ loading ? '刷新中' : '刷新事件流' }}
           </button>
         </div>
       </div>
 
-      <div class="home-hero__metrics">
+      <div class="home-hero__metrics" role="group" aria-label="Ground News 当前快照指标">
         <article>
           <strong>{{ formatNumber(metrics.total_stories) }}</strong>
           <span>故事卡</span>
@@ -31,8 +31,8 @@
           <span>聚合新闻</span>
         </article>
         <article>
-          <strong>{{ formatDate(metrics.latest_valid_story_date || metrics.latest_story_date) }}</strong>
-          <span>多源最新</span>
+          <strong>{{ groundCutoffDate }}</strong>
+          <span>{{ historicalMode ? '快照截止' : '数据截止' }}</span>
         </article>
       </div>
     </section>
@@ -57,15 +57,15 @@
     <section v-else-if="error" class="home-error">
       <strong>首页事件流加载失败</strong>
       <p>{{ error }}</p>
-      <button @click="loadHome">重新加载</button>
+      <button type="button" @click="loadHome">重新加载</button>
     </section>
 
-    <main v-else class="home-layout">
+    <main v-else :class="['home-layout', { 'home-layout--without-lead': !showLeadFeature }]">
       <section id="front-news" class="front-grid" aria-label="新闻首页版面">
         <article class="front-column front-column--latest" data-tour="ground-news-edition">
           <header>
-            <span class="eyebrow">Live Wire</span>
-            <h2>最新快讯</h2>
+            <span class="eyebrow">{{ historicalMode ? 'Archive Wire' : 'Update Wire' }}</span>
+            <h2>{{ historicalMode ? '历史快讯' : '最新快讯' }}</h2>
             <small>{{ editionLabel('latest') }}</small>
           </header>
           <div class="front-column__list">
@@ -73,11 +73,24 @@
               v-for="(story, index) in frontLatestStories"
               :key="`front-latest-${story.cluster_id}`"
               :to="storyPath(story)"
-              :class="['front-headline', { 'front-headline--lead': index === 0 }]"
+              :class="[
+                'front-headline',
+                {
+                  'front-headline--lead': index === 0 && isCoverLoaded(story),
+                  'front-headline--image-ready': index === 0 && isCoverLoaded(story),
+                },
+              ]"
             >
-              <EventCover v-if="index === 0" :story="story" size="strip" />
+              <EventCover
+                v-if="index === 0 && hasRenderableImage(story)"
+                :story="story"
+                size="strip"
+                @load-error="markCoverFailed(story)"
+                @load-success="markCoverLoaded(story)"
+              />
               <span>{{ formatDate(story.end_date || story.start_date) }} · {{ familyLabel(story.event_family) }}</span>
               <strong>{{ story.display_title }}</strong>
+              <p v-if="sampleTitle(story)" class="front-headline__summary">{{ sampleTitle(story) }}</p>
               <small>{{ story.article_count }} 条新闻 · {{ story.source_count }} 信源 · {{ storyLanguageLabel(story) }}</small>
             </RouterLink>
           </div>
@@ -85,19 +98,20 @@
 
         <article class="front-column front-column--week">
           <header>
-            <span class="eyebrow">This Week</span>
-            <h2>本周多源</h2>
+            <span class="eyebrow">{{ historicalMode ? 'Archive Window' : 'Rolling Window' }}</span>
+            <h2>{{ historicalMode ? '历史多源' : '近期多源' }}</h2>
             <small>{{ editionLabel('week_watch') }}</small>
           </header>
           <div class="front-column__list">
             <RouterLink
-              v-for="story in frontWeekStories"
+              v-for="story in frontWeekStories.slice(0, 4)"
               :key="`front-week-${story.cluster_id}`"
               :to="storyPath(story)"
               class="front-headline front-headline--compact"
             >
               <span>{{ formatRange(story.start_date, story.end_date) }}</span>
               <strong>{{ story.display_title }}</strong>
+              <p v-if="sampleTitle(story)" class="front-headline__summary">{{ sampleTitle(story) }}</p>
               <small>{{ story.article_count }} 条新闻 · {{ story.source_count }} 信源 · {{ storyLanguageLabel(story) }} · {{ biasSummary(story) }}</small>
             </RouterLink>
           </div>
@@ -105,13 +119,13 @@
 
         <article class="front-column front-column--chains">
           <header>
-            <span class="eyebrow">L2 Storylines</span>
-            <h2>走势链</h2>
+            <span class="eyebrow">Related Threads</span>
+            <h2>关联线索</h2>
             <small>近期优先</small>
           </header>
           <div class="front-column__list">
             <RouterLink
-              v-for="chain in frontChainItems"
+              v-for="chain in frontChainItems.slice(0, 4)"
               :key="`front-chain-${chain.chain_id}`"
               :to="timelinePath(chain)"
               class="front-headline front-headline--compact"
@@ -124,10 +138,19 @@
         </article>
       </section>
 
-      <section v-if="leadStory" id="lead-story" class="lead-feature">
+      <section v-if="showLeadFeature" id="lead-story" class="lead-feature">
         <div class="lead-media">
-          <RouterLink class="lead-cover" :to="storyPath(leadStory)">
-            <EventCover :story="leadStory" size="large" />
+          <RouterLink
+            v-if="hasRenderableImage(leadStory)"
+            :class="['lead-cover', { 'is-image-ready': isCoverLoaded(leadStory) }]"
+            :to="storyPath(leadStory)"
+          >
+            <EventCover
+              :story="leadStory"
+              size="large"
+              @load-error="markCoverFailed(leadStory)"
+              @load-success="markCoverLoaded(leadStory)"
+            />
           </RouterLink>
           <div class="lead-brief">
             <div class="lead-brief__head">
@@ -159,15 +182,16 @@
             <span v-if="leadStory.location"> · {{ leadStory.location }}</span>
             <span> · {{ storyLanguageLabel(leadStory) }}</span>
           </p>
+          <p v-if="sampleTitle(leadStory)" class="lead-summary">{{ sampleTitle(leadStory) }}</p>
           <div class="lead-stats">
             <span><strong>{{ leadStory.article_count }}</strong> 条新闻</span>
             <span><strong>{{ leadStory.source_count }}</strong> 个信源</span>
-            <span><strong>{{ leadStory.l2_chain_count }}</strong> 条走势链</span>
-            <span><strong>{{ Math.round(leadStory.rank_score || 0) }}</strong> 推荐分</span>
+            <span><strong>{{ leadStory.l2_chain_count }}</strong> 条关联线索</span>
+            <span><strong>{{ rankMetric.valueLabel }}</strong> 候选排序分</span>
           </div>
           <div class="coverage-panel">
             <div class="coverage-panel__head">
-              <strong>报道覆盖</strong>
+              <strong>第三方目录构成</strong>
               <span>{{ biasSummary(leadStory) }}</span>
             </div>
             <BiasBar :story="leadStory" />
@@ -195,27 +219,27 @@
 
       <aside class="right-rail">
         <section class="rail-card daily-brief">
-          <span class="eyebrow">今日简报</span>
+          <span class="eyebrow">{{ historicalMode ? '历史快照' : '数据简报' }}</span>
           <h2>事件池状态</h2>
           <div class="brief-grid">
             <span><strong>{{ formatNumber(metrics.total_stories) }}</strong> 事件</span>
             <span><strong>{{ formatNumber(metrics.total_articles) }}</strong> 新闻</span>
-            <span><strong>{{ formatNumber(metrics.product_candidate_count || metrics.candidate_count) }}</strong> 主候选</span>
-            <span><strong>{{ formatNumber(metrics.source_breakdown_coverage?.ready_stories) }}</strong> Ready</span>
-            <span><strong>{{ formatNumber(metrics.source_breakdown_coverage?.usable_stories_7d) }}</strong> 7日可用</span>
-            <span><strong>{{ formatDate(metrics.latest_valid_story_date || metrics.latest_story_date) }}</strong> 多源最新</span>
-            <span><strong>{{ formatDate(metrics.latest_realtime_story_date || metrics.latest_valid_story_date || metrics.latest_story_date) }}</strong> 实时最新</span>
+            <span><strong>{{ formatNumber(metrics.product_candidate_count ?? metrics.candidate_count) }}</strong> 主候选</span>
+            <span><strong>待核验</strong> Ready 指标</span>
+            <span><strong>待核验</strong> 7日可用指标</span>
+            <span><strong>{{ formatDate(metrics.latest_valid_story_date || metrics.latest_story_date) }}</strong> 多源截止</span>
+            <span><strong>{{ groundCutoffDate }}</strong> 采集截止</span>
             <span><strong>{{ formatNumber(metrics.ok_story_covers) }}</strong> 封面</span>
-            <span><strong>{{ profileCoveragePct }}</strong> 评级</span>
+            <span><strong>{{ profileCoveragePct }}</strong> 评级覆盖</span>
           </div>
           <div class="edition-policy">
             <span>最新栏按事件时间优先</span>
             <span>专题栏 {{ edition.rotation_days || 3 }} 天轮换</span>
-            <span>Ready = 3+ 信源且有评级</span>
+            <span>旧 Ready 阈值未批准，不作为质量通过</span>
             <span>L2 走势近期优先</span>
           </div>
           <p>
-            首页优先展示多信源覆盖、左右差异明显、并且能接入 L2 走势的事件。
+            当前顺序是未批准方法生成的候选展示，不代表重要性、风险或研究质量。
             <span v-if="metrics.future_story_count">未来日期异常 {{ metrics.future_story_count }} 条，已进入健康监控。</span>
           </p>
         </section>
@@ -235,8 +259,8 @@
 
         <section class="rail-card">
           <div class="rail-card__head">
-            <span>报道盲区</span>
-            <small>{{ blindspotStories.length }} 条</small>
+            <span>覆盖缺口候选</span>
+            <small>{{ blindspotStories.length }} 条 · 未评估</small>
           </div>
           <div class="blindspot-list">
             <RouterLink v-for="story in blindspotStories.slice(0, 5)" :key="story.cluster_id" :to="storyPath(story)">
@@ -249,7 +273,7 @@
 
         <section class="rail-card">
           <div class="rail-card__head">
-            <span>L2 走势</span>
+            <span>关联线索</span>
             <small>{{ l2Watchlist.length }} 条</small>
           </div>
           <div class="chain-list">
@@ -279,7 +303,7 @@
 
         <section class="rail-card">
           <div class="rail-card__head">
-            <span>高频信源</span>
+            <span>高频来源</span>
             <small>{{ sourceLeaders.length }} 个</small>
           </div>
           <div class="source-leaders">
@@ -310,9 +334,15 @@
               v-for="story in section.stories"
               :key="`${section.key}-${story.cluster_id}`"
               :to="storyPath(story)"
-              :class="['story-card', { 'story-card--text-only': !hasStoryImage(story) }]"
+              :class="['story-card', { 'story-card--text-only': !isCoverLoaded(story) }]"
             >
-              <EventCover v-if="hasStoryImage(story)" :story="story" size="card" />
+              <EventCover
+                v-if="hasRenderableImage(story)"
+                :story="story"
+                size="card"
+                @load-error="markCoverFailed(story)"
+                @load-success="markCoverLoaded(story)"
+              />
               <div class="story-card__body">
                 <div class="story-card__meta">
                   <span>{{ familyLabel(story.event_family) }}</span>
@@ -322,6 +352,7 @@
                 <h3>{{ story.display_title }}</h3>
                 <p class="story-card__entity">{{ displayEntityLine(story) }}</p>
                 <p v-if="sampleTitle(story)" class="story-card__sample">{{ sampleTitle(story) }}</p>
+                <p class="story-card__sources">{{ storySourceLine(story) }}</p>
                 <BiasBar :story="story" compact />
                 <div class="bias-mini">
                   <span
@@ -346,9 +377,14 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, h, nextTick, onMounted, ref } from 'vue'
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import atlasImage from '@/assets/ground-news/coverage-atlas.webp'
+import {
+  featureFreshness,
+  formatFreshnessCutoff,
+  useFeatureFreshness,
+} from '@/features/operations/index.js'
 import {
   buildGroundNewsHomeModel,
   groundNewsApi,
@@ -370,6 +406,7 @@ import {
   homeSourceNames as sourceNames,
   homeSourceTypeItems as sourceTypeItems,
   homeStoryPath as storyPath,
+  homeStorySourceLine as storySourceLine,
   homeTimelinePath as timelinePath,
   homeTopicPath as topicPath,
   homeVisibleBiasBuckets as visibleBiasBuckets,
@@ -378,54 +415,111 @@ import {
 const loading = ref(false)
 const error = ref('')
 const home = ref(null)
+const failedCoverIds = ref(new Set())
+const loadedCoverIds = ref(new Set())
+const { report: freshnessReport, refresh: refreshFreshness } = useFeatureFreshness()
 
 const homeModel = computed(() => buildGroundNewsHomeModel(home.value))
 const leadStory = computed(() => homeModel.value.leadStory)
+const rankMetric = computed(() => ({
+  valueLabel: Number.isFinite(Number(leadStory.value?.rank_score))
+    ? Math.round(Number(leadStory.value.rank_score)).toLocaleString('zh-CN')
+    : '待核验',
+}))
 const metrics = computed(() => homeModel.value.metrics)
 const edition = computed(() => homeModel.value.edition)
 const profileCoveragePct = computed(() => homeModel.value.profileCoveragePct)
 const sectionByKey = computed(() => homeModel.value.sectionByKey)
 const storySections = computed(() => homeModel.value.storySections)
-const sectionNavItems = computed(() => homeModel.value.sectionNavItems)
 const l2Watchlist = computed(() => homeModel.value.l2Watchlist)
-const frontLatestStories = computed(() => homeModel.value.frontLatestStories)
+const frontLatestStories = computed(() => {
+  const rows = homeModel.value.frontLatestStories
+  const visualLead = rows.find((story) => hasRenderableImage(story))
+  if (!visualLead) return rows
+  return [visualLead, ...rows.filter((story) => story.cluster_id !== visualLead.cluster_id)]
+})
+const showLeadFeature = computed(() => {
+  if (!leadStory.value) return false
+  return !frontLatestStories.value.some(
+    (story) => story.cluster_id === leadStory.value.cluster_id,
+  )
+})
+const sectionNavItems = computed(() => homeModel.value.sectionNavItems.filter(
+  (item) => item.id !== 'lead-story' || showLeadFeature.value,
+))
 const frontWeekStories = computed(() => homeModel.value.frontWeekStories)
 const frontChainItems = computed(() => homeModel.value.frontChainItems)
 const latestStories = computed(() => homeModel.value.latestStories)
 const blindspotStories = computed(() => homeModel.value.blindspotStories)
 const topicChips = computed(() => homeModel.value.topicChips)
 const sourceLeaders = computed(() => homeModel.value.sourceLeaders)
+const groundNewsFreshness = computed(() => featureFreshness(freshnessReport.value, 'ground-news'))
+const historicalMode = computed(() => groundNewsFreshness.value.historical)
+const groundCutoffLabel = computed(() => formatFreshnessCutoff(groundNewsFreshness.value.cutoff))
+const groundCutoffDate = computed(() => (
+  groundCutoffLabel.value
+  || formatDate(metrics.value.latest_valid_story_date || metrics.value.latest_story_date)
+))
 
 const EventCover = defineComponent({
   name: 'EventCover',
+  emits: ['load-error', 'load-success'],
   props: {
     story: { type: Object, required: true },
     size: { type: String, default: 'card' },
   },
-  setup(props) {
+  setup(props, { emit }) {
+    const imageFailed = ref(false)
+    const imageLoaded = ref(false)
+    let loadTimer = null
+    const clearLoadTimer = () => {
+      if (loadTimer !== null) window.clearTimeout(loadTimer)
+      loadTimer = null
+    }
+    const failImage = () => {
+      if (imageLoaded.value || imageFailed.value) return
+      clearLoadTimer()
+      imageFailed.value = true
+      emit('load-error')
+    }
+    watch(() => props.story.cover?.image_url, (imageUrl) => {
+      clearLoadTimer()
+      imageFailed.value = false
+      imageLoaded.value = false
+      if (imageUrl && props.size !== 'card') {
+        loadTimer = window.setTimeout(failImage, 6000)
+      }
+    }, { immediate: true })
+    onBeforeUnmount(clearLoadTimer)
     return () => {
       const imageUrl = props.story.cover?.image_url || ''
+      const showImage = Boolean(imageUrl) && !imageFailed.value
       return h('div', {
         class: [
           'event-cover',
           `event-cover--${props.size}`,
           `theme-${props.story.cover?.theme || 'global_dispatch'}`,
-          { 'has-image': Boolean(imageUrl) },
+          {
+            'has-image': showImage,
+            'image-failed': imageFailed.value,
+            'image-loaded': imageLoaded.value,
+            'image-pending': showImage && !imageLoaded.value,
+          },
         ],
         style: {
           '--seed-x': `${(Number(props.story.cover?.seed || 0) % 73) + 8}%`,
           '--seed-y': `${(Number(props.story.cover?.seed || 0) % 41) + 12}%`,
         },
       }, [
-        imageUrl ? h('div', {
+        showImage ? h('div', {
           class: 'event-cover__image-blur',
           style: { backgroundImage: `url("${imageUrl}")` },
         }) : null,
-        imageUrl ? h('img', {
+        showImage ? h('img', {
           class: 'event-cover__image',
           src: imageUrl,
           alt: '',
-          loading: 'lazy',
+          loading: props.size === 'card' ? 'lazy' : 'eager',
           referrerpolicy: 'no-referrer',
           onLoad: (event) => {
             const image = event.currentTarget
@@ -436,14 +530,11 @@ const EventCover = defineComponent({
             frame.style.setProperty('--cover-ratio', `${safeRatio} / 1`)
             frame.classList.toggle('is-portrait', ratio < 1)
             frame.classList.toggle('is-wide', ratio > 1.85)
+            clearLoadTimer()
+            imageLoaded.value = true
+            emit('load-success')
           },
-          onError: (event) => {
-            const image = event.currentTarget
-            const frame = image.closest('.event-cover')
-            image.style.display = 'none'
-            frame?.classList.remove('has-image')
-            frame?.classList.add('image-failed')
-          },
+          onError: failImage,
         }) : null,
         h('div', { class: 'event-cover__map' }),
         h('div', { class: 'event-cover__signal' }),
@@ -451,7 +542,7 @@ const EventCover = defineComponent({
         h('div', { class: 'event-cover__label' }, [
           h('span', props.story.cover?.label || '全球快讯'),
           h('strong', coverShort(props.story)),
-          h('small', imageUrl ? `新闻图片 · ${props.story.cover?.credit || '来源见详情'}` : '编辑封面 · 非新闻照片'),
+          h('small', showImage ? `新闻图片 · ${props.story.cover?.credit || '来源见详情'}` : '编辑封面 · 图片暂不可用'),
         ]),
       ])
     }
@@ -483,6 +574,7 @@ const BiasBar = defineComponent({
 })
 
 onMounted(() => {
+  void refreshFreshness()
   void loadHome()
 })
 
@@ -514,19 +606,44 @@ async function scrollToSection(id) {
 }
 
 function editionLabel(key) {
-  return homeEditionLabel(sectionByKey.value, edition.value, key)
+  return homeEditionLabel(sectionByKey.value, edition.value, key, groundNewsFreshness.value)
 }
 
 function sectionBadge(section) {
-  return homeSectionBadge(section, sectionByKey.value, edition.value)
+  return homeSectionBadge(section, sectionByKey.value, edition.value, groundNewsFreshness.value)
 }
 
 function displayEntityLine(story) {
   return formatRelationText(baseEntityLine(story))
 }
 
+function hasRenderableImage(story) {
+  return hasStoryImage(story) && !failedCoverIds.value.has(story?.cluster_id)
+}
+
+function isCoverLoaded(story) {
+  return hasRenderableImage(story) && loadedCoverIds.value.has(story?.cluster_id)
+}
+
+function markCoverLoaded(story) {
+  const clusterId = story?.cluster_id
+  if (!clusterId || loadedCoverIds.value.has(clusterId)) return
+  loadedCoverIds.value = new Set([...loadedCoverIds.value, clusterId])
+}
+
+function markCoverFailed(story) {
+  const clusterId = story?.cluster_id
+  if (!clusterId || failedCoverIds.value.has(clusterId)) return
+  failedCoverIds.value = new Set([...failedCoverIds.value, clusterId])
+  if (loadedCoverIds.value.has(clusterId)) {
+    loadedCoverIds.value = new Set(
+      [...loadedCoverIds.value].filter((item) => item !== clusterId),
+    )
+  }
+}
+
 function chainTitle(chain) {
-  return formatRelationText(chain?.title || chain?.chain_id || '走势链')
+  return formatRelationText(chain?.title || chain?.chain_id || '关联线索')
 }
 
 function formatRelationText(value) {
@@ -2797,6 +2914,438 @@ function inferLanguageLabel(text) {
   .lead-brief__head strong {
     max-width: none;
     text-align: left;
+  }
+}
+
+/* QA-02/QA-03: source-verifiable target sizing and a mobile section shortcut. */
+.ground-home button,
+.ground-home .ground-subnav a,
+.ground-home .primary-link,
+.ground-home .ghost-link,
+.ground-home .story-link,
+.ground-home .front-headline,
+.ground-home .lead-cover,
+.ground-home .lead-brief__item,
+.ground-home .lead-title,
+.ground-home .topic-cloud a,
+.ground-home .blindspot-list a,
+.ground-home .chain-list a,
+.ground-home .latest-list a,
+.ground-home .story-card {
+  box-sizing: border-box;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.ground-home .ground-subnav a,
+.ground-home .primary-link,
+.ground-home .ghost-link,
+.ground-home .story-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.front-headline__summary {
+  display: -webkit-box;
+  margin: 1px 0;
+  overflow: hidden;
+  color: #494949;
+  font-size: 12px;
+  line-height: 1.42;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.lead-summary {
+  margin: 12px 0 14px;
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  color: #343434;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.story-card__sources {
+  margin: -2px 0 9px;
+  overflow: hidden;
+  color: #686868;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ground-home :deep(.event-cover.image-failed .event-cover__image-blur) {
+  display: none;
+}
+
+.ground-home :deep(.event-cover.image-pending) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lead-cover:not(.is-image-ready) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.front-grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.72fr);
+  grid-template-rows: auto auto;
+  gap: 14px 28px;
+  align-items: stretch;
+  border-bottom: 0;
+  padding: 20px 0 28px;
+}
+
+.front-column {
+  border: 0;
+  padding: 0;
+}
+
+.front-column--latest {
+  grid-row: 1 / span 2;
+  padding-right: 28px;
+  border-right: 1px solid #dededb;
+}
+
+.front-column--week,
+.front-column--chains {
+  border-radius: 8px;
+  padding: 14px 16px 10px;
+  background: #efefec;
+}
+
+.front-column header,
+.front-column--latest header {
+  min-height: 48px;
+  border-top: 0;
+  border-bottom: 1px solid #c9c9c5;
+  padding: 0 0 10px;
+}
+
+.front-column header::before {
+  content: "";
+  align-self: stretch;
+  width: 4px;
+  flex: 0 0 4px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.front-column header .eyebrow {
+  display: none;
+}
+
+.front-column h2 {
+  margin-right: auto;
+  font-size: 21px;
+}
+
+.front-column--latest .front-column__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 22px;
+  align-content: start;
+  flex: 0 0 auto;
+}
+
+.front-column--latest .front-headline--lead {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto;
+  gap: 7px;
+  position: relative;
+  border-top: 0;
+  padding: 16px 0 18px;
+}
+
+.front-column--latest .front-headline--lead.front-headline--image-ready {
+  grid-template-columns: minmax(0, 1.2fr) minmax(250px, 0.8fr);
+  grid-template-rows: auto auto auto 1fr;
+  row-gap: 7px;
+  column-gap: 22px;
+}
+
+.front-column--latest .front-headline--lead.front-headline--image-ready :deep(.event-cover--strip) {
+  grid-column: 1;
+  grid-row: 1 / span 4;
+  min-height: 280px;
+  margin: 0;
+  border-radius: 8px;
+  aspect-ratio: 16 / 10;
+}
+
+.front-column--latest .front-headline--lead.front-headline--image-ready > span,
+.front-column--latest .front-headline--lead.front-headline--image-ready > strong,
+.front-column--latest .front-headline--lead.front-headline--image-ready > p,
+.front-column--latest .front-headline--lead.front-headline--image-ready > small {
+  grid-column: 2;
+}
+
+.front-column--latest .front-headline--lead strong {
+  align-self: start;
+  font-size: clamp(27px, 2.5vw, 39px);
+  line-height: 1.08;
+  -webkit-line-clamp: 4;
+}
+
+.front-column--latest .front-headline--lead .front-headline__summary {
+  align-self: start;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-line-clamp: 3;
+}
+
+.front-column--latest .front-headline:not(.front-headline--lead) {
+  padding: 13px 0;
+}
+
+.front-column--week .front-headline,
+.front-column--chains .front-headline {
+  padding: 11px 0;
+}
+
+.front-column--week .front-headline__summary {
+  -webkit-line-clamp: 1;
+}
+
+.lead-feature,
+.story-section,
+.rail-card {
+  border-top-width: 1px;
+  border-top-color: #cfcfcb;
+}
+
+.lead-feature {
+  padding-top: 22px;
+}
+
+.story-section {
+  padding-top: 18px;
+}
+
+.rail-card {
+  padding-top: 16px;
+}
+
+.home-layout--without-lead .section-stack,
+.home-layout--without-lead .right-rail {
+  grid-row: 2;
+}
+
+.section-stack {
+  gap: 28px;
+}
+
+.story-section {
+  border: 0;
+  padding: 0;
+}
+
+.section-title {
+  position: relative;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #d4d4d0;
+  padding: 0 0 12px 14px;
+}
+
+.section-title::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 12px;
+  left: 0;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.section-title h2 {
+  font-size: 22px;
+}
+
+.section-title p {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.section-title small {
+  color: #777;
+  font-size: 11px;
+  white-space: normal;
+  text-align: right;
+}
+
+.story-grid {
+  display: block;
+  columns: 2;
+  column-gap: 14px;
+}
+
+.story-card,
+.story-card--text-only {
+  width: 100%;
+  margin: 0 0 12px;
+  break-inside: avoid;
+  border: 1px solid #dfdfdb;
+  border-radius: 6px;
+  padding: 11px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.story-card--text-only {
+  border-left: 3px solid rgba(184, 0, 0, 0.48);
+  padding-left: 12px;
+}
+
+.story-card:hover {
+  border-color: #b8b8b3;
+  background: #fafaf8;
+  box-shadow: 0 8px 18px rgba(17, 17, 17, 0.05);
+}
+
+.right-rail {
+  gap: 14px;
+}
+
+.rail-card {
+  position: relative;
+  border: 0;
+  border-radius: 8px;
+  padding: 16px;
+  background: #efefec;
+}
+
+.rail-card::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  left: 0;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: rgba(184, 0, 0, 0.82);
+}
+
+.rail-card h2 {
+  font-size: 21px;
+}
+
+.rail-card__head {
+  border-bottom: 1px solid #d2d2ce;
+  padding-bottom: 9px;
+}
+
+.brief-grid span,
+.topic-cloud a,
+.source-leaders span,
+.edition-policy span,
+.lead-stats span,
+.coverage-panel,
+.lead-brief,
+.lead-brief__item {
+  border-radius: 6px;
+}
+
+@media (max-width: 1280px) {
+  .home-layout--without-lead .section-stack {
+    grid-row: 2;
+  }
+
+  .home-layout--without-lead .right-rail {
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 1100px) {
+  .front-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .front-column--latest {
+    grid-row: auto;
+    padding-right: 0;
+    border-right: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .front-grid {
+    gap: 12px;
+    padding: 10px 0 18px;
+  }
+
+  .front-column--latest .front-column__list {
+    grid-template-columns: 1fr;
+  }
+
+  .story-grid {
+    columns: 1;
+  }
+
+  .front-column--latest .front-headline--lead {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 7px;
+  }
+
+  .front-column--latest .front-headline--lead :deep(.event-cover--strip),
+  .front-column--latest .front-headline--lead > span,
+  .front-column--latest .front-headline--lead > strong,
+  .front-column--latest .front-headline--lead > p,
+  .front-column--latest .front-headline--lead > small {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .front-column--latest .front-headline--lead :deep(.event-cover--strip) {
+    min-height: 210px;
+  }
+
+  .front-column--week,
+  .front-column--chains {
+    padding: 12px;
+  }
+
+  .ground-home .section-nav {
+    position: sticky;
+    top: 64px;
+    z-index: 14;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    background: rgba(246, 246, 244, 0.96);
+    backdrop-filter: blur(10px);
+  }
+
+  .ground-home .section-nav button {
+    flex: 0 0 auto;
+    min-width: 136px;
+    min-height: 44px;
+    scroll-snap-align: start;
+  }
+
+  .ground-home .story-section,
+  .ground-home #front-news,
+  .ground-home #lead-story {
+    scroll-margin-top: 124px;
   }
 }
 </style>

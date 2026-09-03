@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { NavLink } from 'react-router-dom'
 import { IconAlertTriangle, IconArrowLeft, IconRadio } from '../components/Icons'
-import type { Severity, AlertRule, AlertReport } from '../types'
+import type { Severity, AlertRule, AlertReport, AlertTriageStatus } from '../types'
 import { useNumericalAlerts } from '../hooks/useNumericalAlerts'
+import { freshnessLabel, trustLabel, trustReasonLabel } from '../lib/sourceLabels'
 
 const SEVERITY_CLASSES: Record<Severity, { badge: string; cardBorder: string; cardBg: string }> = {
   high: { badge: 'bg-rose-500/15 text-rose-400 border border-rose-500/20', cardBorder: 'border-rose-500/30 bg-rose-500/5', cardBg: 'bg-rose-500/10 text-rose-400 border-rose-500/15' },
@@ -18,6 +19,16 @@ function trendArrow(t: string) {
   if (t === 'up') return '↑'
   if (t === 'down') return '↓'
   return '→'
+}
+
+function triageStatusLabel(status: AlertTriageStatus): string {
+  return {
+    open: '待确认',
+    acknowledged: '已确认',
+    escalated: '已升级',
+    false_positive: '误报',
+    resolved: '已解决',
+  }[status]
 }
 
 function buildAlertAssistantContext(rep: AlertReport, rules: AlertRule[]): { visibleMessage: string; prompt: string; mode: 'expert' } {
@@ -54,7 +65,7 @@ function buildAlertAssistantContext(rep: AlertReport, rules: AlertRule[]): { vis
 }
 
 export default function NumericalAnalysisAlert() {
-  const { rules, reports } = useNumericalAlerts()
+  const { rules, reports, trust, loading, error } = useNumericalAlerts()
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [now, setNow] = useState(new Date())
   const [navigatingId, setNavigatingId] = useState<string | null>(null)
@@ -74,9 +85,11 @@ export default function NumericalAnalysisAlert() {
   const activeReports = reports.filter((r) => !dismissed.has(r.id))
   const breachedCount = rules.filter((r) => r.breached).length
   const highCount = rules.filter((r) => r.breached && r.severity === 'high').length
+  const alertsEnabled = Boolean(trust?.alerts_enabled || trust?.trust_status === 'mock')
+  const dataAsOf = trust?.data_as_of
 
   const handleNavigate = (rep: AlertReport) => {
-    if (navigatingId) return
+    if (navigatingId || !alertsEnabled) return
     setNavigatingId(rep.id)
     window.parent.postMessage({
       type: 'storeAndNavigate',
@@ -86,15 +99,6 @@ export default function NumericalAnalysisAlert() {
     setTimeout(() => setNavigatingId(null), 4000)
   }
 
-  const getTimeline = (metric: string): string[] => {
-    const timelines: Record<string, string[]> = {
-      '地缘冲突概率': ['05/09 08:00 🇵🇭 菲律宾船只在南海特定海域集结', '05/10 14:00 🇨🇳 我方外交部发表严正交涉', '05/11 19:33 🚨 系统触发高危告警'],
-      '媒体对抗烈度': ['05/10 06:00 📰 外媒集中报道涉华负面新闻', '05/10 18:00 📈 社交媒体对抗性言论激增140%', '05/11 15:22 🚨 系统触发高危告警'],
-      '外交双边温度': ['05/09 10:00 🤝 美日联合声明发布', '05/10 09:00 📋 G7公报涉华条款增多', '05/11 08:00 ⚠ 外交表态趋于强硬'],
-    }
-    return timelines[metric] || []
-  }
-
   return (
     <div className={`flex h-full min-h-0 flex-col ${lightMode ? 'bg-[#f6f8ff] text-slate-800 light-mode' : 'bg-[#0B0E11] text-slate-200'}`}>
       {/* --- Header Bar --- */}
@@ -102,27 +106,30 @@ export default function NumericalAnalysisAlert() {
         <div className="flex items-center gap-4">
           <NavLink
             to="/"
-            className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${lightMode ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-slate-200'}`}
+            aria-label="返回世界状态终端"
+            className={`flex min-h-11 items-center gap-1.5 rounded px-2 text-xs font-medium transition-colors ${lightMode ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-slate-200'}`}
           >
             <IconArrowLeft />
             <span className="hidden sm:inline">世界状态</span>
           </NavLink>
           <div className={`h-5 w-px ${lightMode ? 'bg-slate-200' : 'bg-terminal-border'}`} />
           <div className="flex items-center gap-2.5">
-            <IconRadio className={`h-5 w-5 ${lightMode ? 'text-emerald-600' : 'text-emerald-400'}`} />
+            <IconRadio className={`h-5 w-5 ${alertsEnabled ? (lightMode ? 'text-emerald-600' : 'text-emerald-400') : 'text-amber-400'}`} />
             <h1 className={`text-lg font-semibold ${lightMode ? 'text-slate-900' : 'text-slate-100'}`}>阈值预警</h1>
           </div>
         </div>
         <div className="flex items-center gap-4 font-mono text-xs">
           <button
+            type="button"
+            aria-label={lightMode ? '切换为深色模式' : '切换为浅色模式'}
             onClick={() => { const v = !lightMode; setLightMode(v); localStorage.setItem('fin_terminal_light', v ? '1' : '0') }}
-            className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${lightMode ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25'}`}
+            className={`min-h-11 rounded-full px-3 text-[11px] font-semibold transition-colors ${lightMode ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25'}`}
           >
             {lightMode ? '深色模式' : '浅色模式'}
           </button>
           <span className={`flex items-center gap-1.5 ${lightMode ? 'text-slate-500' : 'text-slate-500'}`}>
-            <span className={`h-2 w-2 rounded-full ${breachedCount > 0 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
-            {breachedCount > 0 ? `${breachedCount} 项告警` : '全部正常'}
+            <span className={`h-2 w-2 rounded-full ${!alertsEnabled ? 'bg-amber-400' : breachedCount > 0 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
+            {!alertsEnabled ? '评估暂停' : breachedCount > 0 ? `${breachedCount} 项告警` : '当前无告警'}
           </span>
           <span className={`hidden sm:inline ${lightMode ? 'text-slate-400' : 'text-slate-500'}`}>{now.toLocaleTimeString('zh-CN', { hour12: false })}</span>
         </div>
@@ -131,32 +138,49 @@ export default function NumericalAnalysisAlert() {
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="mx-auto max-w-6xl p-4 md:p-6 space-y-5">
 
+          <div role="status" className={`rounded-lg border px-4 py-3 text-sm ${alertsEnabled ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-200' : 'border-amber-500/25 bg-amber-500/10 text-amber-200'}`}>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="font-semibold">{loading ? '正在读取可信状态' : trustLabel(trust?.trust_status)}</span>
+              <span>{freshnessLabel(trust?.freshness_status)}</span>
+              <span>数据截止 {dataAsOf ? dataAsOf.slice(0, 19).replace('T', ' ') + ' UTC' : '未知'}</span>
+              <span>覆盖 {trust ? `${(trust.coverage_ratio * 100).toFixed(0)}%` : '待判定'}</span>
+              <span>方法 {trust?.method_version || '待确认'}</span>
+            </div>
+            {!alertsEnabled ? (
+              <p className="mt-1 text-xs font-semibold">阈值计算和新告警已停止。{trustReasonLabel(trust?.unavailable_reasons?.[0])}</p>
+            ) : null}
+            {error ? <p className="mt-1 text-xs text-rose-300">{error}</p> : null}
+            <p className="mt-1 text-xs text-slate-400">
+              页面仅展示隐私最小化处置聚合；管理员写操作必须经过服务端鉴权。自动 SLA、外部通知与机构事件系统尚未接入。
+            </p>
+          </div>
+
           {/* --- Stats Overview --- */}
           <div className="grid gap-3 sm:grid-cols-4">
             <StatCard
               label="监控指标"
-              value={String(rules.length)}
-              sub="项活跃规则"
+              value={alertsEnabled ? String(rules.length) : '—'}
+              sub={alertsEnabled ? '项可评估规则' : '可信门禁暂停'}
               color="slate"
             />
             <StatCard
               label="告警中"
-              value={String(breachedCount)}
-              sub={highCount > 0 ? `${highCount} 项高危` : '持续监测中'}
-              color={breachedCount > 0 ? 'rose' : 'emerald'}
-              pulse={breachedCount > 0}
+              value={alertsEnabled ? String(breachedCount) : '—'}
+              sub={!alertsEnabled ? '未生成新告警' : highCount > 0 ? `${highCount} 项高危` : '当前无触发'}
+              color={!alertsEnabled ? 'amber' : breachedCount > 0 ? 'rose' : 'emerald'}
+              pulse={alertsEnabled && breachedCount > 0}
             />
             <StatCard
-              label="今日触发"
+              label="历史记录"
               value={String(reports.length)}
-              sub={`最近: ${reports[0]?.triggered_at ? new Date(reports[0].triggered_at).toLocaleTimeString('zh-CN', { hour12: false }) : '—'}`}
+              sub={`最近: ${reports[0]?.triggered_at ? new Date(reports[0].triggered_at).toLocaleString('zh-CN', { hour12: false }) : '—'}`}
               color={reports.some(r => r.severity === 'high') ? 'rose' : 'amber'}
               pulse={reports.some(r => r.severity === 'high')}
             />
             <StatCard
-              label="刷新间隔"
-              value="1.8s"
-              sub={`${new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })} 更新`}
+              label="数据模式"
+              value={trust?.trust_status === 'mock' ? '1.8s' : 'API'}
+              sub={trust?.trust_status === 'mock' ? '显式模拟波动' : freshnessLabel(trust?.freshness_status)}
               color="slate"
             />
           </div>
@@ -165,10 +189,10 @@ export default function NumericalAnalysisAlert() {
           {activeReports.length > 0 && (
             <section>
               <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
-                <h2 className={`text-sm font-semibold ${lightMode ? 'text-slate-700' : 'text-slate-300'}`}>告警报告</h2>
+                <span className={`flex h-2 w-2 rounded-full ${alertsEnabled ? 'bg-rose-500 animate-pulse' : 'bg-slate-500'}`} />
+                <h2 className={`text-sm font-semibold ${lightMode ? 'text-slate-700' : 'text-slate-300'}`}>{alertsEnabled ? '告警报告' : '历史告警记录'}</h2>
                 <span className="rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/20 px-2 py-0.5 text-[10px] font-semibold">
-                  {activeReports.length} 条新告警
+                  {activeReports.length} 条记录
                 </span>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -196,10 +220,11 @@ export default function NumericalAnalysisAlert() {
                         <button
                           type="button"
                           onClick={() => dismissReport(rep.id)}
-                          className="shrink-0 rounded px-2 py-0.5 text-[11px] font-medium text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                          title="标记已读"
+                          aria-label={`从当前视图隐藏 ${rep.metric} 告警；不会改变处置状态`}
+                          className="min-h-11 shrink-0 rounded px-3 text-[11px] font-medium text-slate-500 hover:bg-slate-500/10 hover:text-slate-200 transition-colors"
+                          title="仅从当前视图隐藏，不会确认或解决告警"
                         >
-                          ✓ 已读
+                          从视图隐藏
                         </button>
                       </div>
                       <p className="mt-2 flex-1 text-xs text-slate-400 leading-relaxed">{rep.message}</p>
@@ -211,27 +236,44 @@ export default function NumericalAnalysisAlert() {
                           ))}
                         </div>
                       )}
-                      {getTimeline(rep.metric).length > 0 && (
-                        <div className="mt-2 border-t border-white/5 pt-2">
-                          <span className="text-[10px] text-slate-600">事件脉络</span>
-                          <div className="mt-1 space-y-0.5">
-                            {getTimeline(rep.metric).map((t, i) => (
-                              <div key={i} className="text-[10px] text-slate-500">{t}</div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      <div
+                        role="status"
+                        aria-label={`${rep.metric} 处置状态`}
+                        className="mt-3 rounded-md border border-white/10 bg-black/10 px-3 py-2"
+                      >
+                        {rep.triage ? (
+                          <>
+                            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                              <span className="font-semibold text-cyan-300">
+                                处置：{triageStatusLabel(rep.triage.status)}
+                              </span>
+                              {rep.triage.reviewed ? (
+                                <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">已复盘</span>
+                              ) : null}
+                              {rep.triage.historical ? (
+                                <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-amber-200">历史只读</span>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-[10px] text-slate-500">
+                              {rep.triage.transition_count} 次状态流转；处置理由和操作者不会在普通页面公开。
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-[11px] font-medium text-slate-500">处置聚合状态暂不可用。</p>
+                        )}
+                      </div>
                       <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
                         <span className="font-mono text-[11px] text-slate-500">
                           当前 {rep.current.toFixed(2)} · 阈值 {rep.threshold}
                         </span>
                         <div className="flex items-center gap-2">
-                          {rep.severity === 'high' && (
+                          {alertsEnabled && rep.severity === 'high' && (
                             <button
                               type="button"
+                              aria-label={`在数据助手中研判 ${rep.metric} 告警`}
                               disabled={navigatingId === rep.id}
                               onClick={() => handleNavigate(rep)}
-                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition-all
+                              className={`min-h-11 rounded-full px-3 text-[10px] font-semibold transition-all
                                 ${navigatingId === rep.id
                                   ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30'
                                   : 'bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300'}`}
@@ -256,8 +298,13 @@ export default function NumericalAnalysisAlert() {
 
           {/* --- Live Monitoring Grid --- */}
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-slate-300">阈值监控面板</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <h2 className="mb-3 text-sm font-semibold text-slate-300">阈值评估快照</h2>
+            {!alertsEnabled ? (
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-4 py-6 text-center text-sm font-semibold text-amber-200">
+                关键输入或覆盖率未达标，当前不计算阈值状态，也不生成告警。
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {rules.map((r) => {
                 const pct = Math.min(100, (r.current / r.threshold) * 100)
                 const overThreshold = pct >= 100
@@ -342,12 +389,13 @@ export default function NumericalAnalysisAlert() {
                   </div>
                 )
               })}
-            </div>
+              </div>
+            )}
           </section>
 
           {/* --- Alert History Log --- */}
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-slate-300">告警历史</h2>
+            <h2 className="mb-3 text-sm font-semibold text-slate-300">规则评估状态</h2>
             <div className="overflow-hidden rounded-lg border border-terminal-border bg-terminal-panel">
               <table className="w-full text-left text-sm">
                 <thead>
@@ -360,6 +408,13 @@ export default function NumericalAnalysisAlert() {
                   </tr>
                 </thead>
                 <tbody>
+                  {rules.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                        {alertsEnabled ? '没有可评估规则。' : '可信门禁暂停，未把缺失值显示为 0 或正常。'}
+                      </td>
+                    </tr>
+                  ) : null}
                   {rules.map((r) => {
                     return (
                       <tr key={r.id} onMouseEnter={() => setHoveredMetric(r.metric)} onMouseLeave={() => setHoveredMetric(null)} className={`border-b border-white/[0.04] transition-all duration-200 ${r.breached ? 'bg-rose-500/5 hover:bg-rose-500/8' : 'hover:bg-white/[0.03]'} ${hoveredMetric === r.metric ? '!bg-blue-500/10 ring-1 ring-blue-500/20' : ''}`}>

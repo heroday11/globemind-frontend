@@ -17,16 +17,23 @@ import {
   SEARCH_TIME_RANGES,
   SEARCH_TYPES,
   activeSearchSurfaceLabel,
+  applySearchSituationPreset,
   buildSearchHistoryKeyword,
   buildSearchRequestDto,
   buildVisiblePages,
   calculateTotalPages,
   createSearchParams,
   mergeFavoriteNewsIds,
+  normalizeSearchParamsForType,
   normalizeDisplayNewsRows,
   normalizeNewsListResponse,
+  normalizeNewsTimeSemantics,
+  normalizeQueryExplain,
+  normalizeQueryReceipt,
   normalizeSearchResponse,
+  resolveLanguageDisplay,
   resolveJumpPage,
+  searchSortSemantics,
 } from '../src/features/search/model.js'
 import {
   SEARCH_DATA_OPERATION_KINDS,
@@ -74,12 +81,16 @@ test('search query DTO preserves defaults, trimming, omission, and Chinese wire 
     hitLocation: '全文',
     dataSource: '',
     language: '',
+    eventCountries: '',
+    mentionedCountries: '',
+    category: '',
+    sentiment: '',
     site: '',
     page: 1,
     pageSize: 10,
     sortBy: '',
     sortOrder: 'desc',
-    mode: 'exact',
+    mode: 'smart',
     searchType: 'news',
   })
   const input = createSearchParams({
@@ -106,11 +117,10 @@ test('search query DTO preserves defaults, trimming, omission, and Chinese wire 
     need_exclude: '   ',
     publish_time: '近一月',
     start_time: '2026-07-01T00:00',
-    hit_location: '标题',
-    language: '中文',
+    time_field: 'event_time',
+    hit_location: '全文',
     page: 3,
     page_size: 20,
-    sort_by: 'pub_time',
     sort_order: 'desc',
     mode: 'fuzzy',
     search_type: 'l2',
@@ -118,19 +128,130 @@ test('search query DTO preserves defaults, trimming, omission, and Chinese wire 
   })
   assert.deepEqual(input, before)
   assert.deepEqual(buildSearchRequestDto(defaults, ''), {
+    time_field: 'published_at',
+    hit_location: '全文',
+    page: 1,
+    page_size: 10,
+    sort_by: 'similarity',
+    sort_order: 'desc',
+    mode: 'smart',
+    search_type: 'news',
+  })
+  assert.equal(
+    buildSearchRequestDto(createSearchParams({ sortBy: 'pub_time' }), '').sort_by,
+    'similarity',
+  )
+  assert.equal(
+    buildSearchRequestDto(createSearchParams({ sortBy: 'time' }), '').sort_by,
+    'similarity',
+  )
+  assert.equal(buildSearchHistoryKeyword(input), 'China risk')
+  assert.equal(
+    buildSearchHistoryKeyword(createSearchParams({ publishTime: '近一周', searchType: 'l1' })),
+    '事件时间:近一周 类型:l1',
+  )
+  assert.equal(buildSearchHistoryKeyword(defaults), '条件检索')
+})
+
+test('hierarchy type normalization removes unsupported news-only filters without mutating input', () => {
+  const input = createSearchParams({
+    topic: 'South China Sea',
+    hitLocation: '正文',
+    dataSource: 'example.test',
+    language: 'en',
+    site: 'news',
+    sortBy: 'pub_time',
+    sortOrder: 'asc',
+    searchType: 'news',
+  })
+  const before = structuredClone(input)
+  const hierarchy = normalizeSearchParamsForType(input, 'l2')
+
+  assert.deepEqual(input, before)
+  assert.deepEqual({
+    searchType: hierarchy.searchType,
+    hitLocation: hierarchy.hitLocation,
+    dataSource: hierarchy.dataSource,
+    language: hierarchy.language,
+    site: hierarchy.site,
+    sortBy: hierarchy.sortBy,
+    sortOrder: hierarchy.sortOrder,
+  }, {
+    searchType: 'l2',
+    hitLocation: '全文',
+    dataSource: '',
+    language: '',
+    site: '',
+    sortBy: '',
+    sortOrder: 'desc',
+  })
+  assert.deepEqual(buildSearchRequestDto(hierarchy, ''), {
+    topic: 'South China Sea',
+    keyword: 'South China Sea',
+    time_field: 'event_time',
     hit_location: '全文',
     page: 1,
     page_size: 10,
     sort_order: 'desc',
     mode: 'exact',
-    search_type: 'news',
+    search_type: 'l2',
   })
-  assert.equal(buildSearchHistoryKeyword(input), 'China risk')
+  assert.equal(searchSortSemantics(hierarchy), '系统排序（匹配覆盖、层级质量、事件规模与事件时间）')
   assert.equal(
-    buildSearchHistoryKeyword(createSearchParams({ publishTime: '近一周', searchType: 'l1' })),
-    '时间:近一周 类型:l1',
+    searchSortSemantics(createSearchParams({ sortBy: 'pub_time' })),
+    '新闻发布日期倒序',
   )
-  assert.equal(buildSearchHistoryKeyword(defaults), '条件检索')
+  assert.equal(
+    searchSortSemantics(createSearchParams()),
+    '标题命中优先，其次按新闻发布日期倒序',
+  )
+})
+
+test('hybrid search sends separate normalized event and mentioned country roles', () => {
+  const dto = buildSearchRequestDto(createSearchParams({
+    topic: 'chip controls',
+    mode: 'hybrid',
+    eventCountries: 'us, JP us',
+    mentionedCountries: 'cn；tw',
+    category: 'technology',
+    sentiment: 'negative',
+  }), '')
+
+  assert.deepEqual(dto.event_countries, ['US', 'JP'])
+  assert.deepEqual(dto.mentioned_countries, ['CN', 'TW'])
+  assert.equal(dto.category, 'technology')
+  assert.equal(dto.sentiment, 'negative')
+  assert.equal(dto.sort_by, 'similarity')
+})
+
+test('language display never re-labels a geographic location as a language', () => {
+  const options = [
+    { id: 'en', name: '英语' },
+    { id: 'zh', name: '中文' },
+  ]
+
+  assert.equal(resolveLanguageDisplay({ language_id: 'en', location: '美国' }, options), '英语')
+  assert.equal(resolveLanguageDisplay({ language_id: 'es', location: '西班牙' }, options), 'es')
+  assert.equal(resolveLanguageDisplay({ location: '法国' }, options), '')
+})
+
+test('news detail presents language and unverified location as separate fields', async () => {
+  const source = await readFile(
+    new URL('../src/views/DataService/news-detail.vue', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(source, /语言代码：\{\{ news\.language_id \}\}/)
+  assert.match(source, /位置（记录值，未核验）：\{\{ news\.location \}\}/)
+  assert.match(source, /新闻发布日期：\{\{ formatTime\(newsTimeSemantics\.publishedAt\) \}\}/)
+  assert.match(source, /事件时间：\{\{ eventTimeDisplay \}\}/)
+  assert.match(source, /采集时间：\{\{ formatTime\(newsTimeSemantics\.collectedAt\) \}\}/)
+  assert.match(source, /更新时间：\{\{ formatTime\(newsTimeSemantics\.updatedAt\) \}\}/)
+  assert.match(source, /；事件时间 \$\{range\}/)
+  assert.doesNotMatch(source, /；时间 \$\{range\}/)
+  assert.doesNotMatch(source, /news\.pub_time/)
+  assert.doesNotMatch(source, /语言\/地区：\{\{ news\.location \}\}/)
+  assert.doesNotMatch(source, /label: '语言\/地区', value: news\.value\.location/)
 })
 
 test('filter constants and surface labels remain stable public contracts', () => {
@@ -143,26 +264,121 @@ test('filter constants and surface labels remain stable public contracts', () =>
     '近一年',
   ])
   assert.deepEqual(SEARCH_HIT_LOCATIONS.map((item) => item.value), ['全文', '标题', '摘要', '正文'])
-  assert.deepEqual(SEARCH_MODES.map((item) => item.value), ['exact', 'fuzzy'])
+  assert.deepEqual(SEARCH_HIT_LOCATIONS.map((item) => item.label), ['标题优先', '标题', '摘要', '正文'])
+  assert.deepEqual(SEARCH_MODES.map((item) => item.value), ['smart', 'exact', 'fuzzy', 'hybrid', 'semantic'])
+  assert.deepEqual(SEARCH_MODES.map((item) => item.label), ['智能搜索', '全部词', '主题扩展', '混合检索', '语义检索'])
   assert.deepEqual(SEARCH_TYPES.map((item) => item.value), ['news', 'l1', 'l2', 'l3'])
   assert.equal(SEARCH_SITUATION_PRESETS.length, 6)
   assert.equal(SEARCH_SITUATION_PRESETS[0].label, '台海风险')
   assert.equal(SEARCH_SITUATION_PRESETS[0].type, 'news')
   assert.equal(SEARCH_SITUATION_PRESETS[0].topic, 'Taiwan')
   assert.equal(SEARCH_SITUATION_PRESETS[0].mode, 'fuzzy')
+  assert.equal(SEARCH_SITUATION_PRESETS[1].topic, 'China USA')
+  assert.equal(SEARCH_SITUATION_PRESETS[4].label, '加沙冲突')
   assert.deepEqual(
     SEARCH_SITUATION_PRESETS.slice(3).map((preset) => [preset.topic, preset.mode]),
     [['Ukraine', 'fuzzy'], ['Gaza', 'fuzzy'], ['control', 'fuzzy']],
   )
   assert.equal(SEARCH_SITUATION_PRESETS[5].type, 'news')
   assert.deepEqual(
-    SEARCH_SITUATION_PRESETS.map((preset) => [preset.time, preset.timeLabel]),
-    Array.from({ length: 6 }, () => ['不限', '不限时间']),
+    SEARCH_SITUATION_PRESETS.map((preset) => [preset.time, preset.timeField, preset.timeLabel]),
+    [
+      ['不限', 'published_at', '新闻发布日期：不限'],
+      ['不限', 'event_time', '事件时间：不限'],
+      ['不限', 'event_time', '事件时间：不限'],
+      ['不限', 'event_time', '事件时间：不限'],
+      ['不限', 'event_time', '事件时间：不限'],
+      ['不限', 'published_at', '新闻发布日期：不限'],
+    ],
   )
   assert.equal(
     activeSearchSurfaceLabel(createSearchParams({ publishTime: '近三月', mode: 'fuzzy', searchType: 'l3' })),
-    'L3大事件 · 近三月 · 模糊',
+    'L3大事件 · 近三月 · 主题扩展',
   )
+})
+
+test('every visible situation preset mutates one editable state and clears cross-type filters', () => {
+  for (const preset of SEARCH_SITUATION_PRESETS) {
+    const searchParams = createSearchParams({
+      topic: 'stale topic',
+      mustInclude: 'stale required',
+      anyInclude: 'stale optional',
+      needExclude: 'stale exclusion',
+      publishTime: '近三月',
+      startTime: '2026-01-01T00:00',
+      endTime: '2026-02-01T00:00',
+      hitLocation: '正文',
+      dataSource: 'stale.example',
+      language: 'en',
+      site: 'stale-site',
+      page: 9,
+      pageSize: 99,
+      sortBy: 'similarity',
+      sortOrder: 'asc',
+      mode: 'exact',
+      searchType: preset.type === 'news' ? 'l3' : 'news',
+    })
+
+    const returned = applySearchSituationPreset(searchParams, preset, 37)
+
+    assert.equal(returned, searchParams, `${preset.label} must retain searchParams identity`)
+    assert.equal(Object.isFrozen(searchParams), false)
+    assert.deepEqual({
+      topic: searchParams.topic,
+      mustInclude: searchParams.mustInclude,
+      anyInclude: searchParams.anyInclude,
+      needExclude: searchParams.needExclude,
+      publishTime: searchParams.publishTime,
+      startTime: searchParams.startTime,
+      endTime: searchParams.endTime,
+      hitLocation: searchParams.hitLocation,
+      dataSource: searchParams.dataSource,
+      language: searchParams.language,
+      site: searchParams.site,
+      page: searchParams.page,
+      pageSize: searchParams.pageSize,
+      sortBy: searchParams.sortBy,
+      sortOrder: searchParams.sortOrder,
+      mode: searchParams.mode,
+      searchType: searchParams.searchType,
+    }, {
+      topic: preset.topic,
+      mustInclude: preset.mustInclude || '',
+      anyInclude: preset.anyInclude || '',
+      needExclude: '',
+      publishTime: preset.time,
+      startTime: '',
+      endTime: '',
+      hitLocation: '全文',
+      dataSource: '',
+      language: '',
+      site: '',
+      page: 1,
+      pageSize: 37,
+      sortBy: preset.type === 'news' ? 'published_at' : '',
+      sortOrder: 'desc',
+      mode: preset.mode || 'exact',
+      searchType: preset.type,
+    })
+
+    const dto = buildSearchRequestDto(searchParams, '')
+    assert.equal(dto.topic, preset.topic)
+    assert.equal(dto.keyword, preset.topic)
+    assert.equal(dto.search_type, preset.type)
+    assert.equal(dto.time_field, preset.timeField)
+    assert.equal(dto.page_size, 37)
+    assert.equal(Object.hasOwn(dto, 'need_exclude'), false)
+    assert.equal(Object.hasOwn(dto, 'publish_time'), false)
+    assert.equal(Object.hasOwn(dto, 'start_time'), false)
+    assert.equal(Object.hasOwn(dto, 'end_time'), false)
+    assert.equal(Object.hasOwn(dto, 'data_source'), false)
+    assert.equal(Object.hasOwn(dto, 'language'), false)
+    assert.equal(Object.hasOwn(dto, 'site'), false)
+    assert.equal(dto.sort_by, preset.type === 'news' ? 'published_at' : undefined)
+
+    searchParams.topic = `${preset.topic} edited`
+    assert.equal(searchParams.topic, `${preset.topic} edited`)
+  }
 })
 
 test('news and hierarchy responses normalize against the request search-type snapshot', () => {
@@ -170,7 +386,22 @@ test('news and hierarchy responses normalize against the request search-type sna
     data: [{ id: '7', is_favorited: 1, is_warned: 0 }],
     total: 9,
   }), {
-    rows: [{ id: 7, is_favorited: true, is_warned: false, selected: false }],
+    rows: [{
+      id: 7,
+      is_favorited: true,
+      is_warned: false,
+      selected: false,
+      timeSemantics: {
+        schemaVersion: 'unavailable',
+        publishedAt: null,
+        eventTimeStart: null,
+        eventTimeEnd: null,
+        collectedAt: null,
+        updatedAt: null,
+        legacyPubTimeStatus: 'legacy_unverified_not_used',
+        legacyCreatedAtStatus: 'legacy_unverified_not_used',
+      },
+    }],
     total: 9,
   })
 
@@ -182,6 +413,12 @@ test('news and hierarchy responses normalize against the request search-type sna
       total: 1,
       page: 2,
       page_size: 25,
+      query_receipt: {
+        schema_version: 'search-query-receipt-v1',
+        receipt_id: 'qr-test',
+        ordered_returned_ids: [8],
+        result_coverage: { status: 'available', returned_result_count: 1 },
+      },
     },
     'news',
     { page: 1, pageSize: 10 },
@@ -192,6 +429,8 @@ test('news and hierarchy responses normalize against the request search-type sna
   assert.deepEqual(news.eventCorefClusters, [{ cluster_id: 'c1' }])
   assert.equal(news.page, 2)
   assert.equal(news.pageSize, 25)
+  assert.equal(news.queryReceipt.receipt_id, 'qr-test')
+  assert.deepEqual(news.queryReceipt.ordered_returned_ids, ['8'])
 
   const l1 = normalizeSearchResponse(
     { event_coref_clusters: [{ cluster_id: 'c2' }] },
@@ -224,17 +463,198 @@ test('news and hierarchy responses normalize against the request search-type sna
     title: '无标题',
     displayDesc: 'Summary',
     displayTime: undefined,
-    displayUrl: '#',
+    displayUrl: '',
     isFirstRelease: true,
     is_favorited: false,
     is_warned: false,
     selected: false,
+    timeSemantics: {
+      schemaVersion: 'unavailable',
+      publishedAt: null,
+      eventTimeStart: null,
+      eventTimeEnd: null,
+      collectedAt: null,
+      updatedAt: null,
+      legacyPubTimeStatus: 'legacy_unverified_not_used',
+      legacyCreatedAtStatus: 'legacy_unverified_not_used',
+    },
+    searchHit: {
+      schemaVersion: 'search-hit-display-v1',
+      status: 'unavailable',
+      offsetEncoding: 'unicode_code_points',
+      coverage: 'positive_literal_terms_in_returned_display_only',
+      effectiveSearchFields: [],
+      aliasSpanState: 'not_available',
+      relevanceScoreState: 'not_available',
+      documentMatchState: 'not_asserted',
+      reasonCode: 'SEARCH_HIT_CONTRACT_INVALID',
+      spans: [],
+    },
   }])
   assert.deepEqual(mergeFavoriteNewsIds([1], [
     { id: '2', is_favorited: true },
     { id: 1, is_favorited: true },
     { id: 3, is_favorited: false },
   ]), [1, 2])
+})
+
+test('news time normalization requires the explicit four-semantic contract', () => {
+  const legacyOnly = normalizeNewsTimeSemantics({
+    pub_time: '2026-08-09T12:30:00Z',
+    published_at: '2026-08-09T12:31:00Z',
+    time: '2026-08-09T12:32:00Z',
+    created_at: '2026-08-09T12:33:00Z',
+  })
+  assert.deepEqual(legacyOnly, {
+    schemaVersion: 'unavailable',
+    publishedAt: null,
+    eventTimeStart: null,
+    eventTimeEnd: null,
+    collectedAt: null,
+    updatedAt: null,
+    legacyPubTimeStatus: 'legacy_unverified_not_used',
+    legacyCreatedAtStatus: 'legacy_unverified_not_used',
+  })
+
+  const explicit = normalizeNewsTimeSemantics({
+    time_semantics: {
+      schema_version: 'search-result-time-semantics-v1',
+      published_at: '2026-08-09T12:30:00Z',
+      event_time_start: null,
+      event_time_end: null,
+      collected_at: null,
+      updated_at: null,
+      legacy_pub_time_status: 'legacy_alias_of_published_at_value_unverified',
+      legacy_created_at_status: 'legacy_unverified_not_used',
+    },
+    pub_time: '2026-08-09T12:30:00Z',
+    time: '1998-01-01T00:00:00Z',
+  })
+  assert.deepEqual(explicit, {
+    schemaVersion: 'search-result-time-semantics-v1',
+    publishedAt: '2026-08-09T12:30:00Z',
+    eventTimeStart: null,
+    eventTimeEnd: null,
+    collectedAt: null,
+    updatedAt: null,
+    legacyPubTimeStatus: 'legacy_alias_of_published_at_value_unverified',
+    legacyCreatedAtStatus: 'legacy_unverified_not_used',
+  })
+
+  assert.equal(normalizeNewsTimeSemantics({
+    time_semantics: {
+      schema_version: 'search-result-time-semantics-v1',
+      published_at: 'x'.repeat(65),
+    },
+  }).publishedAt, null)
+
+  assert.equal(normalizeNewsTimeSemantics({
+    time_semantics: {
+      schema_version: 'search-result-time-semantics-v1',
+      published_at: '2026-08-09T12:30:00Z',
+      event_time_start: '2026-08-10T00:00:00Z',
+      event_time_end: '2026-08-09T00:00:00Z',
+      collected_at: null,
+      updated_at: null,
+      legacy_pub_time_status: 'legacy_alias_of_published_at_value_unverified',
+      legacy_created_at_status: 'legacy_unverified_not_used',
+    },
+  }).schemaVersion, 'unavailable')
+
+  assert.equal(normalizeNewsTimeSemantics({
+    time_semantics: {
+      schema_version: 'search-result-time-semantics-v1',
+      published_at: '2026-08-09T12:30:00Z',
+      event_time_start: null,
+      event_time_end: null,
+      collected_at: null,
+      updated_at: null,
+      legacy_pub_time_status: 'legacy_alias_of_published_at_value_unverified',
+      legacy_created_at_status: 'legacy_unverified_not_used',
+    },
+    pub_time: '1999-01-01T00:00:00Z',
+  }).schemaVersion, 'unavailable')
+})
+
+test('query explain normalization preserves truthful stages and stable entity identifiers', () => {
+  const explain = normalizeQueryExplain({
+    query_language: 'boolean-v1',
+    query_ast: { type: 'and', children: [{ type: 'term', value: 'China' }] },
+    expanded_query_ast: { type: 'term', value: 'China', expanded_values: ['China', '中国'] },
+    execution_expression: 'ANY("China", "中国")',
+    limits: { max_ast_nodes: 64, observed_ast_nodes: 2 },
+    normalized_terms: ['China', 'semiconductor'],
+    expanded_terms: ['China', '中国', 'semiconductor'],
+    effective_search_fields: ['news.title'],
+    entity_expansions: [{
+      query_field: 'primary_query',
+      entity_id: 'urn:globemind:entity:country:CN',
+      expanded_aliases: ['China', '中国'],
+      expanded_alias_details: [{ value: 'China', status: 'active' }],
+      review_status: 'review_required',
+    }],
+    applied_filters: [],
+    stages: [
+      { stage: 'retrieval', status: 'executed', matched_count: 0 },
+      { stage: 'relaxation', status: 'not_run', matched_count: null },
+    ],
+    relaxation_suggestions: ['手动改用主题扩展'],
+    automatic_relaxation: false,
+  })
+  assert.equal(explain.entity_expansions[0].entity_id, 'urn:globemind:entity:country:CN')
+  assert.equal(explain.entity_expansions[0].query_field, 'primary_query')
+  assert.equal(explain.entity_expansions[0].review_status, 'review_required')
+  assert.equal(explain.entity_expansions[0].expanded_alias_details[0].status, 'active')
+  assert.equal(explain.query_language, 'boolean-v1')
+  assert.equal(explain.query_ast.type, 'and')
+  assert.equal(explain.limits.max_ast_nodes, 64)
+  assert.equal(explain.stages[0].matched_count, 0)
+  assert.equal(explain.stages[1].status, 'not_run')
+  assert.equal(explain.automatic_relaxation, false)
+  assert.equal(normalizeQueryExplain(null), null)
+
+  const sparse = normalizeQueryExplain({})
+  assert.deepEqual(sparse.normalized_terms, [])
+  assert.deepEqual(sparse.stages, [])
+  assert.equal(sparse.query_language, 'unavailable')
+  assert.equal(sparse.query_ast.type, 'unavailable')
+  assert.deepEqual(sparse.limits, {})
+})
+
+test('query receipt normalization keeps hashes, ordered IDs, coverage, and snapshot disclaimer state', () => {
+  const receipt = normalizeQueryReceipt({
+    schema_version: 'search-query-receipt-v1',
+    receipt_kind: 'execution_receipt',
+    method_version: 'dashboard-search-v2+boolean-v1+receipt-v1',
+    receipt_id: 'qr-abc',
+    receipt_sha256: 'a'.repeat(64),
+    normalized_contract: { schema_version: 'normalized-search-contract-v1' },
+    normalized_contract_sha256: 'b'.repeat(64),
+    entity_catalog_version: 'entity-aliases-2026.08.09-v2',
+    entity_catalog_review_status: 'review_required',
+    time_field: { requested: 'published_at', applied: 'public.news.published_at' },
+    applied_filters: [{ field: 'start_time' }],
+    ordered_returned_ids: [9, '4'],
+    ordered_returned_ids_sha256: 'c'.repeat(64),
+    result_coverage: {
+      status: 'partial',
+      cutoff: '2026-08-09T02:00:00Z',
+      returned_result_count: 2,
+      timed_result_count: 1,
+    },
+    snapshot_status: 'not_frozen',
+    frozen_data_snapshot_id: null,
+    receipt_note: 'execution receipt only',
+  })
+
+  assert.deepEqual(receipt.ordered_returned_ids, ['9', '4'])
+  assert.equal(receipt.result_coverage.status, 'partial')
+  assert.equal(receipt.result_coverage.timed_result_count, 1)
+  assert.equal(receipt.normalized_contract_sha256, 'b'.repeat(64))
+  assert.equal(receipt.entity_catalog_review_status, 'review_required')
+  assert.equal(receipt.snapshot_status, 'not_frozen')
+  assert.equal(normalizeQueryReceipt(null), null)
+  assert.deepEqual(normalizeQueryReceipt({}).ordered_returned_ids, [])
 })
 
 test('pagination rules preserve zero, forward-window, and invalid-jump behavior', () => {
@@ -324,7 +744,17 @@ test('search API preserves URL/body/auth and maps backend errors', async () => {
       sortOrder: 'desc',
       favoriteScopeTopic: '',
     }).searchParams.get('sort_by'),
-    'pub_time',
+    'published_at',
+  )
+  assert.equal(
+    buildNewsListUrl('/api/dashboard/news', 'https://globemind.top', {
+      page: 1,
+      size: 10,
+      sortBy: 'time',
+      sortOrder: 'sideways',
+      favoriteScopeTopic: '',
+    }).searchParams.has('sort_by'),
+    false,
   )
 })
 
@@ -343,6 +773,8 @@ test('search API owns options, stats, hierarchy, and favorite transport contract
   const favorite = { news_id: 17, topic: '政策观察', kind: 'favorite' }
 
   await api.getSearchOptions({ signal })
+  await api.getCapabilities({ signal })
+  await api.preflight({ keyword: 'chip OR semiconductor' }, { signal })
   await api.getStats({ signal })
   await api.getV11Children('story/a', 'l 2', { signal })
   await api.listFavorites({ signal })
@@ -351,6 +783,8 @@ test('search API owns options, stats, hierarchy, and favorite transport contract
 
   assert.deepEqual(calls.map((call) => call.url), [
     '/api/dashboard/search/options',
+    '/api/dashboard/search/capabilities',
+    '/api/dashboard/search/preflight',
     '/api/dashboard/stats',
     '/api/dashboard/search/v11-clusters/story%2Fa/children?level=l%202&page=1&page_size=50',
     '/api/user/favorites',
@@ -360,12 +794,51 @@ test('search API owns options, stats, hierarchy, and favorite transport contract
   assert.equal(calls.every((call) => call.options.signal === signal), true)
   assert.equal(calls[0].options.headers, undefined)
   assert.equal(calls[1].options.headers, undefined)
-  assert.equal(calls[2].options.headers.Authorization, 'Bearer token-2')
-  assert.equal(calls[3].options.headers.Authorization, 'Bearer token-2')
-  assert.equal(calls[4].options.method, 'POST')
-  assert.deepEqual(JSON.parse(calls[4].options.body), favorite)
-  assert.equal(calls[5].options.method, 'POST')
-  assert.deepEqual(JSON.parse(calls[5].options.body), favorite)
+  assert.deepEqual(calls[2].options.headers, { 'Content-Type': 'application/json' })
+  assert.equal(calls[2].options.method, 'POST')
+  assert.deepEqual(JSON.parse(calls[2].options.body), { keyword: 'chip OR semiconductor' })
+  assert.equal(calls[3].options.headers, undefined)
+  assert.equal(calls[4].options.headers.Authorization, 'Bearer token-2')
+  assert.equal(calls[5].options.headers.Authorization, 'Bearer token-2')
+  assert.equal(calls[6].options.method, 'POST')
+  assert.deepEqual(JSON.parse(calls[6].options.body), favorite)
+  assert.equal(calls[7].options.method, 'POST')
+  assert.deepEqual(JSON.parse(calls[7].options.body), favorite)
+})
+
+test('search API exposes explicit authenticated snapshot capture, list, get, and ID-only replay', async () => {
+  const calls = []
+  const api = createSearchApi({
+    fetchImpl: async (url, options) => {
+      calls.push({ url: String(url), options })
+      return jsonResponse({ schema_version: 'search-snapshot-v1' })
+    },
+    apiPrefix: '/api',
+    getAccessToken: () => 'snapshot-token',
+  })
+  const signal = { aborted: false }
+  const receipt = { receipt_id: 'qr-test' }
+  const previous = 'search-snap-20260809T010203000000Z-0000000000000000'
+
+  await api.captureSearchSnapshot(receipt, previous, { signal })
+  await api.listSearchSnapshots(25, { signal })
+  await api.getSearchSnapshot('snap/a', { signal })
+  await api.replaySearchSnapshot('snap/a', { signal })
+
+  assert.deepEqual(calls.map((call) => call.url), [
+    '/api/search-snapshots',
+    '/api/search-snapshots?limit=25',
+    '/api/search-snapshots/snap%2Fa',
+    '/api/search-snapshots/snap%2Fa/replay',
+  ])
+  assert.equal(calls[0].options.method, 'POST')
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    receipt,
+    expected_previous_snapshot_id: previous,
+  })
+  assert.equal(calls.every((call) => call.options.headers.Authorization === 'Bearer snapshot-token'), true)
+  assert.equal(calls.every((call) => call.options.signal === signal), true)
+  assert.equal(createSearchEndpoints('/v2').searchSnapshots, '/v2/search-snapshots')
 })
 
 test('search API errors are stable while abort errors remain identifiable', async () => {
@@ -477,7 +950,8 @@ test('latest request coordinator enforces a bounded search time', async () => {
     },
     clearTimeoutImpl() {},
   })
-  const run = coordinator.run((_signal) => new Promise((_resolve, reject) => {
+  const run = coordinator.run(() => new Promise((resolve, reject) => {
+    void resolve
     rejectRequest = reject
   }))
   timeoutCallback()
@@ -487,7 +961,7 @@ test('latest request coordinator enforces a bounded search time', async () => {
   assert.equal(outcome.latest, true)
   assert.equal(outcome.error instanceof SearchRequestTimeoutError, true)
   assert.equal(outcome.error.timeoutMs, 25)
-  assert.equal(SEARCH_REQUEST_TIMEOUT_MS, 8_000)
+  assert.equal(SEARCH_REQUEST_TIMEOUT_MS, 12_000)
 })
 
 test('operation-aware retry repeats the failed GET or POST snapshot without switching modes', async () => {
@@ -631,7 +1105,108 @@ test('data-search route consumes the feature through its public entry', async ()
       assert.equal(match[1], 'index.js', `deep search import in ${path}`)
     }
   }
-  assert.equal(publicImports, 1)
+  assert.equal(publicImports, 2)
+})
+
+test('data-search exposes one page heading and programmatic labels for search controls', async () => {
+  const source = await readFile(new URL('../src/views/DataService/data-search.vue', import.meta.url), 'utf8')
+  const styles = await readFile(new URL('../src/views/DataService/data-search.less', import.meta.url), 'utf8')
+
+  assert.equal(source.match(/<h1\b/g)?.length, 1)
+  assert.match(source, /<h1>\{\{ searchParams\.searchType === 'news' \? '跨语言全文搜索' : '事件脉络检索' \}\}<\/h1>/)
+
+  for (const id of [
+    'search-folder-name',
+    'search-topic',
+    'search-start-time',
+    'search-end-time',
+    'search-data-source',
+    'search-language',
+    'search-page-size',
+    'search-jump-page',
+  ]) {
+    assert.match(source, new RegExp(`<label[^>]*for=["']${id}["']`), `${id}: label`)
+    assert.match(source, new RegExp(`<(?:input|select)[^>]*id=["']${id}["']`), `${id}: control`)
+  }
+
+  assert.match(source, /aria-label="上一页"/)
+  assert.match(source, /aria-label="下一页"/)
+  assert.match(source, /:aria-current="page === currentPage \? 'page' : undefined"/)
+  assert.match(styles, /\.search-sr-only,\s*\n\.critical-action-status\s*\{/)
+})
+
+test('critical search actions expose guest persistence, login resume, export, and sync outcomes', async () => {
+  const source = await readFile(new URL('../src/views/DataService/data-search.vue', import.meta.url), 'utf8')
+  const loginModal = await readFile(new URL('../src/components/LoginModal.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /role="status" aria-live="polite" aria-atomic="true"[^>]*>\{\{ criticalActionStatus \}\}/)
+  assert.match(source, /自动扩展多语言查询/)
+  assert.doesNotMatch(source, /aria-describedby="search-mode-hint"/)
+  assert.match(source, /PENDING_ASSISTANT_OPEN_KEY/)
+  assert.match(source, /当前检索与勾选素材已保留/)
+  assert.match(source, /new CustomEvent\('showLoginModal'\)/)
+  assert.match(source, /仅保存在此浏览器/)
+  assert.match(source, /账号同步失败/)
+  assert.match(source, /浏览器阻止了会话存储/)
+  assert.match(source, /已从本浏览器的临时收藏/)
+  assert.match(source, /导出失败，请重试或检查浏览器下载权限/)
+  assert.match(loginModal, /role="dialog"/)
+  assert.match(loginModal, /for="login-modal-username"/)
+  assert.match(loginModal, /aria-live="assertive"/)
+  assert.match(loginModal, /usernameField\.value\?\.focus\(\)/)
+  assert.match(loginModal, /event\.key === 'Escape'/)
+  assert.match(loginModal, /trapDialogTab/)
+  assert.match(loginModal, /restoreDialogFocus/)
+  assert.match(loginModal, /formatApiErrorDetail/)
+})
+
+test('data-search displays actual query, time-field semantics, and non-fabricated explain stages', async () => {
+  const source = await readFile(new URL('../src/views/DataService/data-search.vue', import.meta.url), 'utf8')
+  const styles = await readFile(new URL('../src/views/DataService/data-search.less', import.meta.url), 'utf8')
+
+  assert.match(source, /跨语言全文搜索/)
+  assert.match(source, /const searchParams = reactive\(createSearchParams\(\)\)/)
+  assert.match(source, /const mode = type === 'news' \? 'smart' : 'exact'/)
+  assert.doesNotMatch(source, />新闻发布日期<\/button>/)
+  assert.match(source, /事件时间：\{\{ item\.start_date \|\| '—' \}\} 至 \{\{ item\.end_date \|\| '—' \}\}/)
+  assert.match(source, /事件时间：\{\{ child\.start_date \|\| '—' \}\} 至 \{\{ child\.end_date \|\| '—' \}\}/)
+  assert.doesNotMatch(source, />标题命中优先<\/button>/)
+  assert.doesNotMatch(source, /事件国代码|正文提及国代码/)
+  assert.match(source, /normalizeSearchParamsForType\(\{ \.\.\.searchParams, mode, page: 1 \}, type\)/)
+  assert.match(source, /queryExplain\.entity_expansions/)
+  assert.match(source, /queryExplain\.expanded_terms\.join/)
+  assert.match(source, /queryExplain\.query_ast/)
+  assert.match(source, /queryExplain\.execution_expression/)
+  assert.match(source, /queryLimitText\(queryExplain\.limits\)/)
+  assert.match(source, /queryExplain\.applied_filters\.map\(queryFilterText\)/)
+  assert.match(source, /entity\.entity_id/)
+  assert.match(source, /entity\.matched_alias_status !== 'active'/)
+  assert.match(source, /queryFieldLabel\(entity\.query_field\)/)
+  assert.match(source, /queryExplain\.alias_catalog_version/)
+  assert.match(source, /entity\.valid_from \|\| '未知'/)
+  assert.match(source, /自动放宽：/)
+  assert.match(source, /本次查询执行收据/)
+  assert.match(source, /queryReceipt\.normalized_contract_sha256/)
+  assert.match(source, /queryReceipt\.ordered_returned_ids_sha256/)
+  assert.match(source, /queryReceipt\.result_coverage\.cutoff/)
+  assert.match(source, /这是执行收据，不是冻结数据快照/)
+  assert.match(styles, /\.query-receipt-grid/)
+  assert.match(source, /采集时间和更新时间当前不可筛选/)
+  assert.doesNotMatch(source, /searchModeDisclosure\(searchParams\.mode\)\.description/)
+  assert.doesNotMatch(source, /每个 OR 分支必须有正向词/)
+  assert.match(source, /不声称 95% 准确率/)
+  assert.match(source, /searchParams\.searchType === 'news' \? '新闻发布日期' : '事件发生时间'/)
+  assert.match(source, /relative_time: `\$\{timeFilterLabel\.value\}相对范围`/)
+  assert.match(source, /start_time: `\$\{timeFilterLabel\.value\}起点`/)
+  assert.match(source, /end_time: `\$\{timeFilterLabel\.value\}终点`/)
+  assert.match(source, /`\$\{timeFilterLabel\.value\}：\$\{searchParams\.publishTime/)
+  assert.doesNotMatch(source, /`发布时间：\$\{searchParams\.publishTime/)
+  assert.doesNotMatch(source, /displayTime \|\| card\.pub_time \|\| card\.time/)
+  assert.doesNotMatch(source, /item\.pub_time \|\| item\.published_at \|\| item\.time/)
+  assert.doesNotMatch(source, /child\.displayTime \|\| child\.pub_time \|\| child\.time/)
+  assert.match(styles, /\.query-explain\s*\{/)
+  assert.match(styles, /\.query-stage-list\s*\{/)
+  assert.match(styles, /\.query-ast-value\s*\{/)
 })
 
 test('data-search mobile pagination wraps without widening the page', async () => {

@@ -68,6 +68,10 @@ function record(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 }
 
+function finiteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
 export function normalizeRuntimeCatalog(value) {
   const catalog = record(value)
   return {
@@ -180,11 +184,13 @@ export function groupPipelines(pipelines, order = PIPELINE_GROUP_ORDER) {
 }
 
 export function buildPipelineKpis({ overview = {}, db = {}, online = {} } = {}) {
+  const onlineActive = finiteNumber(overview.online_active)
+  const onlineTtl = finiteNumber(online.ttl_sec)
   return [
     {
       label: '库内新闻',
       value: formatNumber(overview.news_total),
-      sub: `近 24h 好新闻 ${formatNumber(overview.good_last_24h || 0)}`,
+      sub: `近 24h 好新闻 ${formatNumber(overview.good_last_24h)}`,
       icon: 'database',
       tone: 'blue',
     },
@@ -213,10 +219,10 @@ export function buildPipelineKpis({ overview = {}, db = {}, online = {} } = {}) 
     },
     {
       label: '在线浏览器',
-      value: formatNumber(overview.online_active),
-      sub: `${online.ttl_sec || 90}s 活跃窗口`,
+      value: formatNumber(onlineActive),
+      sub: onlineTtl === null ? '活跃窗口未确认' : `${onlineTtl}s 活跃窗口`,
       icon: 'users',
-      tone: 'green',
+      tone: onlineActive === null ? 'neutral' : 'green',
     },
     {
       label: '服务器压力',
@@ -253,19 +259,26 @@ export function samplesWithinWindow(
 }
 
 export function formatNumber(value) {
-  return new Intl.NumberFormat('zh-CN').format(Number(value || 0))
+  const number = finiteNumber(value)
+  return number === null ? '—' : new Intl.NumberFormat('zh-CN').format(number)
 }
 
 export function formatPct(value) {
-  if (value === null || value === undefined || value === '—') return '—'
-  const number = Number(value)
-  if (!Number.isFinite(number)) return '—'
+  const number = finiteNumber(value)
+  if (number === null) return '—'
   return `${number.toFixed(number >= 10 ? 1 : 2)}%`
 }
 
 export function formatMetricValue(metric) {
-  if (!metric || metric.value === '—') return '—'
+  if (
+    !metric
+    || metric.value === null
+    || metric.value === undefined
+    || typeof metric.value === 'boolean'
+    || metric.value === '—'
+  ) return '—'
   if (typeof metric.value === 'number') {
+    if (!Number.isFinite(metric.value)) return '—'
     const value = Math.abs(metric.value) >= 1_000 ? formatNumber(metric.value) : String(metric.value)
     return `${value}${metric.unit || ''}`
   }
@@ -286,9 +299,8 @@ export function formatTime(value, compact = false) {
 }
 
 export function formatDuration(seconds) {
-  if (seconds === null || seconds === undefined) return '—'
-  const value = Number(seconds)
-  if (!Number.isFinite(value) || value <= 0) return '—'
+  const value = finiteNumber(seconds)
+  if (value === null || value <= 0) return '—'
   const days = Math.floor(value / 86_400)
   const hours = Math.floor((value % 86_400) / 3_600)
   const minutes = Math.floor((value % 3_600) / 60)
@@ -298,8 +310,8 @@ export function formatDuration(seconds) {
 }
 
 export function formatBytes(bytes) {
-  const value = Number(bytes || 0)
-  if (!Number.isFinite(value) || value <= 0) return '—'
+  const value = finiteNumber(bytes)
+  if (value === null || value <= 0) return '—'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let size = value
   let index = 0
@@ -311,15 +323,16 @@ export function formatBytes(bytes) {
 }
 
 export function pressureTone(value) {
-  const number = Number(value || 0)
+  const number = finiteNumber(value)
+  if (number === null) return 'neutral'
   if (number >= 90) return 'red'
   if (number >= 65) return 'amber'
   return 'green'
 }
 
 export function progressStyle(value) {
-  const percentage = Number(value)
-  const width = Number.isFinite(percentage) ? Math.max(0, Math.min(100, percentage)) : 0
+  const percentage = finiteNumber(value)
+  const width = percentage === null ? 0 : Math.max(0, Math.min(100, percentage))
   return { width: `${width}%` }
 }
 
@@ -336,15 +349,14 @@ export function metricUnit(key, metrics = TREND_METRICS) {
 }
 
 export function metricValue(sample, key) {
-  const value = Number(sample?.[key])
-  return Number.isFinite(value) ? value : null
+  return finiteNumber(sample?.[key])
 }
 
 export function metricRange(samples, key) {
   const values = (Array.isArray(samples) ? samples : [])
     .map((sample) => metricValue(sample, key))
     .filter((value) => value !== null)
-  if (!values.length) return { min: 0, max: 1 }
+  if (!values.length) return { min: null, max: null }
   let min = Math.min(...values)
   let max = Math.max(...values)
   if (min === max) {
@@ -374,10 +386,15 @@ export function chartPoint(samples, index, key, width = CHART_WIDTH, height = CH
 export function chartPath(samples, key, width = CHART_WIDTH, height = CHART_HEIGHT) {
   const items = Array.isArray(samples) ? samples : []
   const commands = []
+  let segmentStarted = false
   items.forEach((_sample, index) => {
     const point = chartPoint(items, index, key, width, height)
-    if (!point) return
-    commands.push(`${commands.length ? 'L' : 'M'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    if (!point) {
+      segmentStarted = false
+      return
+    }
+    commands.push(`${segmentStarted ? 'L' : 'M'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    segmentStarted = true
   })
   return commands.join(' ')
 }
@@ -395,6 +412,11 @@ export function chartTickIndices(sampleCount) {
 
 export function chartLaneAxisLabels(samples, key, formatValue) {
   const { min, max } = metricRange(samples, key)
+  if (min === null || max === null) {
+    return [
+      { text: formatValue(null, key), top: '50%' },
+    ]
+  }
   const middle = min + (max - min) / 2
   return [
     { text: formatValue(max, key), top: `${(CHART_PAD_Y / CHART_HEIGHT) * 100}%` },

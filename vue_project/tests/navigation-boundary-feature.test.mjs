@@ -17,6 +17,10 @@ const PRELOAD_GROUPS = {
   '/academic-data': ['academicData'],
   '/about-us': ['aboutUs'],
   '/user-center/personal-center': ['userCenter', 'personalCenter'],
+  '/research-workspace': ['researchWorkspace'],
+  '/model-assurance': ['modelAssurance'],
+  '/entity-governance': ['entityGovernance'],
+  '/country-profiles': ['countryProfileCatalog'],
 }
 
 test('route preloader composition preserves every previous lazy view group', async () => {
@@ -62,11 +66,10 @@ test('shared candidates receive preload descriptors without importing route view
   const router = await readFile(new URL('../src/router/index.js', import.meta.url), 'utf8')
 
   assert.match(appNav, /routePreloaders:\s*\{[\s\S]*required:\s*true/)
-  assert.match(appNav, /const loader = props\.routePreloaders\[path\]/)
-  assert.match(appNav, /const primaryPreloadTimers = new Set\(\)/)
-  assert.match(appNav, /primaryPreloadTimers\.delete\(timer\)/)
-  assert.match(appNav, /for \(const timer of primaryPreloadTimers\)/)
-  assert.match(appNav, /primaryPreloadTimers\.clear\(\)/)
+  assert.match(appNav, /createRoutePreloadController\(props\.routePreloaders/)
+  assert.match(appNav, /preloadController\.schedule\(path\)/)
+  assert.match(appNav, /preloadController\.loadNow\(path\)/)
+  assert.match(appNav, /preloadController\.dispose\(\)/)
   assert.match(app, /import \{ routePreloaders \} from ['"]\.\/router\/routePreloaders\.js['"]/)
   assert.match(app, /<appNav :route-preloaders="routePreloaders" \/>/)
   assert.match(router, /import \{ routeViewLoaders \} from ['"]\.\/routePreloaders\.js['"]/)
@@ -95,5 +98,16 @@ test('router and navigation preloads share the same lazy loader functions', asyn
   for (const key of new Set(Object.values(PRELOAD_GROUPS).flat())) {
     assert.match(router, new RegExp(`component: routeViewLoaders\\.${key}`), key)
   }
-  assert.equal([...source.matchAll(/=> import\(['"]@\/views\//g)].length, 14)
+  assert.equal([...source.matchAll(/=> import\(['"]@\/views\//g)].length, 18)
+})
+
+test('entity governance route is authenticated, lazy, and only advertised to signed-in users', async () => {
+  const router = await readFile(new URL('../src/router/index.js', import.meta.url), 'utf8')
+  const navigation = await readFile(new URL('../src/components/appNav.vue', import.meta.url), 'utf8')
+  const canonicalPaths = router.match(/const INDEXABLE_CANONICAL_PATHS = new Set\(\[([\s\S]*?)\]\)/)?.[1] || ''
+
+  assert.match(router, /path: '\/entity-governance',[\s\S]*?component: routeViewLoaders\.entityGovernance,[\s\S]*?meta: \{ requiresAuth: true, hideNavbar: false \}/)
+  assert.doesNotMatch(canonicalPaths, /entity-governance/)
+  assert.match(navigation, /v-if="hasToken"[\s\S]{0,180}@click="navigateTo\('\/entity-governance'\)"/)
+  assert.match(navigation, /v-if="hasToken"[\s\S]{0,180}@click="mobileNavigateTo\('\/entity-governance'\)"/)
 })

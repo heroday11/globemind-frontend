@@ -11,8 +11,17 @@ node_modules
 .DS_Store
 dist
 dist-ssr
+/dist.previous*/
+/.deploy/
+/public/datasets/**
+!/public/datasets/expert-skills/
+!/public/datasets/expert-skills/catalog.json
+!/public/datasets/新闻媒体收集.csv
+/public/imgs/hermes-generated/
+/public/fin-terminal/
 .frontend-build.*
 coverage
+*.bak
 *.local
 
 /cypress/videos/

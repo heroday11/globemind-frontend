@@ -36,6 +36,15 @@ import {
   normalizeMacroLane,
   orderStoryNodes,
 } from './flow-model.js'
+import {
+  buildStoryGraphEdgeInspector,
+  buildStoryGraphNodeInspector,
+  formatCountLabel,
+} from './presentation.js'
+import {
+  normalizeStoryRelation,
+  storyRelationLabel,
+} from '../../governance/storyRelations.js'
 
 const h = React.createElement
 
@@ -245,6 +254,7 @@ function StoryGraphCanvas({
         nodesConnectable: false,
         elementsSelectable: true,
         nodesFocusable: true,
+        edgesFocusable: true,
         panOnDrag: [0, 2],
         zoomOnScroll: true,
         selectionOnDrag: false,
@@ -272,17 +282,16 @@ function StoryGraphCanvas({
           }
         },
         onEdgeClick(_event, edge) {
-          onSelectInspector?.({
-            kind: 'edge',
-            title: edge.data?.label || displayEdgeLabel(edge.data?.edgeType || edge.type),
-            subtitle: `${edge.source} → ${edge.target}`,
-            sourceId: edge.source,
-            targetId: edge.target,
-            edgeType: edge.data?.edgeType || edge.type,
-            layer: edge.data?.layer,
-            relationReason: edge.data?.relationReason,
-            weight: edge.data?.weight,
-          })
+          if (edge.data?.payload) onSelectInspector?.(edge.data.payload)
+        },
+        onSelectionChange({ nodes: selectedNodes = [], edges: selectedEdges = [] }) {
+          const nodePayload = selectedNodes.find((node) => node.data?.payload)?.data?.payload
+          if (nodePayload) {
+            onSelectInspector?.(nodePayload)
+            return
+          }
+          const edgePayload = selectedEdges.find((edge) => edge.data?.payload)?.data?.payload
+          if (edgePayload) onSelectInspector?.(edgePayload)
         },
         onPaneClick() {
           onCanvasClick?.()
@@ -381,7 +390,10 @@ function StoryEventNode({ data, selected }) {
         h(
           'div',
           { className: 'story-rf-event__meta' },
-          data.metaText || `${data.articleCount} 条新闻`,
+          data.metaText || formatCountLabel(data.articleCount, {
+            unit: '条新闻',
+            unknown: '新闻数未知',
+          }),
         ),
       ]),
     ],
@@ -462,7 +474,7 @@ function IntelEdge(props) {
       path,
       markerEnd,
       className,
-      interactionWidth: 28,
+      interactionWidth: 44,
       style: {
         stroke: data.stroke,
         strokeWidth: data.strokeWidth,
@@ -495,9 +507,9 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
   const eventNodes = []
   const groupNodes = []
   const edges = []
-  const visibleEdges = (storyGraph?.edges || []).filter(
-    (edge) => includeContext || edge.layer !== 'context',
-  )
+  const visibleEdges = (storyGraph?.edges || [])
+    .map((edge) => normalizeStoryRelation(edge))
+    .filter((edge) => includeContext || edge.layer !== 'context')
 
   for (const node of storyGraph?.nodes || []) {
     const storyId = String(node.story_id || storyGraph.story_id)
@@ -550,7 +562,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
       const leftPriority = left.relation?.layer === 'backbone' ? 0 : 1
       const rightPriority = right.relation?.layer === 'backbone' ? 0 : 1
       if (leftPriority !== rightPriority) return leftPriority - rightPriority
-      return (right.relation?.score || 0) - (left.relation?.score || 0)
+      return String(left.storyId).localeCompare(String(right.storyId))
     })
 
   const occupiedBySide = new Map()
@@ -593,6 +605,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
       draggable: false,
       selectable: false,
       connectable: false,
+      focusable: false,
       data: {
         storyId: story.storyId,
         storyRole: story.storyRole,
@@ -618,6 +631,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
       const shadow = eventShadowColor(node.event_type, isPrimary)
       const { width: nodeWidth, height: nodeHeight } = getNodeSize(story.storyRole)
       const isMacro = isMacroStory(story)
+      const inspectorPayload = buildStoryGraphNodeInspector(node, { storyId: story.storyId })
 
       eventNodes.push({
         id: node.id,
@@ -628,34 +642,10 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
         },
         sourcePosition: point.defaultSourcePosition,
         targetPosition: point.defaultTargetPosition,
+        focusable: true,
+        ariaLabel: `图谱节点：${inspectorPayload.title}；${formatNodeTimeRange(node.start_date, node.end_date) || '日期未知'}；${formatCountLabel(node.article_count, { unit: '条新闻', unknown: '新闻数未知' })}`,
         data: {
-          payload: {
-            kind:
-              node.source_kind === 'l3-chain' || node.l2_chain_id
-                ? 'l3-chain'
-                : node.source_kind === 'l2-segment' || node.segment_id
-                  ? 'l2-segment'
-                  : 'cluster',
-            originalClusterId: node.cluster_id_raw || node.l1_cluster_id || node.id,
-            segmentId: node.segment_id || node.id,
-            l2ChainId: node.l2_chain_id,
-            l2RunId: node.l2_run_id,
-            macroId: node.story_id,
-            l1ClusterId: node.l1_cluster_id || node.cluster_id_raw,
-            storyId: story.storyId,
-            title: node.label || node.id,
-            eventType: node.event_type,
-            storyAngle: node.story_angle,
-            lane: node.lane,
-            articleCount: node.article_count,
-            segmentCount: node.segment_count,
-            initiator: node.initiator,
-            target: node.target,
-            location: node.location,
-            detailUrl: node.detail_url,
-            startDate: node.start_date,
-            endDate: node.end_date,
-          },
+          payload: inspectorPayload,
           storyId: story.storyId,
           storyRole: story.storyRole,
           sequenceLabel: isMacro ? String(index + 1).padStart(2, '0') : '',
@@ -671,11 +661,11 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
             node.label || `${node.initiator || '?'} → ${node.target || '?'}`,
             isPrimary ? 38 : 36,
           ),
-          articleCount: node.article_count || 0,
-          segmentCount: node.segment_count || 0,
+          articleCount: node.article_count ?? null,
+          segmentCount: node.segment_count ?? null,
           metaText:
             node.source_kind === 'l3-chain' || node.l2_chain_id
-              ? `${node.segment_count || 0} 个片段 · ${node.article_count || 0} 条新闻`
+              ? `${formatCountLabel(node.segment_count, { unit: '个片段', unknown: '片段数未知' })} · ${formatCountLabel(node.article_count, { unit: '条新闻', unknown: '新闻数未知' })}`
               : '',
           timeLabel: formatNodeTimeRange(node.start_date, node.end_date),
           miniColor: fill,
@@ -703,11 +693,13 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
       (edge.edge_type === 'macro_sequence' || edge.edge_type === 'branch_sequence')
     const isMacroStoryEdge = sourcePoint.isMacro || targetPoint.isMacro
     const stroke = edgeStroke(edge)
+    const inspectorPayload = buildStoryGraphEdgeInspector(edge)
 
     edges.push({
       id: `edge-${edge.from_id}-${edge.to_id}-${edge.edge_type}-${edge.layer || 'story'}`,
       source: edge.from_id,
       target: edge.to_id,
+      ariaLabel: `图谱关系：${inspectorPayload.title}；${inspectorPayload.subtitle}`,
       sourceHandle: `source-${handles.source}`,
       targetHandle: `target-${handles.target}`,
       type: 'intelEdge',
@@ -727,11 +719,12 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
       },
       zIndex: 18,
       data: {
+        payload: inspectorPayload,
         layer: edge.layer || 'story',
         route: 'bezier',
         edgeType: edge.edge_type,
         relationReason: edge.relation_reason,
-        weight: edge.edge_weight || edge.weight,
+        weight: null,
         stroke,
         strokeWidth: isContext ? 2.4 : isMacroSequence ? 2.8 : edge.layer === 'story' ? 3.1 : 2.8,
         dashArray: isContext
@@ -889,7 +882,7 @@ function chooseHandles(sourcePoint, targetPoint) {
 
 function buildStorySubtitle(story) {
   const relationLabel = story.relation
-    ? displayEdgeLabel(story.relation.reason || story.relation.relation_type)
+    ? storyRelationLabel(story.relation.relation_type)
     : ''
   const range = formatRange(
     story.orderedNodes[0]?.start_date,
@@ -924,8 +917,7 @@ function shorten(text, limit) {
 }
 
 function edgeLabel(edge) {
-  const value = edge.relation_reason || edge.edge_type || edge.layer || ''
-  const normalized = displayEdgeLabel(value)
+  const normalized = storyRelationLabel(edge.edge_type)
   return edge.layer === 'story' ? shorten(normalized, 18) : shorten(normalized, 20)
 }
 
@@ -935,30 +927,6 @@ function shouldShowEdgeLabel(edge, isMacroStoryEdge) {
   return (
     edge.edge_type && edge.edge_type !== 'macro_sequence' && edge.edge_type !== 'branch_sequence'
   )
-}
-
-function displayEdgeLabel(value) {
-  const labels = {
-    continuation: '延续',
-    continued: '延续',
-    escalation: '升级',
-    response: '回应',
-    transition: '转折',
-    context: '背景关联',
-    same_thread: '同一线索',
-    event_to_outcome: '事件到后续',
-    outcome_to_context: '后续到背景',
-    chain_start: '起点',
-    relation: '关联',
-    macro_sequence: '宏观推进',
-    branch_sequence: '支线推进',
-    branch: '分支',
-    influence: '影响',
-    diplomacy: '外交推进',
-    market_reaction: '市场反应',
-    parallel: '并行',
-  }
-  return labels[value] || String(value || '关联').replaceAll('_', ' ')
 }
 
 function edgeStroke(edge) {

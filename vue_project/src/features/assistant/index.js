@@ -35,12 +35,17 @@ export {
 
 export {
   BRIEFING_CADENCE_OPTIONS,
+  BRIEFING_ASSURANCE_SCHEMA,
   BRIEFING_PERSPECTIVE_OPTIONS,
   BRIEFING_SCHEDULE_FORM_DEFAULTS,
   BRIEFING_STATUS_LABELS,
   BRIEFING_TIME_RANGE_OPTIONS,
   BRIEFING_WEEKDAY_OPTIONS,
   briefingCadenceLabel,
+  briefingAssuranceLabel,
+  briefingPlannedTimeLabel,
+  briefingRecordedTimeLabel,
+  briefingRunStatusLabel,
   briefingStatusLabel,
   buildAssistantDashboardTrend,
   buildBriefingPeriodicTasks,
@@ -49,11 +54,16 @@ export {
   calculateBriefingStats,
   calculateDashboardBarHeight,
   createBriefingScheduleForm,
+  normalizeBriefingAssurance,
+  normalizeBriefingRunDto,
   dashboardDateKey,
   dashboardShortDateLabel,
 } from './briefing/model.js'
 
-export { createBriefingScheduleService } from './briefing/service.js'
+export {
+  createBriefingScheduleService,
+  createLatestBriefingScheduleLoader,
+} from './briefing/service.js'
 
 export {
   CHAT_STREAM_ERROR_FALLBACK,

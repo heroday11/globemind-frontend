@@ -7,4 +7,23 @@ export {
   normalizeHeartbeatPath,
 } from './heartbeat.js'
 
+export {
+  buildHomeCapabilityCards,
+  homeCapabilityModuleIds,
+} from './home-capabilities.js'
+
+export {
+  FEATURE_FRESHNESS_ENDPOINT,
+  featureFreshness,
+  fetchFeatureFreshness,
+  formatFreshnessCutoff,
+  freshnessNoticeReportKey,
+  freshnessStateLabel,
+  normalizeFeatureFreshness,
+  normalizeFeatureFreshnessReport,
+  refreshFeatureFreshness,
+  unavailableFeatureFreshnessReport,
+  useFeatureFreshness,
+} from './freshness.js'
+
 export * from './monitor/index.js'

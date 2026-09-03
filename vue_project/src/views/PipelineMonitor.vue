@@ -127,6 +127,9 @@ const db = computed(() => snapshot.value?.db || {})
 const online = computed(() => snapshot.value?.online || {})
 const runtimeCatalog = computed(() => snapshot.value?.runtime_catalog || {})
 const seriesSamples = computed(() => snapshot.value?.series?.samples || [])
+const seriesCollectionState = computed(
+  () => snapshot.value?.series?.collection_state || 'unknown',
+)
 const recentSamples = computed(() => samplesWithinWindow(seriesSamples.value, displayWindowMs.value))
 const displaySamples = computed(() => decimateSamples(recentSamples.value))
 const activeTrendMetrics = computed(() => trendMetrics.filter((metric) => activeTrendKeys.value.includes(metric.key)))
@@ -408,7 +411,7 @@ onUnmounted(() => {
     <section class="trend-panel" aria-label="关键指标波动">
       <div class="trend-head">
         <div>
-          <p class="ops-kicker">Live Signals</p>
+          <p class="ops-kicker">状态信号</p>
           <h2>关键波动</h2>
         </div>
         <div class="trend-controls">
@@ -487,7 +490,14 @@ onUnmounted(() => {
             {{ metric.label }} {{ formatTrendValue(metricValue(hoveredSample, metric.key), metric.key) }}
           </span>
         </div>
-        <div v-if="displaySamples.length < 2" class="trend-empty">等待更多采样</div>
+        <div
+          v-if="displaySamples.length < 2"
+          class="trend-empty"
+          role="status"
+          aria-live="polite"
+        >
+          {{ seriesCollectionState === 'not_configured' ? '历史采样未配置；当前读取不会生成趋势点' : '等待更多采样' }}
+        </div>
       </div>
 
       <div class="trend-scale-grid">
@@ -518,7 +528,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="status-ribbon">
+    <section class="status-ribbon" role="group" aria-label="管线运行状态摘要">
       <div class="ribbon-cell">
         <span class="ribbon-label">运行</span>
         <strong>{{ overview.status_counts?.running || 0 }}</strong>

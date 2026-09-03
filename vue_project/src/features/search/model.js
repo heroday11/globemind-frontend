@@ -1,3 +1,13 @@
+import { safeExternalHttpUrl } from '../../utils/externalUrl.js'
+import { searchModeDisclosure } from '../../governance/searchQuerySemantics.js'
+import { normalizeSearchHitDisclosure } from './hit-fields.js'
+
+export {
+  SEARCH_MODE_SEMANTICS_VERSION,
+  SEARCH_MODES,
+  searchModeDisclosure,
+} from '../../governance/searchQuerySemantics.js'
+
 export const SEARCH_PARAM_DEFAULTS = Object.freeze({
   topic: '',
   mustInclude: '',
@@ -9,12 +19,16 @@ export const SEARCH_PARAM_DEFAULTS = Object.freeze({
   hitLocation: '全文',
   dataSource: '',
   language: '',
+  eventCountries: '',
+  mentionedCountries: '',
+  category: '',
+  sentiment: '',
   site: '',
   page: 1,
   pageSize: 10,
   sortBy: '',
   sortOrder: 'desc',
-  mode: 'exact',
+  mode: 'smart',
   searchType: 'news',
 })
 
@@ -28,15 +42,10 @@ export const SEARCH_TIME_RANGES = Object.freeze([
 ])
 
 export const SEARCH_HIT_LOCATIONS = Object.freeze([
-  Object.freeze({ label: '全文', value: '全文' }),
+  Object.freeze({ label: '标题优先', value: '全文' }),
   Object.freeze({ label: '标题', value: '标题' }),
   Object.freeze({ label: '摘要', value: '摘要' }),
   Object.freeze({ label: '正文', value: '正文' }),
-])
-
-export const SEARCH_MODES = Object.freeze([
-  Object.freeze({ label: '精确', value: 'exact' }),
-  Object.freeze({ label: '模糊', value: 'fuzzy' }),
 ])
 
 export const SEARCH_TYPES = Object.freeze([
@@ -46,10 +55,96 @@ export const SEARCH_TYPES = Object.freeze([
   Object.freeze({ label: 'L3大事件', value: 'l3' }),
 ])
 
+const SEARCH_RESULT_TIME_SCHEMA = 'search-result-time-semantics-v1'
+const SEARCH_RESULT_TIME_KEYS = new Set([
+  'schema_version',
+  'published_at',
+  'event_time_start',
+  'event_time_end',
+  'collected_at',
+  'updated_at',
+  'legacy_pub_time_status',
+  'legacy_created_at_status',
+])
+
+function unavailableNewsTimeSemantics() {
+  return {
+    schemaVersion: 'unavailable',
+    publishedAt: null,
+    eventTimeStart: null,
+    eventTimeEnd: null,
+    collectedAt: null,
+    updatedAt: null,
+    legacyPubTimeStatus: 'legacy_unverified_not_used',
+    legacyCreatedAtStatus: 'legacy_unverified_not_used',
+  }
+}
+
+function boundedTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null
+  if (typeof value !== 'string' || value.length > 64) return null
+  const normalized = value.trim()
+  if (!normalized || normalized.length > 64) return null
+  if (!/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})?)?$/.test(normalized)) {
+    return null
+  }
+  return Number.isFinite(Date.parse(normalized.replace(' ', 'T'))) ? normalized : null
+}
+
+export function normalizeNewsTimeSemantics(item) {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) {
+    return unavailableNewsTimeSemantics()
+  }
+  const value = item.time_semantics
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return unavailableNewsTimeSemantics()
+  }
+  const keys = Object.keys(value)
+  if (
+    keys.length > SEARCH_RESULT_TIME_KEYS.size
+    || keys.some((key) => !SEARCH_RESULT_TIME_KEYS.has(key))
+    || value.schema_version !== SEARCH_RESULT_TIME_SCHEMA
+    || value.legacy_pub_time_status !== 'legacy_alias_of_published_at_value_unverified'
+    || value.legacy_created_at_status !== 'legacy_unverified_not_used'
+  ) {
+    return unavailableNewsTimeSemantics()
+  }
+  const publishedAt = boundedTimestamp(value.published_at)
+  const eventTimeStart = boundedTimestamp(value.event_time_start)
+  const eventTimeEnd = boundedTimestamp(value.event_time_end)
+  if (item.pub_time !== null && item.pub_time !== undefined && item.pub_time !== '') {
+    const legacyPubTime = boundedTimestamp(item.pub_time)
+    if (
+      !legacyPubTime
+      || !publishedAt
+      || Date.parse(legacyPubTime.replace(' ', 'T')) !== Date.parse(publishedAt.replace(' ', 'T'))
+    ) {
+      return unavailableNewsTimeSemantics()
+    }
+  }
+  if (
+    eventTimeStart
+    && eventTimeEnd
+    && Date.parse(eventTimeStart.replace(' ', 'T')) > Date.parse(eventTimeEnd.replace(' ', 'T'))
+  ) {
+    return unavailableNewsTimeSemantics()
+  }
+  return {
+    schemaVersion: SEARCH_RESULT_TIME_SCHEMA,
+    publishedAt,
+    eventTimeStart,
+    eventTimeEnd,
+    collectedAt: boundedTimestamp(value.collected_at),
+    updatedAt: boundedTimestamp(value.updated_at),
+    legacyPubTimeStatus: 'legacy_alias_of_published_at_value_unverified',
+    legacyCreatedAtStatus: 'legacy_unverified_not_used',
+  }
+}
+
 export const SEARCH_SITUATION_PRESETS = Object.freeze([
   Object.freeze({
     label: '台海风险',
-    hint: '查看近期穿越、军演与军备动态的原始新闻',
+    hint: '查看穿越、军演与军备动态的原始新闻',
     topic: 'Taiwan',
     mustInclude: '',
     anyInclude: '',
@@ -58,12 +153,13 @@ export const SEARCH_SITUATION_PRESETS = Object.freeze([
     strategyLabel: '快讯',
     mode: 'fuzzy',
     time: '不限',
-    timeLabel: '不限时间',
+    timeField: 'published_at',
+    timeLabel: '新闻发布日期：不限',
   }),
   Object.freeze({
     label: '中美博弈',
     hint: '追踪中美外交、贸易、科技与安全议题走势',
-    topic: 'China US',
+    topic: 'China USA',
     mustInclude: '',
     anyInclude: '',
     type: 'l2',
@@ -71,7 +167,8 @@ export const SEARCH_SITUATION_PRESETS = Object.freeze([
     strategyLabel: '走势',
     mode: 'exact',
     time: '不限',
-    timeLabel: '不限时间',
+    timeField: 'event_time',
+    timeLabel: '事件时间：不限',
   }),
   Object.freeze({
     label: '南海动向',
@@ -84,7 +181,8 @@ export const SEARCH_SITUATION_PRESETS = Object.freeze([
     strategyLabel: '事件',
     mode: 'exact',
     time: '不限',
-    timeLabel: '不限时间',
+    timeField: 'event_time',
+    timeLabel: '事件时间：不限',
   }),
   Object.freeze({
     label: '俄乌战争',
@@ -97,11 +195,12 @@ export const SEARCH_SITUATION_PRESETS = Object.freeze([
     strategyLabel: '大事',
     mode: 'fuzzy',
     time: '不限',
-    timeLabel: '不限时间',
+    timeField: 'event_time',
+    timeLabel: '事件时间：不限',
   }),
   Object.freeze({
-    label: '中东冲突',
-    hint: '跟踪伊朗、以色列、加沙及航道安全事件链',
+    label: '加沙冲突',
+    hint: '按 Gaza 主题扩展查看相关大事件；不代表整个中东冲突集合',
     topic: 'Gaza',
     mustInclude: '',
     anyInclude: '',
@@ -110,7 +209,8 @@ export const SEARCH_SITUATION_PRESETS = Object.freeze([
     strategyLabel: '大事',
     mode: 'fuzzy',
     time: '不限',
-    timeLabel: '不限时间',
+    timeField: 'event_time',
+    timeLabel: '事件时间：不限',
   }),
   Object.freeze({
     label: '科技管制',
@@ -123,7 +223,8 @@ export const SEARCH_SITUATION_PRESETS = Object.freeze([
     strategyLabel: '关联',
     mode: 'fuzzy',
     time: '不限',
-    timeLabel: '不限时间',
+    timeField: 'published_at',
+    timeLabel: '新闻发布日期：不限',
   }),
 ])
 
@@ -131,36 +232,142 @@ export function createSearchParams(overrides = {}) {
   return { ...SEARCH_PARAM_DEFAULTS, ...overrides }
 }
 
+/**
+ * Keep the browser-visible state aligned with the backend's strict filter
+ * contract. Hierarchy searches do not currently implement news-source,
+ * language, hit-location, or caller-selected ordering controls.
+ */
+export function normalizeSearchParamsForType(searchParams, searchType = searchParams?.searchType) {
+  const normalized = createSearchParams({
+    ...(searchParams && typeof searchParams === 'object' ? searchParams : {}),
+    searchType: searchType || 'news',
+  })
+  if (normalized.searchType !== 'news') {
+    normalized.hitLocation = '全文'
+    normalized.dataSource = ''
+    normalized.language = ''
+    normalized.eventCountries = ''
+    normalized.mentionedCountries = ''
+    normalized.category = ''
+    normalized.sentiment = ''
+    normalized.site = ''
+    if (['smart', 'semantic', 'hybrid'].includes(normalized.mode)) normalized.mode = 'exact'
+    normalized.sortBy = ''
+    normalized.sortOrder = 'desc'
+  } else {
+    if (normalized.sortBy === 'pub_time') normalized.sortBy = 'published_at'
+    if (!['', 'similarity', 'published_at'].includes(normalized.sortBy)) {
+      normalized.sortBy = ''
+    }
+    if (!['asc', 'desc'].includes(normalized.sortOrder)) normalized.sortOrder = 'desc'
+    if (normalized.sortBy !== 'published_at') normalized.sortOrder = 'desc'
+    if (['smart', 'semantic', 'hybrid'].includes(normalized.mode)) {
+      normalized.sortBy = 'similarity'
+      normalized.sortOrder = 'desc'
+    } else {
+      normalized.eventCountries = ''
+      normalized.mentionedCountries = ''
+      normalized.category = ''
+      normalized.sentiment = ''
+    }
+  }
+  return normalized
+}
+
+/**
+ * Expand a visible situation preset into the existing editable search state.
+ * Keeping the mutation here makes the state identity and filter reset contract
+ * independently testable while remaining compatible with Vue reactive proxies.
+ */
+export function applySearchSituationPreset(searchParams, preset, pageSize = searchParams?.pageSize) {
+  if (!searchParams || typeof searchParams !== 'object' || Array.isArray(searchParams)) {
+    throw new TypeError('searchParams must be an editable object')
+  }
+  if (!preset || typeof preset !== 'object' || Array.isArray(preset)) {
+    throw new TypeError('preset must be an object')
+  }
+  const searchType = preset.type || 'news'
+  const normalized = normalizeSearchParamsForType({
+    ...searchParams,
+    topic: preset.topic || '',
+    mustInclude: preset.mustInclude || '',
+    anyInclude: preset.anyInclude || '',
+    needExclude: '',
+    publishTime: preset.time || '不限',
+    startTime: '',
+    endTime: '',
+    hitLocation: '全文',
+    dataSource: '',
+    language: '',
+    site: '',
+    mode: preset.mode || 'exact',
+    searchType,
+    sortBy: searchType === 'news' ? 'published_at' : '',
+    sortOrder: 'desc',
+    page: 1,
+    pageSize: pageSize ?? searchParams.pageSize ?? SEARCH_PARAM_DEFAULTS.pageSize,
+  }, searchType)
+  Object.assign(searchParams, normalized)
+  return searchParams
+}
+
+export function searchSortSemantics(searchParams) {
+  const searchType = String(searchParams?.searchType || 'news')
+  if (searchType !== 'news') {
+    return '系统排序（匹配覆盖、层级质量、事件规模与事件时间）'
+  }
+  if (searchParams?.sortBy === 'published_at' || searchParams?.sortBy === 'pub_time') {
+    return searchParams?.sortOrder === 'asc' ? '新闻发布日期升序' : '新闻发布日期倒序'
+  }
+  return '标题命中优先，其次按新闻发布日期倒序'
+}
+
 export function buildSearchRequestDto(searchParams, favoriteScopeTopic) {
-  const topic = String(searchParams.topic || '').trim()
-  const mustInclude = String(searchParams.mustInclude || '').trim()
-  const anyInclude = String(searchParams.anyInclude || '').trim()
+  const effectiveParams = normalizeSearchParamsForType(searchParams)
+  const topic = String(effectiveParams.topic || '').trim()
+  const mustInclude = String(effectiveParams.mustInclude || '').trim()
+  const anyInclude = String(effectiveParams.anyInclude || '').trim()
+  const countryCodes = (value) => [...new Set(
+    String(value || '')
+      .split(/[\s,，;；]+/)
+      .map((item) => item.trim().toUpperCase())
+      .filter(Boolean),
+  )]
   const params = {
     topic: topic || undefined,
     keyword: topic || undefined,
     must_include: mustInclude || undefined,
     any_include: anyInclude || undefined,
-    need_exclude: searchParams.needExclude || undefined,
+    need_exclude: effectiveParams.needExclude || undefined,
     publish_time:
-      searchParams.publishTime && searchParams.publishTime !== '不限'
-        ? searchParams.publishTime
+      effectiveParams.publishTime && effectiveParams.publishTime !== '不限'
+        ? effectiveParams.publishTime
         : undefined,
-    start_time: searchParams.startTime || undefined,
-    end_time: searchParams.endTime || undefined,
-    hit_location: searchParams.hitLocation,
-    data_source: searchParams.dataSource || undefined,
-    language: searchParams.language || undefined,
-    site: searchParams.site || undefined,
-    page: searchParams.page,
-    page_size: searchParams.pageSize,
-    sort_by: searchParams.sortBy,
-    sort_order: searchParams.sortOrder,
-    mode: searchParams.mode,
-    search_type: searchParams.searchType,
+    start_time: effectiveParams.startTime || undefined,
+    end_time: effectiveParams.endTime || undefined,
+    time_field: effectiveParams.searchType === 'news' ? 'published_at' : 'event_time',
+    hit_location: effectiveParams.hitLocation,
+    data_source: effectiveParams.dataSource || undefined,
+    language: effectiveParams.language || undefined,
+    event_countries: countryCodes(effectiveParams.eventCountries),
+    mentioned_countries: countryCodes(effectiveParams.mentionedCountries),
+    category: effectiveParams.category || undefined,
+    sentiment: effectiveParams.sentiment || undefined,
+    site: effectiveParams.site || undefined,
+    page: effectiveParams.page,
+    page_size: effectiveParams.pageSize,
+    sort_by: effectiveParams.sortBy,
+    sort_order: effectiveParams.sortOrder,
+    mode: effectiveParams.mode,
+    search_type: effectiveParams.searchType,
     favorite_scope_topic: favoriteScopeTopic || undefined,
   }
   for (const key of Object.keys(params)) {
-    if (params[key] === '' || params[key] === undefined) delete params[key]
+    if (
+      params[key] === ''
+      || params[key] === undefined
+      || (Array.isArray(params[key]) && params[key].length === 0)
+    ) delete params[key]
   }
   return params
 }
@@ -177,14 +384,19 @@ export function buildSearchHistoryKeyword(searchParams) {
   if (anyInclude) return ellipsize(anyInclude, 220)
   const parts = []
   if (searchParams.publishTime && searchParams.publishTime !== '不限') {
-    parts.push(`时间:${searchParams.publishTime}`)
+    const timeFieldLabel = searchParams.searchType === 'news' ? '新闻发布日期' : '事件时间'
+    parts.push(`${timeFieldLabel}:${searchParams.publishTime}`)
   }
   if (searchParams.dataSource) parts.push(`来源:${searchParams.dataSource}`)
   if (searchParams.language) parts.push(`语种:${searchParams.language}`)
   if (searchParams.hitLocation && searchParams.hitLocation !== '全文') {
     parts.push(`命中:${searchParams.hitLocation}`)
   }
-  if (searchParams.mode && searchParams.mode !== 'exact') {
+  if (
+    searchParams.searchType === 'news'
+    && searchParams.mode
+    && !['exact', 'smart'].includes(searchParams.mode)
+  ) {
     parts.push(`模式:${searchParams.mode}`)
   }
   if (searchParams.searchType && searchParams.searchType !== 'news') {
@@ -200,11 +412,25 @@ export function normalizeNewsListResponse(result) {
     is_favorited: !!item.is_favorited,
     is_warned: !!item.is_warned,
     selected: false,
+    timeSemantics: normalizeNewsTimeSemantics(item),
   }))
   return {
     rows,
     total: result?.total ?? 0,
   }
+}
+
+export function resolveLanguageDisplay(item, languageOptions = []) {
+  if (!item || typeof item !== 'object') return ''
+  const raw = item.language_id ?? item.languageId
+  if (raw === undefined || raw === null || raw === '') return ''
+  const rawText = String(raw)
+  const options = Array.isArray(languageOptions) ? languageOptions : []
+  const hitById = options.find((option) => String(option?.id) === rawText)
+  if (hitById?.name) return String(hitById.name)
+  const hitByName = options.find((option) => String(option?.name) === rawText)
+  if (hitByName?.name) return String(hitByName.name)
+  return rawText
 }
 
 export function normalizeSearchResponse(result, searchType, fallbackPagination) {
@@ -218,6 +444,8 @@ export function normalizeSearchResponse(result, searchType, fallbackPagination) 
     total: response.total || 0,
     page: response.page || fallbackPagination.page,
     pageSize: response.page_size || fallbackPagination.pageSize,
+    queryExplain: normalizeQueryExplain(response.query_explain),
+    queryReceipt: normalizeQueryReceipt(response.query_receipt),
   }
   if (searchType === 'l1') {
     normalized.eventCorefClusters = Array.isArray(response.event_coref_clusters)
@@ -244,8 +472,86 @@ export function normalizeSearchResponse(result, searchType, fallbackPagination) 
     id: Number(item.id),
     is_favorited: !!item.is_favorited,
     is_warned: !!item.is_warned,
+    timeSemantics: normalizeNewsTimeSemantics(item),
   }))
   return normalized
+}
+
+export function normalizeQueryExplain(value) {
+  if (!value || typeof value !== 'object') return null
+  return {
+    ...value,
+    query_language: String(value.query_language || 'unavailable'),
+    query_ast: value.query_ast && typeof value.query_ast === 'object'
+      ? value.query_ast
+      : { type: 'unavailable' },
+    expanded_query_ast: value.expanded_query_ast && typeof value.expanded_query_ast === 'object'
+      ? value.expanded_query_ast
+      : { type: 'unavailable' },
+    execution_expression: String(value.execution_expression || ''),
+    limits: value.limits && typeof value.limits === 'object' ? value.limits : {},
+    normalized_terms: Array.isArray(value.normalized_terms) ? value.normalized_terms : [],
+    expanded_terms: Array.isArray(value.expanded_terms) ? value.expanded_terms : [],
+    effective_search_fields: Array.isArray(value.effective_search_fields)
+      ? value.effective_search_fields
+      : [],
+    entity_expansions: Array.isArray(value.entity_expansions)
+      ? value.entity_expansions.map((item) => ({
+          ...item,
+          expanded_aliases: Array.isArray(item?.expanded_aliases) ? item.expanded_aliases : [],
+          expanded_alias_details: Array.isArray(item?.expanded_alias_details)
+            ? item.expanded_alias_details
+            : [],
+          review_status: item?.review_status || 'review_required',
+        }))
+      : [],
+    applied_filters: Array.isArray(value.applied_filters) ? value.applied_filters : [],
+    stages: Array.isArray(value.stages) ? value.stages : [],
+    relaxation_suggestions: Array.isArray(value.relaxation_suggestions)
+      ? value.relaxation_suggestions
+      : [],
+  }
+}
+
+export function normalizeQueryReceipt(value) {
+  if (!value || typeof value !== 'object') return null
+  const coverage = value.result_coverage && typeof value.result_coverage === 'object'
+    ? value.result_coverage
+    : {}
+  return {
+    ...value,
+    schema_version: String(value.schema_version || 'unavailable'),
+    receipt_kind: String(value.receipt_kind || 'execution_receipt'),
+    method_version: String(value.method_version || 'unavailable'),
+    receipt_id: String(value.receipt_id || ''),
+    receipt_sha256: String(value.receipt_sha256 || ''),
+    normalized_contract: value.normalized_contract && typeof value.normalized_contract === 'object'
+      ? value.normalized_contract
+      : {},
+    normalized_contract_sha256: String(value.normalized_contract_sha256 || ''),
+    entity_catalog_version: String(value.entity_catalog_version || 'unavailable'),
+    entity_catalog_review_status: value.entity_catalog_review_status || 'review_required',
+    time_field: value.time_field && typeof value.time_field === 'object'
+      ? value.time_field
+      : { requested: 'unavailable', applied: 'unavailable' },
+    applied_filters: Array.isArray(value.applied_filters) ? value.applied_filters : [],
+    ordered_returned_ids: Array.isArray(value.ordered_returned_ids)
+      ? value.ordered_returned_ids.map((item) => String(item))
+      : [],
+    ordered_returned_ids_sha256: String(value.ordered_returned_ids_sha256 || ''),
+    result_coverage: {
+      ...coverage,
+      status: coverage.status || 'unavailable',
+      cutoff: coverage.cutoff || null,
+      coverage_start: coverage.coverage_start || null,
+      coverage_end: coverage.coverage_end || null,
+      returned_result_count: Number(coverage.returned_result_count) || 0,
+      timed_result_count: Number(coverage.timed_result_count) || 0,
+    },
+    snapshot_status: value.snapshot_status || 'not_frozen',
+    frozen_data_snapshot_id: value.frozen_data_snapshot_id || null,
+    receipt_note: String(value.receipt_note || ''),
+  }
 }
 
 export function mergeFavoriteNewsIds(currentIds, rows) {
@@ -261,18 +567,28 @@ export function mergeFavoriteNewsIds(currentIds, rows) {
 export function normalizeDisplayNewsRows(rawRows, showOnlyFirst, createFallbackId = () => (
   Math.random().toString(36).substr(2, 9)
 )) {
-  const normalized = rawRows.map((item) => ({
-    ...item,
-    id: item.id || createFallbackId(),
-    title: item.title || '无标题',
-    displayDesc: item.abstract || item.desc || '—',
-    displayTime: item.pub_time || item.time,
-    displayUrl: item.request_url || item.requestUrl || '#',
-    isFirstRelease: item.is_first_release || item.isFirstRelease || false,
-    is_favorited: !!item.is_favorited,
-    is_warned: !!item.is_warned,
-    selected: item.selected || false,
-  }))
+  const normalized = rawRows.map((item) => {
+    const timeSemantics = normalizeNewsTimeSemantics(item)
+    const title = item.title || '无标题'
+    const displayDesc = item.abstract || item.desc || '—'
+    return {
+      ...item,
+      id: item.id || createFallbackId(),
+      title,
+      displayDesc,
+      displayTime: timeSemantics.publishedAt || undefined,
+      displayUrl: safeExternalHttpUrl(item.request_url || item.requestUrl),
+      isFirstRelease: item.is_first_release || item.isFirstRelease || false,
+      is_favorited: !!item.is_favorited,
+      is_warned: !!item.is_warned,
+      selected: item.selected || false,
+      timeSemantics,
+      searchHit: normalizeSearchHitDisclosure(item.search_hit, {
+        title,
+        abstract: displayDesc,
+      }),
+    }
+  })
   return showOnlyFirst ? normalized.filter((item) => item.isFirstRelease) : [...normalized]
 }
 
@@ -281,7 +597,7 @@ export function activeSearchSurfaceLabel(searchParams, searchTypes = SEARCH_TYPE
   const time = searchParams.publishTime && searchParams.publishTime !== '不限'
     ? searchParams.publishTime
     : '全时段'
-  const mode = searchParams.mode === 'fuzzy' ? '模糊' : '精确'
+  const mode = searchModeDisclosure(searchParams.mode).label
   return `${type} · ${time} · ${mode}`
 }
 

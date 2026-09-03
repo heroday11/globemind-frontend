@@ -1,6 +1,7 @@
 <template>
   <!-- 舆情分析系统主容器 -->
   <div class="app-root">
+    <h1 class="sentiment-sr-only">智能舆情分析</h1>
     <div class="bg-grid" />
 
     <!-- 顶部导航栏 -->
@@ -78,19 +79,28 @@
       </div>
     </nav>
 
-    <section class="quality-status-bar" data-tour="sentiment-quality" aria-label="数据质量摘要">
+    <section
+      class="quality-status-bar"
+      :class="{ 'quality-status-bar--unavailable': !opinionTrust.computable }"
+      data-tour="sentiment-quality"
+      :aria-label="`数据质量摘要：${opinionTrust.headline}`"
+      aria-live="polite"
+    >
       <div class="quality-status-title">
         <span class="quality-dot" aria-hidden="true" />
-        <b>数据状态</b>
+        <b>{{ opinionTrust.headline }}</b>
       </div>
+      <span v-if="!opinionTrust.computable" class="quality-trust-reason">
+        {{ opinionTrust.detail }}
+      </span>
       <dl class="quality-status-list">
         <div>
-          <dt>最新评分</dt>
-          <dd>{{ qualitySnapshot.latestScoreDate }}</dd>
+          <dt>数据截止</dt>
+          <dd>{{ opinionTrust.cutoffDate }}</dd>
         </div>
         <div>
-          <dt>今日覆盖</dt>
-          <dd>{{ qualitySnapshot.todayCoverage }}</dd>
+          <dt>最近日期覆盖</dt>
+          <dd>{{ qualitySnapshot.coverageDate }} · {{ qualitySnapshot.latestCoverage }}</dd>
         </div>
         <div>
           <dt>近 30 天反馈</dt>
@@ -98,17 +108,31 @@
         </div>
         <div class="quality-status-method">
           <dt>评分方法</dt>
-          <dd :title="qualityData?.method_version || ''">{{ qualitySnapshot.methodVersion }}</dd>
+          <dd>{{ opinionTrust.methodVersion !== '--' ? opinionTrust.methodVersion : qualitySnapshot.methodVersion }}</dd>
         </div>
       </dl>
       <button type="button" @click="openDiagnostics('quality')">质量明细</button>
     </section>
 
+    <details class="semantic-method-card">
+      <summary>三维语义方法卡 · {{ semanticMethod.contractVersion }}</summary>
+      <div class="semantic-method-card__grid">
+        <span><b>目标立场</b> 文章模型输出范围 [-1, 1]（无量纲）；聚合方法输出范围 [-100, 100]（指数点）；模型 {{ semanticMethod.stanceModel }}</span>
+        <span><b>文本语气</b> 枚举 positive / neutral / negative / mixed / unknown；量纲与来源模型未建立</span>
+        <span><b>现实影响</b> 方向 positive / neutral / negative / mixed / unknown；强度量纲与来源模型未建立</span>
+      </div>
+      <p>
+        本合同仅约束响应投影：当前三维不在展示层组合；不从立场推断语气或现实影响，也不反向推断。
+        上游轴独立性 {{ semanticMethod.upstreamAxisIndependenceState }}；质量状态
+        {{ semanticMethod.qualityState }}；事实核验状态 {{ semanticMethod.factTruthState }}。
+      </p>
+    </details>
+
     <!-- 主内容区域 -->
     <div class="dashboard-layout">
-      <!-- 宏观数据卡片区域：显示高危目标指数、情报截获短报、高频敏感词 -->
+      <!-- 宏观数据卡片区域：显示综合指标、情报短报、高频议题 -->
       <div class="macro-grid" data-tour="sentiment-overview">
-        <!-- 卡片1：高危目标指数 - 显示各国家/地区的负面舆情指数 -->
+        <!-- 卡片1：门禁与语义合同均通过后显示加权目标立场 -->
         <div class="macro-card risk-card">
           <div class="risk-card-head">
             <div class="card-title">
@@ -125,7 +149,7 @@
                   d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z"
                 />
               </svg>
-              高危目标指数
+              涉华目标立场概览
             </div>
             <span class="risk-card-date">{{ overviewLatestDate }}</span>
           </div>
@@ -136,13 +160,15 @@
               :class="overviewScoreClass"
               role="button"
               tabindex="0"
-              title="查看综合舆情新闻"
+              title="查看目标立场相关新闻"
               @click="openRiskInsight()"
               @keydown.enter.prevent="openRiskInsight()"
             >
-              <span class="risk-score-label">综合舆情指数</span>
-              <strong>{{ formatIndexValue(overviewSummary.current_index) }}</strong>
-              <span class="risk-score-note">当前净值</span>
+              <span class="risk-score-label">加权目标立场指数</span>
+              <strong>{{ formatSemanticAxis(overviewSemantics.stance) }}</strong>
+              <span class="risk-score-note">
+                {{ overviewSemantics.stance.state === 'available' ? '指数点 · 非现实影响' : '未知' }}
+              </span>
             </div>
             <div
               class="risk-event-panel insight-trigger"
@@ -155,10 +181,16 @@
               <span class="risk-event-label">主题事件</span>
               <b class="risk-event-title">{{ overviewTopEventTitle }}</b>
               <div class="risk-event-trend">
-                <span>舆情走向</span>
+                <span>立场走向</span>
                 <b class="trend" :class="overviewTrendClass">{{ overviewSummary.trend_label }}</b>
               </div>
             </div>
+          </div>
+
+          <div class="semantic-axis-strip" aria-label="三维语义状态">
+            <span><b>目标立场</b> {{ formatSemanticAxis(overviewSemantics.stance, { includeUnit: true }) }}</span>
+            <span><b>文本语气</b> {{ formatSemanticAxis(overviewSemantics.tone) }}</span>
+            <span><b>现实影响</b> {{ formatSemanticAxis(overviewSemantics.impact) }}</span>
           </div>
 
           <div class="target-indices-wrapper risk-indices-wrapper">
@@ -175,10 +207,10 @@
                 @keydown.enter.prevent="openRiskInsight(item)"
               >
                 <span class="index-badge">{{ item.displayLabel }}</span>
-                <span class="index-value">{{ formatIndexValue(item.value) }}</span>
+                <span class="index-value">{{ formatSemanticAxis(opinionSemanticSnapshot(item).stance) }}</span>
                 <span class="index-copy">{{ item.description }}</span>
                 <svg
-                  v-if="item.trend_values && item.trend_values.length > 1"
+                  v-if="opinionSemanticSnapshot(item).stance.state === 'available' && item.trend_values && item.trend_values.length > 1"
                   class="index-spark"
                   :class="item.state === 'negative' ? 'index-spark--neg' : 'index-spark--warn'"
                   viewBox="0 0 96 28"
@@ -195,8 +227,8 @@
               <span
                 class="metric__value"
                 :class="{
-                  'metric__value--neg': metric.tone === 'neg',
-                  'metric__value--pos': metric.tone === 'pos',
+                  'metric__value--neg': metric.display_tone === 'neg',
+                  'metric__value--pos': metric.display_tone === 'pos',
                 }"
                 >{{ metric.value }}</span
               >
@@ -235,12 +267,12 @@
             >
               <span class="brief-time">{{ formatOverviewTime(brief.time) }}</span>
               <span class="brief-badge">{{ briefSeverityLabel(brief.severity) }}</span>
-              <span class="brief-icon">{{ brief.stance_score >= 0 ? '+' : '-' }}</span>
+              <span class="brief-icon">{{ stanceGlyph(brief) }}</span>
               <span class="brief-body">
                 <span class="brief-main" :title="brief.title">{{ brief.title }}</span>
                 <span class="brief-meta"
                   >{{ brief.source || 'unknown' }} · {{ formatFamilyName(brief.event_family || 'general') }} ·
-                  {{ Math.round((brief.confidence || 0) * 100) }}%</span
+                  {{ brief.confidence == null ? '--' : `${Math.round(brief.confidence * 100)}%` }}</span
                 >
               </span>
             </li>
@@ -273,7 +305,7 @@
                 class="tag"
                 :class="[
                   index === 0 ? 'tag--top1' : index === 1 ? 'tag--top2' : index === 2 ? 'tag--top3' : '',
-                  tag.avg_stance >= 0 ? 'tag--state-down' : 'tag--state-up',
+                  stanceVariant(tag, 'tag--state-down', 'tag--state-up'),
                   'insight-trigger',
                 ]"
                 :style="tagStyle(index)"
@@ -295,8 +327,8 @@
                 </span>
                 <span
                   class="tag-trend"
-                  :class="tag.avg_stance >= 0 ? 'tag-trend--down' : 'tag-trend--up'"
-                  >{{ formatIndexValue((tag.avg_stance || 0) * 100) }}</span
+                  :class="stanceVariant(tag, 'tag-trend--down', 'tag-trend--up')"
+                  >{{ formatSemanticAxis(opinionSemanticSnapshot(tag).stance) }}</span
                 >
                 <span class="tag-count">{{ formatCompactCount(tag.article_count) }}<span class="tag-unit"> 篇</span></span>
               </span>
@@ -312,7 +344,7 @@
         </div>
       </div>
 
-      <!-- 图表容器：舆情指数折线图 -->
+      <!-- 图表容器：加权目标立场指数折线图 -->
       <div class="chart-container" data-tour="sentiment-chart" :class="{ 'chart-container--fullscreen': chartFullscreen }">
         <div v-if="opinionLoading" class="chart-loading">加载中…</div>
         <div
@@ -320,6 +352,14 @@
           class="chart-loading chart-error"
         >
           {{ opinionError }}
+        </div>
+        <div
+          v-else-if="!opinionTrust.computable"
+          class="chart-loading chart-trust-unavailable"
+          role="status"
+        >
+          <strong>目标立场趋势暂不出分</strong>
+          <span>{{ opinionTrust.detail }}；历史证据仍可通过新闻与质量明细核验。</span>
         </div>
         <div ref="chartRef" class="chart-wrapper"></div>
         <button
@@ -491,7 +531,7 @@
       </div>
     </div>
 
-    <!-- 侧边栏：点击数据点时显示当天高影响新闻 -->
+    <!-- 侧边栏：点击数据点时显示当天目标立场报道 -->
     <div
       class="drawer"
       :class="{ open: drawerOpen, 'drawer--beside-assistant': nodeDrawerAssistantOffset > 0 }"
@@ -500,11 +540,11 @@
     >
       <!-- 侧边栏头部：标题和关闭按钮 -->
       <div class="drawer-header">
-        <h2 class="drawer-title" style="color: #0ea5e9">影响新闻</h2>
+        <h2 class="drawer-title" style="color: #0ea5e9">目标立场相关报道</h2>
         <button @click="drawerOpen = false" class="drawer-close" title="关闭">✕</button>
       </div>
 
-      <!-- 当天高影响新闻：点击折线图节点时显示 -->
+      <!-- 当天目标立场报道：点击折线图节点时显示 -->
       <div v-if="drawerState === 'date_news'">
         <div class="drawer-meta">时间节点：{{ clickedDate }}</div>
         <div
@@ -513,7 +553,7 @@
         >
           <div class="date-insight-head">
             <span>{{ dateInsightTitle }}</span>
-            <b :class="selectedDatePoint.value >= 0 ? 'date-score--pos' : 'date-score--neg'">{{
+            <b :class="selectedDatePoint.value == null ? null : selectedDatePoint.value >= 0 ? 'date-score--pos' : 'date-score--neg'">{{
               formatIndexValue(selectedDatePoint.value)
             }}</b>
           </div>
@@ -524,23 +564,24 @@
           <div class="date-impact-balance" aria-hidden="true">
             <span
               class="date-impact-balance__neg"
-              :style="{ width: `${selectedDateExplanation.negativeWidth}%` }"
+              :style="{ width: `${selectedDateExplanation.criticalWidth}%` }"
             ></span>
             <span class="date-impact-balance__zero"></span>
             <span
               class="date-impact-balance__pos"
-              :style="{ width: `${selectedDateExplanation.positiveWidth}%` }"
+              :style="{ width: `${selectedDateExplanation.supportiveWidth}%` }"
             ></span>
           </div>
           <div class="date-insight-foot">
-            <span>负向 {{ formatIndexValue(selectedDateExplanation.negativeImpact) }}</span>
-            <span>正向 {{ formatIndexValue(selectedDateExplanation.positiveImpact) }}</span>
+            <span>批评立场 {{ selectedDateExplanation.criticalCount }} 条</span>
+            <span>支持立场 {{ selectedDateExplanation.supportiveCount }} 条</span>
+            <span>未知 {{ selectedDateExplanation.unknownCount }} 条</span>
             <span>信源 {{ selectedDateExplanation.sourceCount }}</span>
             <button type="button" class="date-insight-export" @click.stop="exportDateBrief">导出</button>
           </div>
           <div v-if="selectedDateExplanation.leadingNews.length" class="date-insight-drivers">
             <span v-for="item in selectedDateExplanation.leadingNews" :key="item.id">
-              {{ formatIndexValue(item.impact_index) }} · {{ item.source || 'unknown' }}
+              {{ formatSemanticAxis(opinionSemanticSnapshot(item).stance) }} · {{ item.source || 'unknown' }}
             </span>
           </div>
         </div>
@@ -550,19 +591,22 @@
           @select="onDateNewsFilterChange"
         />
         <div v-if="dateNewsSummary" class="date-news-summary">
-          <span>正面 {{ dateNewsSummary.positive_count || 0 }}</span>
-          <span>负面 {{ dateNewsSummary.negative_count || 0 }}</span>
-          <span>中性 {{ dateNewsSummary.neutral_count || 0 }}</span>
+          <span>支持立场 {{ dateNewsSummary.positive_count || 0 }}</span>
+          <span>批评立场 {{ dateNewsSummary.negative_count || 0 }}</span>
+          <span>中性立场 {{ dateNewsSummary.neutral_count || 0 }}</span>
           <span>信源 {{ dateNewsSummary.source_count || 0 }}</span>
         </div>
+        <p class="drawer-meta">
+          结构化纠错仅作待人工复核记录，默认不用于模型训练；保留期限尚未批准，正式人审流程尚未配置。
+        </p>
         <div v-if="eventNewsLoading" class="drawer-empty">加载中…</div>
-        <div v-else-if="!eventNews.length" class="drawer-empty">该日期暂无高影响涉华新闻</div>
+        <div v-else-if="!eventNews.length" class="drawer-empty">该日期暂无涉华目标立场报道</div>
         <div v-else class="news-list">
           <div
             v-for="news in eventNews"
             :key="news.id"
             class="news-card impact-news-card"
-            :class="news.impact_index >= 0 ? 'impact-news-card--pos' : 'impact-news-card--neg'"
+            :class="stanceVariant(news, 'impact-news-card--pos', 'impact-news-card--neg', 'impact-news-card--unavailable')"
             @click="goToNewsDetail(news.id)"
           >
             <div class="news-card-title">{{ news.title }}</div>
@@ -571,28 +615,28 @@
               <span class="news-card-source">{{ news.source || 'unknown' }}</span>
               <span
                 class="news-card-sentiment"
-                :class="news.impact_index >= 0 ? 'sent-pos' : 'sent-neg'"
-                >{{ formatIndexValue(news.impact_index) }}</span
+                :class="stanceVariant(news, 'sent-pos', 'sent-neg')"
+                >目标立场 {{ formatSemanticAxis(opinionSemanticSnapshot(news).stance) }}</span
               >
             </div>
-            <div class="impact-thermometer">
-              <div class="impact-thermometer__label">
-                <span>{{ news.impact_index >= 0 ? '正向影响' : '负面影响' }}</span>
-                <b>{{ formatIndexValue(news.impact_index) }}</b>
-              </div>
-              <div class="impact-thermometer__track">
-                <span class="impact-thermometer__zero"></span>
-                <span
-                  class="impact-thermometer__fill"
-                  :class="news.impact_index >= 0 ? 'impact-thermometer__fill--pos' : 'impact-thermometer__fill--neg'"
-                  :style="{ width: `${Math.min(50, Math.max(2, Math.abs(news.impact_index || 0) / 2))}%` }"
-                ></span>
-              </div>
+            <div class="semantic-axis-grid">
+              <span>
+                <small>目标立场</small>
+                <b>{{ formatSemanticAxis(opinionSemanticSnapshot(news).stance, { includeUnit: true }) }}</b>
+              </span>
+              <span>
+                <small>文本语气</small>
+                <b>{{ formatSemanticAxis(opinionSemanticSnapshot(news).tone) }}</b>
+              </span>
+              <span>
+                <small>现实影响</small>
+                <b>{{ formatSemanticAxis(opinionSemanticSnapshot(news).impact) }}</b>
+              </span>
             </div>
             <div class="news-impact-meta">
               <span>{{ formatFamilyName(news.event_family) }}</span>
               <span>{{ news.initiator || '未知主体' }} → {{ news.target || '未知对象' }}</span>
-              <span>置信 {{ Math.round((news.confidence || 0) * 100) }}%</span>
+              <span>置信 {{ news.confidence == null ? '--' : `${Math.round(news.confidence * 100)}%` }}</span>
             </div>
             <div class="news-correction-row" @click.stop>
               <button
@@ -663,7 +707,7 @@
             v-for="news in insightModal.news"
             :key="news.id"
             class="insight-news"
-            :class="Number(news.impact_index || news.sentiment || 0) >= 0 ? 'insight-news--pos' : 'insight-news--neg'"
+            :class="stanceVariant(news, 'insight-news--pos', 'insight-news--neg')"
             @click="goToNewsDetail(news.id)"
           >
             <div class="insight-news__main">
@@ -674,8 +718,10 @@
               </p>
             </div>
             <div class="insight-news__score">
-              <b>{{ formatIndexValue(news.impact_index ?? (news.stance_score || 0) * 100) }}</b>
-              <span>影响</span>
+              <b>{{ formatSemanticAxis(opinionSemanticSnapshot(news).stance) }}</b>
+              <span>目标立场</span>
+              <small>文本语气 {{ formatSemanticAxis(opinionSemanticSnapshot(news).tone) }}</small>
+              <small>现实影响 {{ formatSemanticAxis(opinionSemanticSnapshot(news).impact) }}</small>
             </div>
           </article>
         </div>
@@ -727,9 +773,9 @@
                 </div>
                 <div
                   class="dimension-row__score"
-                  :class="Number(item.impact_index || 0) >= 0 ? 'dimension-row__score--pos' : 'dimension-row__score--neg'"
+                  :class="stanceVariant(item, 'dimension-row__score--pos', 'dimension-row__score--neg')"
                 >
-                  {{ formatIndexValue(item.impact_index) }}
+                  {{ formatSemanticAxis(opinionSemanticSnapshot(item).stance) }}
                 </div>
               </article>
             </section>
@@ -752,6 +798,22 @@
               <span>
                 <b>{{ qualityData?.method_version || '--' }}</b>
                 评分版本
+              </span>
+              <span>
+                <b>{{ opinionTrust.schemaVersion }}</b>
+                契约版本
+              </span>
+              <span>
+                <b>{{ opinionTrust.modelVersion }}</b>
+                模型版本
+              </span>
+              <span>
+                <b>{{ opinionTrust.sourceStatus }}</b>
+                数据源状态
+              </span>
+              <span>
+                <b>{{ opinionTrust.snapshotId }}</b>
+                快照标识
               </span>
             </div>
             <div class="quality-list">
@@ -784,7 +846,7 @@
       :drawer-key="assistantDrawerKey"
       :page-skill="sentimentAssistantSkill"
       title="舆情分析数据助手"
-      subtitle="读取当前舆情指数、质量诊断、下钻事件和搜索结果"
+      subtitle="读取目标立场指数、三维语义状态、质量诊断和下钻结果"
       @layout-change="handleAssistantLayoutChange"
     />
   </div>
@@ -800,7 +862,7 @@ import {
   CORRECTION_LABELS,
   DIAGNOSTIC_TABS,
   OPINION_CACHE_TTL_MS,
-  OPINION_LIVE_REFRESH_MS,
+  OPINION_REFRESH_INTERVAL_MS,
   OVERVIEW_CACHE_KEY,
   SEARCH_PAGE_SIZE_OPTIONS,
   SEARCH_PUBLISH_TIME_OPTIONS,
@@ -827,12 +889,12 @@ import {
   dimensionGroups as buildDimensionGroups,
   findAnomalyPoints,
   formatCompactCount,
-  formatDateYmd,
   formatDimensionLabel,
   formatFamilyName,
   formatIndexValue,
   formatOverviewTime,
   formatSearchSnippet,
+  invalidateOpinionPayload,
   maxOverviewTagCount as calculateMaxOverviewTagCount,
   mergeFavoriteIds,
   normalizeDateNewsResponse,
@@ -848,11 +910,18 @@ import {
   overviewSummary as buildOverviewSummary,
   overviewTopEventTitle as buildOverviewTopEventTitle,
   overviewTrendClass as buildOverviewTrendClass,
+  opinionTrustSnapshot as buildOpinionTrustSnapshot,
+  opinionSemanticMethodSnapshot,
+  opinionSemanticSnapshot,
   qualitySnapshot as buildQualitySnapshot,
   rangeIndexes as calculateRangeIndexes,
+  resolveAutoEndDate,
   resolveChartPointDate,
+  sanitizeOpinionPayload,
   selectDatePoint,
   sentimentApi,
+  semanticTrendProjection,
+  formatSemanticAxis,
   sparklinePoints,
   tagBarWidth as calculateTagBarWidth,
   tagStyle,
@@ -878,14 +947,14 @@ let assistantFabSuppressClick = false
 const sentimentAssistantSkill = computed(() => ({
   page: '智能舆情分析',
   path: '/sentiment-analysis',
-  summary: `当前舆情快照 ${overviewLatestDate.value || '未选择日期'}，搜索结果 ${searchTotal.value || searchResults.value?.length || 0} 条，可结合指数、质量诊断和下钻事件研判。`,
+  summary: `当前目标立场快照 ${overviewLatestDate.value || '未选择日期'}，搜索结果 ${searchTotal.value || searchResults.value?.length || 0} 条；语气与现实影响独立且当前未知。`,
   access: [
     '导航进入智能舆情分析',
     '搜索结果和日期下钻可打开新闻详情',
     '右下角悬浮按钮打开侧栏助手',
   ],
   sections: [
-    '舆情指数总览',
+    '目标立场指数总览',
     '趋势图和日期下钻',
     '质量诊断',
     '舆情搜索结果',
@@ -1166,8 +1235,9 @@ const insightModal = ref({
 const insightNewsCache = new Map()
 let overviewRefreshTimer = null
 let overviewBackgroundRefreshTimer = null
-let liveOverviewRefreshPromise = null
-let lastLiveOverviewRefreshAt = 0
+let overviewRefreshPromise = null
+let lastOverviewRefreshAt = 0
+let opinionTrustRevalidationTimer = null
 const diagnosticModal = ref({ open: false, tab: 'dimensions' })
 const dimensionsData = ref(null)
 const dimensionsLoading = ref(false)
@@ -1204,27 +1274,100 @@ const loadEcharts = () => {
 }
 
 // ==================== 数据生成 ====================
-// 从后端 API 获取涉华新闻舆情指数（替代原 mock 数据）
+// 从后端 API 获取涉华目标立场指数（替代原 mock 数据）
 const opinionTrendData = ref({ dates: [], values: [], meta: {} })
 const opinionLoading = ref(true)
 const opinionError = ref('')
 const overviewData = ref(null)
 const overviewLoading = ref(false)
 const overviewError = ref('')
+const opinionTrustEvaluationNow = ref(Date.now())
+const safeOverviewData = computed(() => sanitizeOpinionPayload(overviewData.value, {
+  now: opinionTrustEvaluationNow.value,
+  requireClaimContract: true,
+}))
+const safeOpinionTrendData = computed(() => semanticTrendProjection(
+  sanitizeOpinionPayload(opinionTrendData.value, {
+    now: opinionTrustEvaluationNow.value,
+  }),
+))
 
-const overviewSummary = computed(() => buildOverviewSummary(overviewData.value))
-const overviewLatestDate = computed(() => overviewData.value?.latest_date || '--')
-const overviewTopEventTitle = computed(() => buildOverviewTopEventTitle(overviewData.value, {
+const overviewSummary = computed(() => buildOverviewSummary(safeOverviewData.value))
+const overviewSemantics = computed(() => opinionSemanticSnapshot(overviewSummary.value))
+const semanticMethod = computed(() => opinionSemanticMethodSnapshot(safeOverviewData.value))
+const opinionTrust = computed(() => buildOpinionTrustSnapshot(safeOverviewData.value, {
+  now: opinionTrustEvaluationNow.value,
+}))
+const overviewLatestDate = computed(() => safeOverviewData.value?.latest_date || '--')
+const overviewTopEventTitle = computed(() => buildOverviewTopEventTitle(safeOverviewData.value, {
   loading: overviewLoading.value,
   error: overviewError.value,
 }))
-const overviewTrendClass = computed(() => buildOverviewTrendClass(overviewSummary.value))
-const overviewScoreClass = computed(() => buildOverviewScoreClass(overviewSummary.value))
-const overviewReadableIndices = computed(() => buildOverviewReadableIndices(overviewData.value))
-const overviewMetrics = computed(() => buildOverviewMetrics(overviewData.value))
-const overviewBriefs = computed(() => overviewData.value?.briefs || [])
-const overviewTags = computed(() => overviewData.value?.families || [])
+const overviewTrendClass = computed(() => (
+  overviewSemantics.value.stance.state === 'available'
+    ? buildOverviewTrendClass({ current_index: overviewSemantics.value.stance.score })
+    : 'trend--neutral'
+))
+const overviewScoreClass = computed(() => (
+  overviewSemantics.value.stance.state === 'available'
+    ? buildOverviewScoreClass({ current_index: overviewSemantics.value.stance.score })
+    : 'risk-score-panel--neutral'
+))
+const overviewReadableIndices = computed(() => buildOverviewReadableIndices(safeOverviewData.value))
+const overviewMetrics = computed(() => buildOverviewMetrics(safeOverviewData.value))
+const overviewBriefs = computed(() => safeOverviewData.value?.briefs || [])
+const overviewTags = computed(() => safeOverviewData.value?.families || [])
 const maxOverviewTagCount = computed(() => calculateMaxOverviewTagCount(overviewTags.value))
+
+const stanceVariant = (
+  record,
+  supportiveClass,
+  criticalClass,
+  unavailableClass = null,
+) => {
+  const stance = opinionSemanticSnapshot(record).stance
+  if (stance.state !== 'available') return unavailableClass
+  if (stance.category === 'supportive') return supportiveClass
+  if (stance.category === 'critical') return criticalClass
+  return null
+}
+
+const stanceGlyph = (record) => {
+  const stance = opinionSemanticSnapshot(record).stance
+  if (stance.state !== 'available') return '·'
+  if (stance.category === 'supportive') return '+'
+  if (stance.category === 'critical') return '-'
+  return '0'
+}
+
+const revalidateVisibleOpinionComposites = (now = Date.now()) => {
+  opinionTrustEvaluationNow.value = now
+  const provenance = overviewData.value || {}
+  const safeVisible = sanitizeOpinionPayload({
+    news: eventNews.value,
+    sub_events: l1Clusters.value,
+    semantic_contract: safeOverviewData.value?.semantic_contract,
+    trust: provenance.trust,
+    meta: provenance.meta,
+  }, { now })
+  eventNews.value = safeVisible.news || []
+  l1Clusters.value = safeVisible.sub_events || []
+  const safeInsight = sanitizeOpinionPayload({
+    news: insightModal.value.news,
+    semantic_contract: safeOverviewData.value?.semantic_contract,
+    trust: provenance.trust,
+    meta: provenance.meta,
+  }, { now })
+  insightModal.value.news = safeInsight.news || []
+  if (safeVisible.trust?.is_computable !== true) {
+    selectedDatePoint.value = {
+      ...selectedDatePoint.value,
+      value: null,
+      delta: null,
+      anomaly: false,
+    }
+  }
+}
 
 const loadCachedOpinionSnapshot = ({ includeOverview = false, includeTrend = false } = {}) => {
   const cachedOverview = includeOverview ? snapshotCache.read(OVERVIEW_CACHE_KEY) : null
@@ -1251,11 +1394,23 @@ const fetchOverview = async (days = 30, { showLoading = true, refresh = false } 
     sentimentApi.getOverview(buildOverviewQuery(days, { refresh }), { signal })
   ))
   if (outcome.status === 'success') {
-    overviewData.value = outcome.value
-    if (refresh) lastLiveOverviewRefreshAt = Date.now()
-    snapshotCache.write(OVERVIEW_CACHE_KEY, outcome.value)
+    overviewData.value = sanitizeOpinionPayload(outcome.value, { requireClaimContract: true })
+    if (overviewData.value?.trust?.is_computable !== true) {
+      opinionTrendData.value = normalizeTrendResponse(
+        invalidateOpinionPayload(opinionTrendData.value, 'OVERVIEW_TRUST_UNAVAILABLE'),
+      )
+      snapshotCache.remove(TREND_CACHE_KEY)
+    }
+    if (refresh) lastOverviewRefreshAt = Date.now()
+    snapshotCache.write(OVERVIEW_CACHE_KEY, overviewData.value)
   } else if (outcome.status === 'error') {
     overviewError.value = outcome.error?.message || '获取舆情概览失败'
+    overviewData.value = invalidateOpinionPayload(overviewData.value, 'REFRESH_FAILED')
+    opinionTrendData.value = normalizeTrendResponse(
+      invalidateOpinionPayload(opinionTrendData.value, 'REFRESH_FAILED'),
+    )
+    snapshotCache.remove(OVERVIEW_CACHE_KEY)
+    snapshotCache.remove(TREND_CACHE_KEY)
     console.warn('[opinion] 加载舆情概览失败:', overviewError.value)
   }
   if (outcome.latest) overviewLoading.value = false
@@ -1308,7 +1463,7 @@ function buildSentimentOverviewMaterial() {
   const summary = overviewSummary.value || {}
   const metrics = overviewMetrics.value.map((item) => `${item.label}: ${item.value}`).join(' | ')
   const targets = overviewReadableIndices.value.map((item) => (
-    `${item.displayLabel}: ${formatIndexValue(item.value)} (${item.description})`
+    `${item.displayLabel}: ${formatSemanticAxis(opinionSemanticSnapshot(item).stance)} (${item.description})`
   )).join(' | ')
   const briefs = overviewBriefs.value.slice(0, 5).map((item, index) => {
     const title = compactAssistantText(item.title || item.text || item.summary || '', 220)
@@ -1318,9 +1473,15 @@ function buildSentimentOverviewMaterial() {
   return [
     `时间范围: ${startDate.value || '--'} 至 ${endDateModel.value || endDate.value || '--'} (${timeRange.value})`,
     `最新评分日期: ${qualitySnapshot.value.latestScoreDate}`,
-    `综合舆情指数: ${formatIndexValue(summary.current_index)} | 24h变化: ${formatIndexValue(summary.change_24h)} | 趋势: ${summary.trend_label || '--'}`,
+    overviewSemantics.value.stance.state === 'available'
+      ? `加权目标立场指数: ${formatSemanticAxis(overviewSemantics.value.stance, { includeUnit: true })} | 趋势: ${summary.trend_label || '--'}`
+      : `加权目标立场指数: 未知 | 原因: ${opinionTrust.value.detail}`,
+    '文本语气: 未知（来源模型未建立） | 现实影响方向/强度: 未知（来源模型与量纲未建立）',
+    '响应投影组合规则: 三维不组合，不从一个维度推断另一个维度 | 上游轴独立性: 未建立',
     `报道量: ${formatCompactCount(summary.article_count)} | 信源: ${formatCompactCount(summary.source_count)} | 主题数: ${formatCompactCount(summary.family_count)}`,
-    `正/中/负: ${formatCompactCount(summary.positive_pct)} / ${formatCompactCount(summary.neutral_pct)} / ${formatCompactCount(summary.negative_pct)}`,
+    opinionTrust.value.computable
+      ? `支持/中性/批评立场占比: ${formatCompactCount(summary.positive_pct)} / ${formatCompactCount(summary.neutral_pct)} / ${formatCompactCount(summary.negative_pct)}`
+      : '立场分布: 不可计算',
     metrics ? `指标: ${metrics}` : '',
     targets ? `分项指数: ${targets}` : '',
     overviewTopEventTitle.value ? `主题事件: ${overviewTopEventTitle.value}` : '',
@@ -1337,7 +1498,7 @@ function buildSentimentAssistantContext(kind = 'overview') {
   const prompt = [
     `请基于以下${isSearch ? '舆情搜索结果' : '舆情总览快照'}做协同研判。`,
     '请输出：1）核心结论；2）风险/机会信号；3）需要继续检索或补证的方向；4）可进入报告的结构化提纲。',
-    '请把页面数值和标题标为“已知事实”，解释性判断标为“分析推断”，缺失信息标为“待核实”。全程使用“舆情”而不是“市场情绪”。',
+    '页面立场数值属于模型派生且未作事实核验，不得标为已知事实；解释性判断标为“分析推断”，缺失信息标为“待核实”。不得从立场推断文本语气或现实影响。',
     '后续检索建议最多 5 条，每条给出一个精确查询词和核验目标。正文控制在 1200 字以内。',
     '如果材料不足，请明确指出缺口，不要编造来源。',
     '',
@@ -1392,11 +1553,13 @@ const fetchInsightNews = async ({ sentimentFilter = 'all', eventFamily = '', day
   const cacheKey = `${days}:${sentimentFilter}:${eventFamily}:${pageSize}`
   const cached = insightNewsCache.get(cacheKey)
   if (cached) {
+    const safeCached = sanitizeOpinionPayload(cached)
+    insightNewsCache.set(cacheKey, safeCached)
     insightRequest.cancel()
-    insightModal.value.news = cached.news
+    insightModal.value.news = safeCached.news
     insightModal.value.loading = false
     insightModal.value.error = ''
-    return { latest: true, status: 'cached', value: cached }
+    return { latest: true, status: 'cached', value: safeCached }
   }
 
   insightModal.value.loading = true
@@ -1405,10 +1568,12 @@ const fetchInsightNews = async ({ sentimentFilter = 'all', eventFamily = '', day
   const query = buildInsightNewsQuery({ days, eventFamily, pageSize, sentimentFilter })
   const outcome = await insightRequest.run((signal) => sentimentApi.getTopNews(query, { signal }))
   if (outcome.status === 'success') {
-    const payload = normalizeInsightNewsResponse(outcome.value)
+    const payload = normalizeInsightNewsResponse(sanitizeOpinionPayload(outcome.value))
     insightNewsCache.set(cacheKey, payload)
     insightModal.value.news = payload.news
   } else if (outcome.status === 'error') {
+    insightNewsCache.delete(cacheKey)
+    insightModal.value.news = []
     insightModal.value.error = outcome.error?.message || '获取相关新闻失败'
   }
   if (outcome.latest) insightModal.value.loading = false
@@ -1418,15 +1583,17 @@ const fetchInsightNews = async ({ sentimentFilter = 'all', eventFamily = '', day
 const openRiskInsight = (item = null) => {
   const key = String(item?.label || 'CN').toUpperCase()
   const sentimentFilter = key === 'NEG' ? 'negative' : key === 'POS' ? 'positive' : 'all'
-  const title = item?.displayLabel || '综合舆情指数'
+  const targetRecord = item || overviewSummary.value
+  const title = item?.displayLabel || '加权目标立场指数'
   setInsightModal({
-    eyebrow: '高危目标指数',
+    eyebrow: '涉华目标立场指标',
     title,
-    subtitle: `近 30 天 ${item?.description || '高影响涉华新闻'}`,
+    subtitle: `近 30 天 ${item?.description || '涉华目标立场报道'}；文本语气与现实影响不从立场推断`,
     loading: true,
     metrics: [
-      { label: '当前值', value: formatIndexValue(item?.value ?? overviewSummary.value.current_index) },
-      { label: '24h 变化', value: formatIndexValue(overviewSummary.value.change_24h) },
+      { label: '目标立场', value: formatSemanticAxis(opinionSemanticSnapshot(targetRecord).stance, { includeUnit: true }) },
+      { label: '文本语气', value: '未知' },
+      { label: '现实影响', value: '未知' },
       { label: '信源', value: formatCompactCount(overviewSummary.value.source_count) },
     ],
   })
@@ -1434,7 +1601,7 @@ const openRiskInsight = (item = null) => {
 }
 
 const openEventInsight = () => {
-  const event = overviewData.value?.top_event
+  const event = safeOverviewData.value?.top_event
   setInsightModal({
     eyebrow: '主题事件',
     title: overviewTopEventTitle.value,
@@ -1443,7 +1610,8 @@ const openEventInsight = () => {
     metrics: [
       { label: '事件报道', value: formatCompactCount(event?.article_count || 0) },
       { label: '涉华文章', value: formatCompactCount(event?.china_articles || 0) },
-      { label: '平均立场', value: formatIndexValue((event?.avg_stance || 0) * 100) },
+      { label: '平均目标立场', value: formatSemanticAxis(opinionSemanticSnapshot(event).stance, { includeUnit: true }) },
+      { label: '现实影响', value: '未知' },
     ],
   })
   fetchInsightNews({ eventFamily: event?.event_family || '', pageSize: 10 })
@@ -1456,21 +1624,13 @@ const openBriefInsight = (brief) => {
     subtitle: `${brief.source || 'unknown'} · ${formatFamilyName(brief.event_family)} · ${formatOverviewTime(brief.time)}`,
     loading: false,
     metrics: [
-      { label: '影响', value: formatIndexValue((brief.stance_score || 0) * 100) },
-      { label: '置信', value: `${Math.round((brief.confidence || 0) * 100)}%` },
+      { label: '目标立场', value: formatSemanticAxis(opinionSemanticSnapshot(brief).stance, { includeUnit: true }) },
+      { label: '文本语气', value: '未知' },
+      { label: '现实影响', value: '未知' },
+      { label: '置信', value: brief.confidence == null ? '--' : `${Math.round(brief.confidence * 100)}%` },
       { label: '级别', value: briefSeverityLabel(brief.severity) },
     ],
-    news: [
-      {
-        id: brief.id,
-        title: brief.title,
-        source: brief.source,
-        pub_date: brief.time ? String(brief.time).slice(0, 10) : '',
-        event_family: brief.event_family,
-        impact_index: (brief.stance_score || 0) * 100,
-        confidence: brief.confidence,
-      },
-    ],
+    news: [brief],
   })
 }
 
@@ -1482,7 +1642,8 @@ const openTagInsight = (tag) => {
     loading: true,
     metrics: [
       { label: '报道量', value: formatCompactCount(tag.article_count) },
-      { label: '平均立场', value: formatIndexValue((tag.avg_stance || 0) * 100) },
+      { label: '平均目标立场', value: formatSemanticAxis(opinionSemanticSnapshot(tag).stance, { includeUnit: true }) },
+      { label: '现实影响', value: '未知' },
       { label: '最新日期', value: overviewLatestDate.value },
     ],
   })
@@ -1496,8 +1657,9 @@ const fetchDimensions = async () => {
   const outcome = await dimensionsRequest.run((signal) => (
     sentimentApi.getDimensions({ days: 30, limit: 8 }, { signal })
   ))
-  if (outcome.status === 'success') dimensionsData.value = outcome.value
+  if (outcome.status === 'success') dimensionsData.value = sanitizeOpinionPayload(outcome.value)
   else if (outcome.status === 'error') {
+    dimensionsData.value = invalidateOpinionPayload(dimensionsData.value, 'REFRESH_FAILED')
     dimensionsError.value = outcome.error?.message || '维度数据加载失败'
   }
   if (outcome.latest) dimensionsLoading.value = false
@@ -1508,8 +1670,9 @@ const fetchQuality = async () => {
   qualityLoading.value = true
   qualityError.value = ''
   const outcome = await qualityRequest.run((signal) => sentimentApi.getQuality({ signal }))
-  if (outcome.status === 'success') qualityData.value = outcome.value
+  if (outcome.status === 'success') qualityData.value = sanitizeOpinionPayload(outcome.value)
   else if (outcome.status === 'error') {
+    qualityData.value = invalidateOpinionPayload(qualityData.value, 'REFRESH_FAILED')
     qualityError.value = outcome.error?.message || '质量数据加载失败'
   }
   if (outcome.latest) qualityLoading.value = false
@@ -1538,40 +1701,43 @@ const fetchOpinionTrend = async (days, filter, { showLoading = true, refresh = f
   const query = buildTrendQuery(days, activeFilter, { refresh })
   const outcome = await trendRequest.run((signal) => sentimentApi.getTrend(query, { signal }))
   if (outcome.status === 'success' && activeFilter === sentimentFilter.value) {
-    opinionTrendData.value = normalizeTrendResponse(outcome.value)
+    opinionTrendData.value = normalizeTrendResponse(sanitizeOpinionPayload(outcome.value))
     lastFetchDays = days
     snapshotCache.write(TREND_CACHE_KEY, opinionTrendData.value)
   } else if (outcome.status === 'error') {
     opinionError.value = outcome.error?.message || '获取舆情数据失败'
-    console.warn('[opinion] 加载舆情指数失败:', opinionError.value)
-    if (!opinionTrendData.value.dates.length) {
-      opinionTrendData.value = { dates: [], values: [], meta: {} }
-    }
+    console.warn('[opinion] 加载目标立场指数失败:', opinionError.value)
+    opinionTrendData.value = normalizeTrendResponse(
+      invalidateOpinionPayload(opinionTrendData.value, 'REFRESH_FAILED'),
+    )
+    snapshotCache.remove(TREND_CACHE_KEY)
   }
   if (showLoading && outcome.latest) opinionLoading.value = false
   return outcome
 }
 
-const refreshLiveOverview = ({ showLoading = false } = {}) => {
-  if (liveOverviewRefreshPromise) return liveOverviewRefreshPromise
-  liveOverviewRefreshPromise = fetchOverview(30, { showLoading, refresh: true }).finally(() => {
-    liveOverviewRefreshPromise = null
+const refreshOverviewSnapshot = ({ showLoading = false } = {}) => {
+  revalidateVisibleOpinionComposites()
+  if (overviewRefreshPromise) return overviewRefreshPromise
+  overviewRefreshPromise = fetchOverview(30, { showLoading, refresh: true }).finally(() => {
+    overviewRefreshPromise = null
   })
-  return liveOverviewRefreshPromise
+  return overviewRefreshPromise
 }
 
-const scheduleLiveOverviewRefresh = (delay = 600) => {
+const scheduleOverviewRefresh = (delay = 600) => {
   if (overviewBackgroundRefreshTimer) clearTimeout(overviewBackgroundRefreshTimer)
   overviewBackgroundRefreshTimer = setTimeout(() => {
     overviewBackgroundRefreshTimer = null
-    refreshLiveOverview({ showLoading: false })
+    refreshOverviewSnapshot({ showLoading: false })
   }, delay)
 }
 
 const onVisibilityRefresh = () => {
   if (document.visibilityState !== 'visible') return
-  if (Date.now() - lastLiveOverviewRefreshAt < 60 * 1000) return
-  refreshLiveOverview({ showLoading: false })
+  revalidateVisibleOpinionComposites()
+  if (Date.now() - lastOverviewRefreshAt < 60 * 1000) return
+  refreshOverviewSnapshot({ showLoading: false })
 }
 
 // 切换情感方向过滤
@@ -1587,7 +1753,7 @@ const onSentimentFilterChange = (value) => {
 
 // 兼容下游 computed，保持与原有接口一致
 // 同时剔除首尾零值，只展示有数据的时间段
-const fullData = computed(() => trimTrendData(opinionTrendData.value))
+const fullData = computed(() => trimTrendData(safeOpinionTrendData.value))
 const anomalyPoints = computed(() => findAnomalyPoints(fullData.value))
 const searchChartMarkPoints = computed(() => (
   buildSearchChartMarkPoints(searchResults.value, fullData.value)
@@ -1598,8 +1764,10 @@ const setSelectedDatePoint = (date) => {
 }
 
 const dateInsightTitle = computed(() => {
-  if (!selectedDatePoint.value.anomaly) return '指数解释'
-  return Number(selectedDatePoint.value.delta || 0) >= 0 ? '异常上行' : '异常下行'
+  if (!selectedDatePoint.value.anomaly) return '目标立场指数解释'
+  return Number(selectedDatePoint.value.delta || 0) >= 0
+    ? '目标立场异常上行'
+    : '目标立场异常下行'
 })
 
 const selectedDateExplanation = computed(() => (
@@ -1608,15 +1776,19 @@ const selectedDateExplanation = computed(() => (
 
 const endDate = computed(() => {
   const dates = fullData.value.dates
-  return dates.length ? dates[dates.length - 1] : formatDateYmd(new Date())
+  return dates.length ? dates[dates.length - 1] : ''
 })
 
 // 结束日：允许在数据范围内调整，默认等于数据末日
 const endDateModel = ref('')
 watch(
   endDate,
-  (val) => {
-    if (!endDateModel.value) endDateModel.value = val
+  (val, previousDataEnd) => {
+    endDateModel.value = resolveAutoEndDate(
+      endDateModel.value,
+      previousDataEnd,
+      val,
+    )
   },
   { immediate: true },
 )
@@ -1652,7 +1824,7 @@ watch(
     const dates = fullData.value.dates
     const { startIndex } = getRangeIndexes()
     isSyncingRange = true
-    startDate.value = dates[startIndex] || formatDateYmd(new Date())
+    startDate.value = dates[startIndex] || ''
     const range = dataZoomRange.value
     zoomStartPercent.value = range.start
     zoomEndPercent.value = range.end
@@ -1737,12 +1909,14 @@ const fetchDateNews = async (dateStr) => {
   const cacheKey = `${dateStr}:${eventsFilter.value}`
   const cached = dateNewsCache.get(cacheKey)
   if (cached) {
+    const safeCached = sanitizeOpinionPayload(cached)
+    dateNewsCache.set(cacheKey, safeCached)
     dateNewsRequest.cancel()
-    eventNews.value = cached.news
-    eventNewsTotal.value = cached.total
-    dateNewsSummary.value = cached.summary
+    eventNews.value = safeCached.news
+    eventNewsTotal.value = safeCached.total
+    dateNewsSummary.value = safeCached.summary
     eventNewsLoading.value = false
-    return { latest: true, status: 'cached', value: cached }
+    return { latest: true, status: 'cached', value: safeCached }
   }
 
   eventNewsLoading.value = true
@@ -1754,12 +1928,16 @@ const fetchDateNews = async (dateStr) => {
     sentimentApi.getNewsByDate(query, { signal })
   ))
   if (outcome.status === 'success') {
-    const payload = normalizeDateNewsResponse(outcome.value)
+    const payload = normalizeDateNewsResponse(sanitizeOpinionPayload(outcome.value))
     dateNewsCache.set(cacheKey, payload)
     eventNews.value = payload.news
     eventNewsTotal.value = payload.total
     dateNewsSummary.value = payload.summary
   } else if (outcome.status === 'error') {
+    dateNewsCache.delete(cacheKey)
+    eventNews.value = []
+    eventNewsTotal.value = 0
+    dateNewsSummary.value = null
     console.warn('[opinion] 获取日期新闻失败:', outcome.error?.message)
   }
   if (outcome.latest) eventNewsLoading.value = false
@@ -1780,21 +1958,6 @@ const showCorrectionToast = (message, tone = 'info') => {
   }, 2400)
 }
 
-const markNewsFeedback = (newsId, correction) => {
-  eventNews.value = eventNews.value.map((item) =>
-    Number(item.id) === Number(newsId) ? { ...item, feedback: correction } : item,
-  )
-  for (const [key, payload] of dateNewsCache.entries()) {
-    if (!key.startsWith(`${clickedDate.value}:`) || !Array.isArray(payload.news)) continue
-    dateNewsCache.set(key, {
-      ...payload,
-      news: payload.news.map((item) =>
-        Number(item.id) === Number(newsId) ? { ...item, feedback: correction } : item,
-      ),
-    })
-  }
-}
-
 const isCorrectionSubmitting = (news, correction) => {
   return !!correctionSubmitting.value[`${news?.id || ''}:${correction}`]
 }
@@ -1804,17 +1967,16 @@ const submitNewsCorrection = async (news, correction) => {
   if (!Number.isFinite(newsId)) return
   const key = `${newsId}:${correction}`
   if (correctionSubmitting.value[key]) return
-  correctionSubmitting.value = { ...correctionSubmitting.value, [key]: true }
-  try {
-    await sentimentApi.submitFeedback(buildFeedbackDto(news, correction))
-    markNewsFeedback(newsId, correction)
-    dimensionsRequest.cancel()
+      correctionSubmitting.value = { ...correctionSubmitting.value, [key]: true }
+      try {
+        await sentimentApi.submitFeedback(buildFeedbackDto(news, correction))
+        dimensionsRequest.cancel()
     qualityRequest.cancel()
     dimensionsData.value = null
     dimensionsLoading.value = false
     qualityData.value = null
     qualityLoading.value = false
-    showCorrectionToast(`已记录：${CORRECTION_LABELS[correction] || '校正'}`)
+        showCorrectionToast(`已记录为待复核：${CORRECTION_LABELS[correction] || '校正'}；不用于训练`)
   } catch (e) {
     showCorrectionToast(e.message || '反馈记录失败', 'error')
   } finally {
@@ -1830,19 +1992,25 @@ const exportDateBrief = () => {
   const explanation = selectedDateExplanation.value
   const rows = eventNews.value.slice(0, 12)
   const lines = [
-    `# ${date} 舆情短报`,
+    `# ${date} 目标立场短报`,
     '',
-    `指数：${formatIndexValue(selectedDatePoint.value.value)}`,
-    `较前日：${selectedDatePoint.value.delta === null ? '--' : formatIndexValue(selectedDatePoint.value.delta)}`,
+    `加权目标立场指数：${formatIndexValue(selectedDatePoint.value.value)} 指数点`,
+    `目标立场指数较前日：${selectedDatePoint.value.delta === null ? '--' : formatIndexValue(selectedDatePoint.value.delta)}`,
+    '文本语气：未知（未建立独立来源模型）',
+    '现实影响方向/强度：未知（未建立独立来源模型与量纲）',
+    '响应投影组合规则：三维不组合，不从一个维度推断另一个维度',
+    '上游轴独立性：未建立',
+    '事实核验：未验证',
     `主导议题：${explanation.topFamily}`,
-    `负向合计：${formatIndexValue(explanation.negativeImpact)}`,
-    `正向合计：${formatIndexValue(explanation.positiveImpact)}`,
+    `批评立场报道：${explanation.criticalCount}`,
+    `支持立场报道：${explanation.supportiveCount}`,
+    `立场未知报道：${explanation.unknownCount}`,
     `信源数：${explanation.sourceCount}`,
     '',
-    '## 高影响新闻',
+    '## 代表性目标立场报道',
     ...rows.map(
       (item, index) =>
-        `${index + 1}. ${formatIndexValue(item.impact_index)} · ${item.source || 'unknown'} · ${item.title || '无标题'}`,
+        `${index + 1}. ${formatSemanticAxis(opinionSemanticSnapshot(item).stance, { includeUnit: true })} · ${item.source || 'unknown'} · ${item.title || '无标题'}`,
     ),
   ]
   const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
@@ -1872,10 +2040,12 @@ const loadMoreL1 = async () => {
     sentimentApi.getMacroEventClusters(query, { signal })
   ))
   if (outcome.status === 'success') {
-    const payload = normalizeMacroEventClustersResponse(outcome.value)
+    const payload = normalizeMacroEventClustersResponse(sanitizeOpinionPayload(outcome.value))
     l1Clusters.value = [...l1Clusters.value, ...payload.subEvents]
     l1ClustersHasMore.value = payload.hasMore
   } else if (outcome.status === 'error') {
+    l1Clusters.value = []
+    l1ClustersHasMore.value = false
     console.warn('[opinion] 加载更多 L1 聚类失败:', outcome.error?.message)
   }
   if (outcome.latest) l1ClustersLoading.value = false
@@ -1949,7 +2119,7 @@ onMounted(() => {
   const cached = loadCachedOpinionSnapshot({ includeOverview: true, includeTrend: true })
   nextTick(() => {
     const overviewLoad = fetchOverview(30, { showLoading: !cached.hasOverview, refresh: false }).finally(() => {
-      scheduleLiveOverviewRefresh(cached.hasOverview ? 5000 : 8000)
+      scheduleOverviewRefresh(cached.hasOverview ? 5000 : 8000)
     })
     overviewLoad.finally(() => {
       fetchOpinionTrend(cached.hasTrend ? 365 : 90, sentimentFilter.value, {
@@ -1966,8 +2136,11 @@ onMounted(() => {
       }, 80)
     })
     overviewRefreshTimer = setInterval(() => {
-      refreshLiveOverview({ showLoading: false })
-    }, OPINION_LIVE_REFRESH_MS)
+      refreshOverviewSnapshot({ showLoading: false })
+    }, OPINION_REFRESH_INTERVAL_MS)
+    opinionTrustRevalidationTimer = setInterval(() => {
+      revalidateVisibleOpinionComposites()
+    }, 60 * 1000)
     setTimeout(() => {
       fetchQuality()
     }, 200)
@@ -1990,6 +2163,10 @@ onUnmounted(() => {
   if (overviewBackgroundRefreshTimer) {
     clearTimeout(overviewBackgroundRefreshTimer)
     overviewBackgroundRefreshTimer = null
+  }
+  if (opinionTrustRevalidationTimer) {
+    clearInterval(opinionTrustRevalidationTimer)
+    opinionTrustRevalidationTimer = null
   }
   if (chartInstance) {
     chartInstance.dispose()

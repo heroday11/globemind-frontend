@@ -13,6 +13,10 @@ export const routeViewLoaders = Object.freeze({
   aboutUs: () => import('@/views/AboutUs.vue'),
   userCenter: () => import('@/views/UserCenter.vue'),
   personalCenter: () => import('@/views/user/PersonalCenter.vue'),
+  researchWorkspace: () => import('@/views/ResearchWorkspace.vue'),
+  modelAssurance: () => import('@/views/ModelAssurance.vue'),
+  entityGovernance: () => import('@/views/EntityGovernance.vue'),
+  countryProfileCatalog: () => import('@/views/CountryProfileCatalog.vue'),
 })
 
 function requireLoader(loaders, key) {
@@ -40,6 +44,10 @@ export function createRoutePreloaders(loaders = routeViewLoaders) {
     '/academic-data': single('academicData'),
     '/about-us': single('aboutUs'),
     '/user-center/personal-center': group('userCenter', 'personalCenter'),
+    '/research-workspace': single('researchWorkspace'),
+    '/model-assurance': single('modelAssurance'),
+    '/entity-governance': single('entityGovernance'),
+    '/country-profiles': single('countryProfileCatalog'),
   })
 }
 

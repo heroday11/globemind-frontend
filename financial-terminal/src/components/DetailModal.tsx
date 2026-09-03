@@ -11,8 +11,8 @@ type Props = {
   onClose: () => void
 }
 
-function pct(value?: number) {
-  if (typeof value !== 'number') return '0.00%'
+function pct(value?: number | null) {
+  if (typeof value !== 'number') return '不可用'
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
 }
 
@@ -20,6 +20,7 @@ function tone(status?: DataSourceStatus['status']) {
   if (status === 'live') return 'text-emerald-300 border-emerald-500/25 bg-emerald-500/10'
   if (status === 'degraded') return 'text-amber-300 border-amber-500/25 bg-amber-500/10'
   if (status === 'disabled') return 'text-slate-400 border-slate-500/25 bg-slate-500/10'
+  if (status === 'unavailable') return 'text-rose-300 border-rose-500/25 bg-rose-500/10'
   return 'text-blue-300 border-blue-500/25 bg-blue-500/10'
 }
 
@@ -93,20 +94,24 @@ export default function DetailModal({ target, onClose }: Props) {
             </>
           ) : (
             <>
-              <Metric label="指数值" value={target.data.value.toFixed(2)} />
-              <Metric label="变化" value={pct(target.data.change_pct)} valueClass={target.data.change_pct >= 0 ? 'text-up' : 'text-down'} />
+              <Metric label="指数值" value={target.data.value === null ? '不可计算' : target.data.value.toFixed(2)} />
+              <Metric label="变化" value={pct(target.data.change_pct)} valueClass={target.data.change_pct === null ? 'text-amber-300' : target.data.change_pct >= 0 ? 'text-up' : 'text-down'} />
               <Metric label="来源" value={sourceLabel(target.data.source)} />
               <div className="md:col-span-3 rounded border border-white/[0.06] bg-white/[0.03] p-3">
                 <div className="text-xs font-semibold text-slate-300">近端走势</div>
-                <div className="mt-2 grid grid-cols-12 items-end gap-1">
-                  {target.data.spark.slice(-12).map((value, index) => (
-                    <span
-                      key={`${value}-${index}`}
-                      className="rounded-sm bg-cyan-300/60"
-                      style={{ height: `${Math.max(8, Math.min(42, value / Math.max(target.data.value, 1) * 28))}px` }}
-                    />
-                  ))}
-                </div>
+                {target.data.value === null ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-300">可信门禁未通过，当前精确值与走势已隐藏。</p>
+                ) : (
+                  <div className="mt-2 grid grid-cols-12 items-end gap-1">
+                    {target.data.spark.slice(-12).map((value, index) => (
+                      <span
+                        key={`${value}-${index}`}
+                        className="rounded-sm bg-cyan-300/60"
+                        style={{ height: `${Math.max(8, Math.min(42, value / Math.max(target.data.value!, 1) * 28))}px` }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}

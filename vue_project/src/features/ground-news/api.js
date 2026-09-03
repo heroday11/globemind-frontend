@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 import { API_PREFIX, resolveApiOrigin } from '../../config/api.js'
+import { normalizeGroundNewsTimeline } from './timeline.js'
 
 function defaultApiRoot() {
   return `${resolveApiOrigin()}${API_PREFIX}`
@@ -75,14 +76,14 @@ export function createGroundNewsApi({ client = axios, apiRoot = defaultApiRoot()
 
     async getTimeline(chainId) {
       const response = await client.get(`${groundNewsRoot}/timeline/${encodeURIComponent(chainId)}`)
-      return response.data
+      return normalizeGroundNewsTimeline(response.data)
     },
 
     async getL2Chain(chainId) {
       const response = await client.get(
         `${storyGraphRoot}/l2-chain/${encodeURIComponent(chainId)}`,
       )
-      return response.data
+      return normalizeGroundNewsTimeline(response.data)
     },
   })
 }

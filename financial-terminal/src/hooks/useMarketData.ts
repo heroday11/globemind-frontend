@@ -8,6 +8,7 @@ import type {
   DashboardData,
   DataCoverage,
   DataSourceStatus,
+  FinancialTrust,
   IndexCard,
   MaPoint,
   MetricSeries,
@@ -26,8 +27,9 @@ export function useMarketData() {
   const [sources, setSources] = useState<DataSourceStatus[]>([])
   const [alertRules, setAlertRules] = useState<AlertRule[]>([])
   const [coverage, setCoverage] = useState<DataCoverage | null>(null)
+  const [trust, setTrust] = useState<FinancialTrust | null>(null)
   const [defaultMetricId, setDefaultMetricId] = useState<string | null>(null)
-  const [mode, setMode] = useState<'live' | 'mock' | 'mock-fallback'>('live')
+  const [mode, setMode] = useState<DashboardData['mode']>('unavailable')
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [cacheState, setCacheState] = useState<DashboardData['cache'] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -48,13 +50,58 @@ export function useMarketData() {
       setSources(data.sources || [])
       setAlertRules(data.alert_rules || [])
       setCoverage(data.coverage || null)
-      setMode(data.mode || 'live')
+      setTrust(data.trust || null)
+      setMode(data.mode || 'unavailable')
       setLastUpdated(data.last_updated || new Date().toISOString())
       setCacheState(data.cache || null)
       setError(data.mode === 'mock-fallback' ? '真实接口暂不可用，已使用本地回退数据。' : null)
-    } catch (e: any) {
+    } catch {
       if (cancelledRef?.current) return
-      setError(e?.message ?? '数据加载失败')
+      setError('金融数据加载失败。')
+      setBars([])
+      setIndices((previous) => previous.map((index) => ({
+        ...index,
+        value: null,
+        change_pct: null,
+        spark: [],
+        availability: 'not_computable',
+        trust_status: 'unavailable',
+        freshness_status: 'offline',
+      })))
+      setSeries((previous) => previous.map((metric) => metric.kind === 'index' ? {
+        ...metric,
+        latest: null,
+        change_pct: null,
+        points: [],
+        availability: 'not_computable',
+        trust_status: 'unavailable',
+        freshness_status: 'offline',
+        status: 'unavailable',
+      } : metric))
+      setAlertRules([])
+      setMode('unavailable')
+      setCacheState('stale')
+      setTrust({
+        schema_version: 'financial-trust-v1',
+        snapshot_id: `client-dashboard-error-${Date.now()}`,
+        trust_status: 'unavailable',
+        freshness_status: 'offline',
+        computability: 'not_computable',
+        computable: false,
+        data_as_of: null,
+        evaluated_at: new Date().toISOString(),
+        coverage_ratio: 0,
+        minimum_coverage_ratio: 0.5,
+        usable_sources: 0,
+        source_total: 0,
+        usable_source_ids: [],
+        unavailable_source_ids: [],
+        source_status: { offline: 1 },
+        model_version: 'unknown',
+        method_version: 'unknown',
+        unavailable_reasons: [{ code: 'DASHBOARD_REQUEST_FAILED', message: '金融数据加载失败。' }],
+        alerts_enabled: false,
+      })
     } finally {
       if (!cancelledRef?.current) setLoading(false)
     }
@@ -93,6 +140,7 @@ export function useMarketData() {
     })
     setIndices((prev) =>
       prev.map((idx) => {
+        if (idx.value === null || idx.change_pct === null) return idx
         const spark = [...idx.spark.slice(1), idx.value * (1 + (Math.random() - 0.5) * 0.0008)]
         const nv = idx.value * (1 + (Math.random() - 0.5) * 0.0006)
         const changePct = ((nv - spark[0]) / spark[0]) * 100
@@ -108,7 +156,7 @@ export function useMarketData() {
     )
     setSeries((prev) =>
       prev.map((metric) => {
-        if (!metric.points.length) return metric
+        if (!metric.points.length || metric.latest === null) return metric
         const drift = (Math.random() - 0.5) * 0.006
         const nextValue = metric.latest * (1 + drift)
         const nextPoints = [...metric.points.slice(-23), { time: Math.floor(Date.now() / 1000), value: nextValue }]
@@ -134,5 +182,5 @@ export function useMarketData() {
   const ma50 = useMemo<MaPoint[]>(() => rollingMa(bars, 50), [bars])
   const ma200 = useMemo<MaPoint[]>(() => rollingMa(bars, 200), [bars])
 
-  return { bars, ma20, ma50, ma200, indices, watchlist, series, defaultMetricId, sources, alertRules, coverage, mode, lastUpdated, cacheState, loading, error }
+  return { bars, ma20, ma50, ma200, indices, watchlist, series, defaultMetricId, sources, alertRules, coverage, trust, mode, lastUpdated, cacheState, loading, error }
 }

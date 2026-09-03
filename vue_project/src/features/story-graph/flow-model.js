@@ -1,3 +1,9 @@
+import { buildLayoutStoryRelationClaim } from './claims.js'
+import {
+  normalizeLayoutStoryRelation,
+  normalizeStoryRelation,
+} from '../../governance/storyRelations.js'
+
 export function buildMacroDisplayEdges(story, visibleEdges) {
   const ordered = story.orderedNodes.slice().sort(compareMacroNodes)
   const laneMap = buildMacroLaneMap(ordered)
@@ -5,7 +11,10 @@ export function buildMacroDisplayEdges(story, visibleEdges) {
   const displayEdges = []
   const seen = new Set()
 
-  const addEdge = (edge) => {
+  const addEdge = (candidate) => {
+    const edge = candidate?.synthetic === true
+      ? normalizeLayoutStoryRelation(candidate)
+      : normalizeStoryRelation(candidate)
     if (!edge?.from_id || !edge?.to_id || edge.from_id === edge.to_id) return
     const key = `${edge.from_id}:${edge.to_id}:${edge.edge_type || 'edge'}:${edge.layer || 'story'}`
     if (seen.has(key)) return
@@ -17,7 +26,7 @@ export function buildMacroDisplayEdges(story, visibleEdges) {
     laneNodes.forEach((node, index) => {
       if (index === 0) return
       const previous = laneNodes[index - 1]
-      addEdge({
+      const edge = normalizeLayoutStoryRelation({
         from_id: previous.id,
         to_id: node.id,
         source_story_id: story.storyId,
@@ -27,8 +36,16 @@ export function buildMacroDisplayEdges(story, visibleEdges) {
         edge_weight: 0.72,
         weight: 0.72,
         relation_reason: `${macroLaneLabel(lane)}推进`,
+        evidence_status: 'unavailable',
         synthetic: true,
       })
+      edge.claim = buildLayoutStoryRelationClaim({
+        graphScopeId: `client-layout:${story.storyId}`,
+        fromId: edge.from_id,
+        toId: edge.to_id,
+        relationKind: edge.edge_type,
+      })
+      addEdge(edge)
     })
   })
 
@@ -37,7 +54,7 @@ export function buildMacroDisplayEdges(story, visibleEdges) {
     if (lane === trunkLane || !laneNodes.length || !trunkNodes.length) return
     const firstNode = laneNodes[0]
     const anchor = findNearestEarlierMacroNode(firstNode, trunkNodes) || trunkNodes[0]
-    addEdge({
+    const branchEdge = normalizeLayoutStoryRelation({
       from_id: anchor.id,
       to_id: firstNode.id,
       source_story_id: story.storyId,
@@ -47,31 +64,48 @@ export function buildMacroDisplayEdges(story, visibleEdges) {
       edge_weight: 0.82,
       weight: 0.82,
       relation_reason: `${macroLaneLabel(lane)}分支`,
+      evidence_status: 'unavailable',
       synthetic: true,
     })
+    branchEdge.claim = buildLayoutStoryRelationClaim({
+      graphScopeId: `client-layout:${story.storyId}`,
+      fromId: branchEdge.from_id,
+      toId: branchEdge.to_id,
+      relationKind: branchEdge.edge_type,
+    })
+    addEdge(branchEdge)
 
     if (laneNodes.length >= 5) {
       const midNode = laneNodes[Math.floor(laneNodes.length / 2)]
       const midAnchor = findNearestEarlierMacroNode(midNode, trunkNodes)
       if (midAnchor && midAnchor.id !== anchor.id) {
-        addEdge({
+        const contextEdge = normalizeLayoutStoryRelation({
           from_id: midAnchor.id,
           to_id: midNode.id,
           source_story_id: story.storyId,
           target_story_id: story.storyId,
-          edge_type: 'influence',
+          edge_type: 'context',
           layer: 'story',
           edge_weight: 0.66,
           weight: 0.66,
-          relation_reason: `${macroLaneLabel(lane)}交汇`,
+          relation_reason: `${macroLaneLabel(lane)}布局连接`,
+          evidence_status: 'unavailable',
           synthetic: true,
         })
+        contextEdge.claim = buildLayoutStoryRelationClaim({
+          graphScopeId: `client-layout:${story.storyId}`,
+          fromId: contextEdge.from_id,
+          toId: contextEdge.to_id,
+          relationKind: contextEdge.edge_type,
+        })
+        addEdge(contextEdge)
       }
     }
   })
 
   visibleEdges
-    .filter((edge) => edge.edge_type && edge.edge_type !== 'macro_sequence')
+    .map((edge) => normalizeStoryRelation(edge))
+    .filter((edge) => edge.edge_type !== 'macro_sequence')
     .forEach((edge) => addEdge(edge))
 
   return displayEdges

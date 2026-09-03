@@ -1,7 +1,7 @@
 export const SENTIMENT_OPTIONS = Object.freeze([
-  Object.freeze({ value: 'all', label: '全量' }),
-  Object.freeze({ value: 'positive', label: '正面' }),
-  Object.freeze({ value: 'negative', label: '负面' }),
+  Object.freeze({ value: 'all', label: '全部立场' }),
+  Object.freeze({ value: 'positive', label: '支持立场' }),
+  Object.freeze({ value: 'negative', label: '批评立场' }),
 ])
 
 export const DIAGNOSTIC_TABS = Object.freeze([
@@ -60,13 +60,22 @@ export function buildDateNewsQuery(date, sentimentFilter = 'all') {
   }
 }
 
+const FEEDBACK_CORRECTIONS = new Set(['irrelevant', 'too_positive', 'too_negative', 'correct'])
+
 export function buildFeedbackDto(news, correction) {
+  const newsId = news?.id
+  if (!Number.isSafeInteger(newsId) || newsId <= 0) {
+    throw new TypeError('feedback news id must be a positive integer')
+  }
+  if (!FEEDBACK_CORRECTIONS.has(correction)) {
+    throw new TypeError('feedback correction is invalid')
+  }
   return {
-    news_id: Number(news?.id),
+    news_id: newsId,
     correction,
-    page: 'sentiment-analysis',
-    current_impact_index: Number(news?.impact_index || 0),
-    sentiment: Number(news?.sentiment || 0),
+    purpose: 'quality_correction',
+    training_consent: false,
+    training_opt_out: true,
   }
 }
 
@@ -93,12 +102,32 @@ export function normalizeTrendResponse(payload) {
   return {
     dates: Array.isArray(payload?.dates) ? payload.dates : [],
     values: Array.isArray(payload?.values) ? payload.values : [],
+    heat: Array.isArray(payload?.heat) ? payload.heat : [],
+    metric_id: payload?.metric_id,
+    semantic_contract: payload?.semantic_contract,
+    semantic_dimensions: payload?.semantic_dimensions,
     meta: payload?.meta && typeof payload.meta === 'object' ? payload.meta : {},
   }
 }
 
+function semanticEnvelope(payload) {
+  const result = {}
+  if (payload && Object.hasOwn(payload, 'semantic_contract')) {
+    result.semantic_contract = payload.semantic_contract
+  }
+  if (payload && Object.hasOwn(payload, 'semantic_dimensions')) {
+    result.semantic_dimensions = payload.semantic_dimensions
+  }
+  return result
+}
+
 export function normalizeInsightNewsResponse(payload) {
-  return { news: Array.isArray(payload?.news) ? payload.news : [] }
+  return {
+    news: Array.isArray(payload?.news) ? payload.news : [],
+    trust: payload?.trust || null,
+    meta: payload?.meta && typeof payload.meta === 'object' ? payload.meta : {},
+    ...semanticEnvelope(payload),
+  }
 }
 
 export function normalizeDateNewsResponse(payload) {
@@ -107,6 +136,9 @@ export function normalizeDateNewsResponse(payload) {
     news,
     total: Number(payload?.total || 0),
     summary: payload?.summary || null,
+    trust: payload?.trust || null,
+    meta: payload?.meta && typeof payload.meta === 'object' ? payload.meta : {},
+    ...semanticEnvelope(payload),
   }
 }
 
@@ -147,5 +179,8 @@ export function normalizeMacroEventClustersResponse(payload) {
   return {
     subEvents: Array.isArray(payload?.sub_events) ? payload.sub_events : [],
     hasMore: Boolean(payload?.has_more),
+    trust: payload?.trust || null,
+    meta: payload?.meta && typeof payload.meta === 'object' ? payload.meta : {},
+    ...semanticEnvelope(payload),
   }
 }

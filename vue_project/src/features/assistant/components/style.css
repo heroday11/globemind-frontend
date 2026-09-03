@@ -9,83 +9,85 @@
   overflow: hidden;
 }
 
-/* ====== Data Assistant editorial desk · selected design 1 (desktop) ====== */
+/* ====== Data Assistant clean workspace (desktop) ====== */
 @media (min-width: 1181px) {
   .yisight-shell:not(.yisight-shell--embedded) {
-    --assistant-ink: #10213b;
-    --assistant-muted: #64748b;
-    --assistant-rule: #dce4ee;
-    --assistant-rule-soft: #e9eef5;
-    --assistant-blue: #0d5fd4;
-    --assistant-blue-soft: #edf4ff;
-    --assistant-rail: #082847;
-    grid-template-columns: 76px minmax(0, 1fr);
-    background: #ffffff;
+    --assistant-ink: #17365f;
+    --assistant-muted: #6b7f99;
+    --assistant-rule: rgba(37, 99, 235, 0.12);
+    --assistant-rule-soft: rgba(37, 99, 235, 0.08);
+    --assistant-blue: #2563eb;
+    --assistant-blue-soft: #eef5ff;
+    --assistant-rail: rgba(255, 255, 255, 0.86);
+    grid-template-columns: 88px minmax(0, 1fr);
+    background: linear-gradient(160deg, #f8fbff 0%, #eef5ff 42%, #f8fafc 100%);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-sidenav {
     position: relative;
-    justify-content: flex-start;
-    gap: 0;
-    padding: 12px 7px 16px;
-    border-right: 1px solid #153b60;
-    background: var(--assistant-rail);
-    box-shadow: none;
+    justify-content: center;
+    gap: 14px;
+    padding: 14px 10px;
+    border-right: 1px solid rgba(37, 99, 235, 0.12);
+    background: linear-gradient(180deg, var(--assistant-rail), rgba(239, 246, 255, 0.72));
+    box-shadow: 8px 0 28px rgba(37, 99, 235, 0.06);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-sidenav-logo {
-    position: static;
-    width: 60px;
-    height: 48px;
-    margin: 0 0 76px;
-    transform: none;
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    width: 62px;
+    height: 50px;
+    margin: 0;
+    transform: translateX(-50%);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-sidenav-logo-badge {
-    width: 39px;
-    height: 39px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 10px;
+    width: 42px;
+    height: 42px;
+    border: 1px solid transparent;
+    border-radius: 13px;
     color: #ffffff;
-    background: #0d67db;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-    font-family: Georgia, serif;
-    font-size: 17px;
+    background: linear-gradient(135deg, #2563eb, #0891b2);
+    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+    font-family: inherit;
+    font-size: 15px;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-sidenav-nav {
     width: 100%;
     margin: 0;
-    gap: 12px;
-    transform: none;
+    gap: 16px;
+    transform: translateY(clamp(-111px, -10vh, -72px));
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-sidenav-item {
     position: relative;
-    width: 62px;
+    width: 66px;
     height: 58px;
     min-height: 58px;
-    padding: 7px 4px;
+    padding: 8px 6px;
     gap: 6px;
     border: 1px solid transparent;
-    border-radius: 9px;
-    color: #c6d4e3;
+    border-radius: 14px;
+    color: rgba(51, 65, 85, 0.88);
     background: transparent;
     box-shadow: none;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-sidenav-item:hover {
-    border-color: rgba(255, 255, 255, 0.12);
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.07);
-    box-shadow: none;
+    border-color: rgba(37, 99, 235, 0.16);
+    color: #1d4ed8;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.09);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-sidenav-item.active {
-    border-color: rgba(91, 158, 255, 0.52);
-    color: #ffffff;
-    background: #0c4d91;
-    box-shadow: inset 3px 0 0 #50a1ff;
+    border-color: rgba(37, 99, 235, 0.2);
+    color: #1d4ed8;
+    background: #ffffff;
+    box-shadow: inset 3px 0 0 #2563eb, 0 10px 24px rgba(37, 99, 235, 0.12);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-sidenav-icon {
@@ -96,36 +98,36 @@
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-sidenav-label {
     color: inherit;
-    font-size: 11px;
-    font-weight: 720;
-    letter-spacing: 0.01em;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-body {
-    grid-template-rows: 48px minmax(0, 1fr);
-    background: #ffffff;
+    grid-template-rows: 60px minmax(0, 1fr);
+    background: transparent;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-topbar {
-    min-height: 48px;
-    padding: 0 20px;
-    border-bottom: 1px solid var(--assistant-rule);
-    background: #ffffff;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    min-height: 60px;
+    padding: 0 18px;
+    border-bottom: 1px solid rgba(37, 99, 235, 0.1);
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-tabs {
     height: 100%;
-    gap: 26px;
+    gap: 18px;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-tab {
     height: 100%;
-    padding: 0 2px;
-    color: #5f6e82;
-    font-size: 13px;
-    font-weight: 720;
+    padding: 10px 2px;
+    color: rgba(51, 65, 85, 0.82);
+    font-size: 14px;
+    font-weight: 800;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-tab.active {
@@ -133,20 +135,19 @@
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-tab.active::after {
-    bottom: 0;
+    bottom: 2px;
     height: 2px;
-    border-radius: 0;
+    border-radius: 99px;
     background: var(--assistant-blue);
   }
 
-  .yisight-shell:not(.yisight-shell--embedded) .ys-topbar-right,
-  .yisight-shell:not(.yisight-shell--embedded) .ys-topbar-brand {
-    display: none;
+  .yisight-shell:not(.yisight-shell--embedded) .ys-topbar-right {
+    display: flex;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-content {
-    grid-template-columns: 304px minmax(0, 1fr);
-    background: #ffffff;
+    grid-template-columns: 300px minmax(0, 1fr);
+    background: transparent;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-taskpanel {
@@ -155,48 +156,48 @@
     flex-direction: column;
     padding: 16px 14px 14px;
     overflow: hidden;
-    border-right: 1px solid var(--assistant-rule);
-    background: #fbfcfe;
+    border-right: 1px solid rgba(37, 99, 235, 0.1);
+    background: rgba(248, 251, 255, 0.88);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-start-btn {
     flex: 0 0 auto;
-    height: 42px;
+    height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     margin-bottom: 12px;
-    border: 1px solid #0b58c6;
-    border-radius: 7px;
-    color: #ffffff;
-    background: #0d5fd4;
-    box-shadow: 0 5px 14px rgba(13, 95, 212, 0.18);
+    border: 1px solid rgba(37, 99, 235, 0.24);
+    border-radius: 10px;
+    color: #1d4ed8;
+    background: rgba(219, 234, 254, 0.72);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
     font-size: 13px;
-    font-weight: 760;
+    font-weight: 800;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-start-btn:hover {
-    background: #0a54bd;
+    background: rgba(191, 219, 254, 0.78);
   }
 
   .ys-history-search {
     flex: 0 0 auto;
-    height: 38px;
+    height: 40px;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
     padding: 0 11px;
-    border: 1px solid #d7e0eb;
-    border-radius: 7px;
-    color: #8b9aaf;
-    background: #ffffff;
+    border: 1px solid rgba(37, 99, 235, 0.13);
+    border-radius: 10px;
+    color: #8292a8;
+    background: rgba(255, 255, 255, 0.86);
   }
 
   .ys-history-search:focus-within {
-    border-color: #7faeea;
-    box-shadow: 0 0 0 3px rgba(13, 95, 212, 0.08);
+    border-color: rgba(37, 99, 235, 0.38);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
   }
 
   .ys-history-search input {
@@ -217,12 +218,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 17px 4px 9px;
-    border-bottom: 1px solid var(--assistant-rule-soft);
+    padding: 16px 4px 8px;
+    border-bottom: 0;
     color: #637187;
     font-size: 11px;
     font-weight: 780;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
   }
 
   .ys-history-list-heading small {
@@ -233,42 +234,41 @@
   .yisight-shell:not(.yisight-shell--embedded) .ys-task-list {
     min-height: 0;
     flex: 1 1 auto;
-    gap: 0;
+    gap: 10px;
     overflow-y: auto;
-    padding: 6px 0 24px;
+    padding: 4px 0 24px;
     scrollbar-width: thin;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-session-card {
-    min-height: 61px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    gap: 3px 8px;
-    padding: 10px 9px 10px 12px;
-    border: 0;
-    border-bottom: 1px solid var(--assistant-rule-soft);
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    transition: background 0.14s ease, color 0.14s ease;
+    min-height: 68px;
+    display: flex;
+    gap: 5px;
+    padding: 11px 12px;
+    border: 1px solid rgba(37, 99, 235, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.06);
+    transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-session-card:hover {
-    background: #f3f7fc;
-    box-shadow: none;
+    border-color: rgba(37, 99, 235, 0.2);
+    background: #ffffff;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.09);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-session-card--active {
+    border-color: rgba(37, 99, 235, 0.28);
     background: var(--assistant-blue-soft);
-    box-shadow: inset 3px 0 0 var(--assistant-blue);
+    box-shadow: inset 3px 0 0 var(--assistant-blue), 0 10px 24px rgba(37, 99, 235, 0.08);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-session-card .ys-task-card-top {
-    grid-column: 2;
-    grid-row: 1;
+    order: 0;
     justify-content: flex-end;
-    align-items: start;
+    align-items: center;
+    padding-right: 24px;
     color: #8190a4;
     font-size: 10px;
     font-weight: 650;
@@ -276,15 +276,14 @@
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-session-card .ys-task-card-body {
     min-width: 0;
-    grid-column: 1;
-    grid-row: 1 / span 2;
+    order: 1;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-session-card .ys-task-title {
     overflow: hidden;
     color: #26364e;
-    font-size: 12px;
-    font-weight: 690;
+    font-size: 13px;
+    font-weight: 760;
     line-height: 1.45;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -303,13 +302,14 @@
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-session-delete {
-    right: 7px;
-    bottom: 7px;
+    top: 8px;
+    right: 8px;
+    bottom: auto;
     width: 26px;
     height: 26px;
     border-radius: 6px;
     color: #8190a4;
-    background: #ffffff;
+    background: rgba(255, 255, 255, 0.82);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-history-panel-empty {
@@ -322,21 +322,21 @@
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-main {
     overflow: hidden;
-    background: #ffffff;
+    background: #f6f8ff;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-stage {
-    grid-template-rows: 44px minmax(0, 1fr) auto;
-    background: #ffffff;
+    grid-template-rows: 60px minmax(0, 1fr) auto;
+    background: radial-gradient(circle at 20% 0%, rgba(37, 99, 235, 0.06), transparent 34%), linear-gradient(180deg, #f8fbff, #ffffff 42%);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-topbar {
-    height: 44px;
-    padding: 0 24px;
-    border-bottom: 1px solid var(--assistant-rule-soft);
-    background: #ffffff;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    height: 60px;
+    padding: 0 22px;
+    border-bottom: 1px solid rgba(37, 99, 235, 0.1);
+    background: rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-brand {
@@ -346,16 +346,16 @@
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-brand-dot {
-    width: 7px;
-    height: 7px;
-    background: #1c8ba5;
-    box-shadow: 0 0 0 4px #e5f4f6;
+    width: 8px;
+    height: 8px;
+    background: #2563eb;
+    box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.1);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-brand-name {
-    color: #24354e;
-    font-size: 12px;
-    font-weight: 760;
+    color: #17365f;
+    font-size: 13px;
+    font-weight: 800;
     letter-spacing: 0;
   }
 
@@ -367,9 +367,9 @@
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-brand-session {
     max-width: 360px;
-    color: #738196;
-    font-size: 11px;
-    font-weight: 620;
+    color: #72849b;
+    font-size: 12px;
+    font-weight: 650;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-topbar-btn {
@@ -385,133 +385,120 @@
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-scroll {
-    padding: 24px clamp(32px, 5vw, 72px) 32px;
-    background: #ffffff;
+    padding: 34px clamp(32px, 5vw, 72px) 42px;
+    background: transparent;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome {
-    width: min(880px, 100%);
-    max-width: 880px;
-    min-height: min(590px, calc(100vh - 310px));
+    width: min(760px, 100%);
+    max-width: 760px;
+    min-height: min(460px, calc(100vh - 360px));
     justify-content: center;
-    gap: 17px;
-    padding: 24px 0 36px;
+    gap: 12px;
+    padding: 34px 0 44px;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     color: var(--assistant-blue);
     font-family: inherit;
     font-size: 11px;
     font-weight: 800;
-    letter-spacing: 0.13em;
+    letter-spacing: 0.1em;
+  }
+
+  .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-kicker img {
+    width: 28px;
+    height: auto;
+    display: block;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-title {
-    max-width: 720px;
+    max-width: 100%;
     color: var(--assistant-ink);
     font-family: inherit;
-    font-size: clamp(30px, 3vw, 42px);
-    font-weight: 780;
-    letter-spacing: -0.035em;
-    line-height: 1.18;
+    font-size: clamp(30px, 2.7vw, 38px);
+    font-weight: 850;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-sub {
-    max-width: 720px;
-    color: #66758a;
+    max-width: 100%;
+    color: #687b94;
     font-size: 14px;
-    font-weight: 450;
-    line-height: 1.72;
-  }
-
-  .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-brief {
-    width: 100%;
-    border-color: var(--assistant-rule);
-  }
-
-  .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-brief > div {
-    padding: 11px 16px;
-    border-right-color: var(--assistant-rule);
-  }
-
-  .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-brief span {
-    color: #8795a8;
-    font-size: 10px;
-    letter-spacing: 0.05em;
-  }
-
-  .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-brief strong {
-    color: #25364e;
-    font-size: 13px;
-    font-weight: 730;
+    font-weight: 550;
+    line-height: 1.6;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-chips-card {
-    padding-top: 5px;
-  }
-
-  .yisight-shell:not(.yisight-shell--embedded) .ys-chat-welcome-steps-title {
-    margin-bottom: 9px;
-    color: #6e7c90;
-    font-size: 11px;
-    letter-spacing: 0.08em;
+    width: 100%;
+    margin-top: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-chips {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
     border: 0;
-    border-top: 1px solid var(--assistant-rule);
     border-radius: 0;
     background: transparent;
     box-shadow: none;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-chip {
-    min-height: 78px;
-    grid-template-columns: 48px minmax(0, 1fr);
-    grid-template-rows: 1fr;
+    min-height: 54px;
+    display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 13px 16px;
-    border: 0;
-    border-right: 1px solid var(--assistant-rule);
-    border-bottom: 1px solid var(--assistant-rule);
-    background: transparent;
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 10px 12px;
+    border: 1px solid rgba(37, 99, 235, 0.13);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.06);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-chip:nth-child(2n) {
-    border-right: 0;
+    border-right: 1px solid rgba(37, 99, 235, 0.13);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-chip:hover {
-    background: #f6f9fd;
-    box-shadow: inset 3px 0 0 var(--assistant-blue);
+    transform: translateY(-1px);
+    border-color: rgba(37, 99, 235, 0.26);
+    background: #ffffff;
+    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.1);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-chip-icon {
-    width: 42px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    display: grid;
     align-items: center;
     justify-content: center;
-    border-right: 1px solid #d5e0ec;
+    border: 0;
+    border-radius: 9px;
     color: var(--assistant-blue);
-    font-size: 10px;
+    background: rgba(37, 99, 235, 0.08);
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-chip-copy {
-    gap: 3px;
+    display: block;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-chip-copy strong {
-    color: #26364e;
+    color: #284365;
     font-size: 13px;
-    font-weight: 740;
-  }
-
-  .yisight-shell:not(.yisight-shell--embedded) .ys-chat-chip-copy small {
-    color: #7b899b;
-    font-size: 11px;
-    font-weight: 450;
+    font-weight: 780;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-convo {
@@ -642,8 +629,8 @@
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-composer-wrap {
     padding: 12px clamp(32px, 5vw, 72px) 18px;
-    border-top: 1px solid var(--assistant-rule-soft);
-    background: #f8fafc;
+    border-top: 0;
+    background: transparent;
   }
 
   .yisight-shell:not(.yisight-shell--embedded) .ys-chat-composer {
@@ -920,6 +907,25 @@
   color: rgba(51, 65, 85, 0.72);
   font-size: 13px;
   font-weight: 700;
+}
+
+.ys-topbar-action {
+  padding: 4px 2px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.ys-topbar-action:hover {
+  color: #1d4ed8;
+}
+
+.ys-topbar-action:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.32);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 .ys-content {
@@ -3131,6 +3137,53 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 5px;
+}
+.ys-chat-dsh-event {
+  padding: 6px 10px;
+  border-left: 2px solid #94a3b8;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.ys-chat-dsh-details {
+  width: 100%;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 11px;
+}
+.ys-chat-dsh-details > summary {
+  width: max-content;
+  cursor: pointer;
+  user-select: none;
+}
+.ys-chat-dsh-details > pre {
+  max-height: 240px;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #334155;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ys-chat-dsh-output {
+  flex-basis: 100%;
+}
+.ys-chat-subagent-trace {
+  border-left: 2px solid #94a3b8;
+}
+.ys-chat-subagent-output {
+  max-height: 220px;
+  margin: 8px 0 0;
+  overflow: auto;
+  color: #334155;
+  font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .result-badge {
   font-size: 10px;
@@ -8144,6 +8197,10 @@
   letter-spacing: 0.16em;
 }
 
+.ys-chat-welcome-kicker img {
+  display: none;
+}
+
 .ys-chat-welcome-title {
   max-width: 780px;
   color: #111827;
@@ -9179,5 +9236,230 @@
   .ws-file-open-btn {
     padding: 4px 8px;
     white-space: nowrap;
+  }
+}
+
+/* Right-edge context handle and roll-open drawer. */
+.ys-chat-context-rail {
+  position: absolute;
+  top: 48%;
+  right: -10px;
+  z-index: 44;
+  width: 46px;
+  min-height: 118px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 12px 12px 8px;
+  border: 1px solid #cbd8e8;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  background: #ffffff;
+  color: #35506f;
+  box-shadow: -5px 8px 22px rgba(20, 43, 74, 0.14);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: right 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ys-chat-context-rail:hover,
+.ys-chat-context-rail:focus-visible {
+  right: 0;
+  color: #0d5fd4;
+  box-shadow: -8px 10px 26px rgba(13, 95, 212, 0.18);
+  outline: none;
+}
+
+.ys-chat-context-rail span {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.ys-chat-context-rail strong {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e7f0ff;
+  color: #0d5fd4;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.ys-chat-drawer--right {
+  opacity: 0;
+  clip-path: inset(0 0 0 100% round 12px 0 0 12px);
+  transform: translateX(18px) scaleX(0.92);
+  transform-origin: right center;
+  transition:
+    clip-path 0.42s cubic-bezier(0.22, 0.8, 0.2, 1),
+    transform 0.42s cubic-bezier(0.22, 0.8, 0.2, 1),
+    opacity 0.2s ease;
+}
+
+.ys-chat-drawer--right.ys-chat-drawer--open {
+  opacity: 1;
+  clip-path: inset(0 0 0 0 round 12px 0 0 12px);
+  transform: translateX(0) scaleX(1);
+}
+
+.ys-chat-drawer--right::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(#b6c7dc, #edf3fa 16%, #b6c7dc 84%, #edf3fa);
+}
+
+.ys-chat-workspace-picker {
+  position: relative;
+}
+
+.ys-chat-composer-tool--workspace {
+  max-width: 220px;
+}
+
+.ys-chat-composer-tool--workspace.active {
+  border-color: #bdd4f2;
+  background: #f3f8ff;
+  color: #0d5fd4;
+}
+
+.ys-chat-composer-tool--workspace strong {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ys-chat-workspace-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 70;
+  width: min(310px, calc(100vw - 32px));
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid #d7e1ed;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgba(20, 43, 74, 0.18);
+}
+
+.ys-chat-workspace-menu-head {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 6px 8px;
+  border-bottom: 1px solid #edf1f6;
+  color: #607087;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ys-chat-workspace-menu-head button {
+  border: 0;
+  background: transparent;
+  color: #0d5fd4;
+  font-size: 11px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.ys-chat-workspace-option {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 9px;
+  border: 0;
+  border-bottom: 1px solid #f0f3f7;
+  background: transparent;
+  color: #26364e;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ys-chat-workspace-option:hover,
+.ys-chat-workspace-option.active {
+  background: #f3f8ff;
+  color: #0d5fd4;
+}
+
+.ys-chat-workspace-option span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.ys-chat-workspace-option strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.ys-chat-workspace-option small {
+  color: #7b899c;
+  font-size: 10px;
+}
+
+.ys-chat-workspace-clear {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: #b42318;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ys-chat-workspace-menu-empty {
+  padding: 18px 10px;
+  color: #7b899c;
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 719px) {
+  .ys-chat-context-rail {
+    top: 38%;
+    right: -12px;
+    width: 42px;
+    min-height: 82px;
+    padding: 10px 12px 10px 7px;
+  }
+
+  .ys-chat-context-rail span,
+  .ys-chat-composer-tool--workspace span {
+    display: none;
+  }
+
+  .ys-chat-composer-tool--workspace strong {
+    max-width: 72px;
+  }
+
+  .ys-chat-workspace-menu {
+    position: fixed;
+    right: 12px;
+    bottom: 92px;
+    left: 12px;
+    width: auto;
   }
 }

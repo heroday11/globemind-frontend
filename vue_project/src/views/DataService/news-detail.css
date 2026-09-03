@@ -968,3 +968,128 @@
   border-top: 2px dashed #ef4444;
   width: 12px;
 }
+
+.evidence-chain-note,
+.evidence-provenance {
+  margin: 0 0 10px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.evidence-claim {
+  margin-top: 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 9px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.evidence-claim.is-unavailable {
+  border-color: #e5e7eb;
+  background: #f9fafb;
+}
+
+.evidence-claim-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.evidence-kind,
+.evidence-state {
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #1e40af;
+  background: #dbeafe;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.evidence-claim.is-unavailable .evidence-state {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.evidence-claim > p {
+  margin: 8px 0;
+  color: #263449;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.evidence-claim > small {
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.evidence-citation {
+  display: grid;
+  width: 100%;
+  cursor: pointer;
+  border: 0;
+  border-left: 3px solid #3f6ad8;
+  padding: 7px 8px;
+  color: #334155;
+  background: #eef4ff;
+  text-align: left;
+}
+
+.evidence-citation + .evidence-citation {
+  margin-top: 6px;
+}
+
+.evidence-citation strong {
+  color: #1d4ed8;
+  font-size: 10px;
+}
+
+.evidence-citation span {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.evidence-provenance {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px dashed #d1d5db;
+  padding-top: 9px;
+}
+
+.evidence-provenance code {
+  overflow-wrap: anywhere;
+  color: #475569;
+  font-size: 10px;
+}
+
+.evidence-capture {
+  justify-self: start;
+  min-height: 44px;
+  padding: 8px 13px;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.evidence-capture:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+.evidence-capture:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.body-para.evidence-target {
+  outline: 3px solid rgba(63, 106, 216, 0.34);
+  outline-offset: 4px;
+  background: rgba(219, 234, 254, 0.5);
+}

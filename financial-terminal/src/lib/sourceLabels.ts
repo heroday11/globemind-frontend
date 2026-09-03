@@ -1,4 +1,4 @@
-import type { DataSourceStatus } from '../types'
+import type { DashboardData, DataSourceStatus, FreshnessStatus, TrustReason, TrustStatus } from '../types'
 
 const SOURCE_LABELS: Record<string, string> = {
   Composite: '综合模型',
@@ -103,22 +103,55 @@ export function sourceDetailLabel(value?: string | null): string {
 }
 
 export function statusLabel(status?: DataSourceStatus['status']): string {
-  if (status === 'live') return '实时'
+  if (status === 'live') return '可用'
   if (status === 'degraded') return '降级'
   if (status === 'disabled') return '未启用'
   if (status === 'mock') return '模拟'
+  if (status === 'unavailable') return '不可用'
   return '未知'
+}
+
+export function freshnessLabel(status?: FreshnessStatus): string {
+  if (status === 'live') return '新鲜度达标'
+  if (status === 'delayed') return '延迟数据'
+  if (status === 'stale') return '历史快照'
+  if (status === 'offline') return '数据离线'
+  if (status === 'mock') return '模拟数据'
+  return '等待新鲜度判定'
+}
+
+export function trustLabel(status?: TrustStatus): string {
+  if (status === 'trusted') return '门禁允许计算'
+  if (status === 'limited') return '受限计算'
+  if (status === 'unavailable') return '不可计算'
+  if (status === 'mock') return '模拟演示'
+  return '等待门禁判定'
+}
+
+export function trustReasonLabel(reason?: TrustReason): string {
+  if (!reason) return '数据暂未满足计算门禁。'
+  const labels: Record<string, string> = {
+    STALE_DASHBOARD_CACHE: '聚合缓存已过期',
+    CRITICAL_INPUT_MISSING: '关键输入缺失',
+    CRITICAL_INPUT_STALE: '关键输入已过期',
+    INSUFFICIENT_SOURCE_COVERAGE: '有效来源覆盖不足',
+    DASHBOARD_REQUEST_FAILED: '聚合接口请求失败',
+    ALERT_REQUEST_FAILED: '预警接口请求失败',
+    EXPLICIT_MOCK_MODE: '当前为显式模拟模式',
+    LIVE_API_UNAVAILABLE: '真实接口不可用',
+  }
+  return labels[reason.code] || reason.message || reason.code
 }
 
 export function cadenceLabel(value?: string | null): string {
   if (!value) return '按源更新'
   const map: Record<string, string> = {
-    'near-real-time': '近实时',
+    'near-real-time': '高频更新',
     continuous: '持续',
     annual: '年度',
     daily: '每日',
     local: '本地',
-    live: '实时',
+    live: '持续更新',
     '5m': '5 分钟',
     '10m': '10 分钟',
     '15m': '15 分钟',
@@ -136,8 +169,11 @@ export function cadenceLabel(value?: string | null): string {
   return map[value] || value
 }
 
-export function modeLabel(mode?: 'live' | 'mock' | 'mock-fallback'): string {
-  if (mode === 'live') return '实时数据'
+export function modeLabel(mode?: DashboardData['mode']): string {
+  if (mode === 'live') return '数据可用'
+  if (mode === 'delayed') return '延迟数据'
+  if (mode === 'historical') return '历史快照'
+  if (mode === 'unavailable') return '不可计算'
   if (mode === 'mock-fallback') return '接口回退'
   if (mode === 'mock') return '模拟数据'
   return '同步中'

@@ -7,7 +7,7 @@
         </div>
         <div>
           <p class="vault-eyebrow">GlobeMind Knowledge Vault</p>
-          <h1>专业知识储存库</h1>
+          <h1>Agent 能力与连接卡</h1>
         </div>
       </div>
 
@@ -61,6 +61,17 @@
     </aside>
 
     <main class="vault-main">
+      <aside class="route-meaning-notice" aria-labelledby="route-meaning-title">
+        <div>
+          <strong id="route-meaning-title">旧路径说明</strong>
+          <p>
+            为兼容书签，本页仍使用 <code>/academic-data</code> 路径；这里是 Agent Skill
+            与本地连接说明市场，不是论文、书目或已接通的学术数据库。
+          </p>
+        </div>
+        <router-link to="/sources">查看已登记的数据来源与许可状态</router-link>
+      </aside>
+
       <section class="vault-hero">
         <div class="hero-copy">
           <div class="hero-kicker">
@@ -69,7 +80,7 @@
           </div>
           <h2>Skill 与数据库市场</h2>
           <p>
-            选择专家 skill，连接可信数据库，让 Agent 快速具备某一领域的检索、分析和引用能力。
+            选择专家 skill 并登记数据库连接说明；是否实际接通、来源许可与可用范围以数据目录和页内状态为准。
           </p>
         </div>
 
@@ -510,6 +521,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-vue-next'
+import { safeExpertSkillDocumentPath, safeExternalHttpUrl } from '@/utils/externalUrl.js'
 
 const CATALOG_URL = '/datasets/expert-skills/catalog.json'
 const DB_STORAGE_KEY = 'globemind_academic_data_database_cards_v1'
@@ -857,11 +869,13 @@ function loadDatabaseCards() {
 }
 
 function openLocalSource(source) {
-  if (source?.localPath) window.open(source.localPath, '_blank', 'noopener,noreferrer')
+  const target = safeExpertSkillDocumentPath(source?.localPath)
+  if (target) window.open(target, '_blank', 'noopener,noreferrer')
 }
 
 function openExternalSource(source) {
-  if (source?.repoUrl) window.open(source.repoUrl, '_blank', 'noopener,noreferrer')
+  const target = safeExternalHttpUrl(source?.repoUrl)
+  if (target) window.open(target, '_blank', 'noopener,noreferrer')
 }
 
 async function loadCatalog() {

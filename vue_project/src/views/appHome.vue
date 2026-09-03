@@ -1,14 +1,35 @@
 <!-- src/views/appHome.vue -->
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+
+import {
+  buildHomeCapabilityCards,
+  useFeatureFreshness,
+} from '@/features/operations/index.js'
+
 const mounted = ref(false)
 const orbX = ref(0)
 const orbY = ref(0)
+const statusEvaluationNow = ref(new Date())
+const { report, refresh } = useFeatureFreshness()
+const cards = computed(() => buildHomeCapabilityCards(report.value, {
+  now: statusEvaluationNow.value,
+}))
+let statusClock = null
 
 onMounted(() => {
   requestAnimationFrame(() => {
     mounted.value = true
   })
+  statusEvaluationNow.value = new Date()
+  statusClock = window.setInterval(() => {
+    statusEvaluationNow.value = new Date()
+  }, 60_000)
+  void refresh()
+})
+
+onBeforeUnmount(() => {
+  if (statusClock !== null) window.clearInterval(statusClock)
 })
 
 function handleMouseMove(e) {
@@ -16,41 +37,6 @@ function handleMouseMove(e) {
   orbY.value = (e.clientY / window.innerHeight - 0.5) * -40
 }
 
-const cards = [
-  {
-    path: 'sentiment-analysis',
-    title: '智能舆情分析',
-    desc: '对历史新闻进行聚合分析；数据时效以页面状态提示为准。',
-    stat: '历史资料',
-    statLabel: '时效以状态提示为准',
-    featured: true,
-    bgPosition: '0%',
-  },
-  {
-    path: 'data-service/ground-news-desk',
-    title: '全球新闻观察台',
-    desc: '按事件聚合新闻与来源差异，辅助梳理热点脉络。',
-    stat: 'L1 / L2 / L3',
-    statLabel: '事件脉络',
-    bgPosition: '33.333%',
-  },
-  {
-    path: 'data-service/data-search',
-    title: '数据服务',
-    desc: '检索新闻与事件资料，并继续查看详情或整理收藏。',
-    stat: '公开检索',
-    statLabel: '范围以实际结果为准',
-    bgPosition: '66.667%',
-  },
-  {
-    path: 'academic-data',
-    title: '智库信息汇聚',
-    desc: '浏览研究资料与能力目录，来源可用性以登记信息为准。',
-    stat: '资料入口',
-    statLabel: '来源以目录登记为准',
-    bgPosition: '100%',
-  },
-]
 </script>
 
 <template>
@@ -79,12 +65,15 @@ const cards = [
       <section class="bento" data-tour="home-capabilities">
         <router-link
           v-for="(card, i) in cards"
-          :key="card.path"
+          :key="card.moduleId"
           :class="['card', { 'card--featured': card.featured }]"
+          :data-module-id="card.moduleId"
+          :data-module-state="card.disclosure.state"
           :data-tour="`home-capability-${i + 1}`"
           :style="{ '--i': i, '--bg-y': card.bgPosition }"
           :to="`/${card.path}`"
           :aria-label="`进入${card.title}`"
+          :aria-describedby="`${card.moduleId}-disclosure`"
         >
           <div class="card-shimmer" />
           <div class="card-body">
@@ -208,14 +197,14 @@ const cards = [
               <h3 class="card-title">{{ card.title }}</h3>
               <p class="card-desc">{{ card.desc }}</p>
             </div>
-            <div :class="['card-stat', { 'card-stat--multi': card.stats?.length > 1 }]">
-              <div
-                v-for="item in card.stats || [{ value: card.stat, label: card.statLabel }]"
-                :key="item.label"
-                class="card-stat-item"
-              >
-                <span class="card-stat-num">{{ item.value }}</span>
-                <span class="card-stat-label">{{ item.label }}</span>
+            <div
+              :id="`${card.moduleId}-disclosure`"
+              class="card-stat"
+              :data-state="card.disclosure.state"
+            >
+              <div class="card-stat-item">
+                <span class="card-stat-num">{{ card.disclosure.scope }}</span>
+                <span class="card-stat-label">{{ card.disclosure.freshness }}</span>
               </div>
             </div>
             <div class="card-action">
@@ -260,7 +249,8 @@ const cards = [
   align-items: center;
   padding-top: 64px; /* fixed navbar height */
   background: url('/imgs/home/hero-bg.webp') center/cover no-repeat;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   isolation: isolate;
 }
 
@@ -416,13 +406,13 @@ const cards = [
   color: #172033;
   font-size: clamp(26px, 2.4vw, 36px);
   line-height: 1.15;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   text-align: center;
 }
 
 .hero-tagline {
   margin: 0;
-  font-size: 16px;
+  font-size: 21px;
   font-weight: 500;
   letter-spacing: 0.08em;
   color: rgba(71, 85, 105, 0.75);
@@ -778,14 +768,14 @@ const cards = [
     margin-bottom: 28px;
   }
 
+  .hero-title {
+    font-size: 24px;
+  }
+
   .hero-tagline {
     font-size: 16px;
     text-align: center;
     padding: 0 16px;
-  }
-
-  .hero-title {
-    font-size: 24px;
   }
 
   .hero-line {

@@ -9,7 +9,14 @@ import type {
   AlertData,
   AlertRule,
   AlertReport,
+  FinancialTrust,
+  AlertRulesData,
 } from '../types'
+import {
+  sanitizeFinancialAlertData,
+  sanitizeFinancialDashboard,
+} from '../lib/trust'
+import { safeFinancialApiError } from './errors'
 import {
   mockOhlcSeries,
   rollingMa,
@@ -38,7 +45,7 @@ function allowMockFallback(): boolean {
   if (raw !== undefined && raw !== null && raw !== '') {
     return String(raw).toLowerCase() === 'true'
   }
-  return Boolean((import.meta as any).env?.DEV)
+  return false
 }
 
 // --------------- 通用 fetch ---------------
@@ -51,8 +58,7 @@ async function get<T>(path: string): Promise<T> {
     },
   })
   if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    throw new Error(`GET ${path} ${res.status}: ${detail}`)
+    throw safeFinancialApiError(res)
   }
   return res.json()
 }
@@ -67,8 +73,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    throw new Error(`POST ${path} ${res.status}: ${detail}`)
+    throw safeFinancialApiError(res)
   }
   return res.json()
 }
@@ -92,10 +97,10 @@ export async function fetchDashboard(): Promise<DashboardData> {
     return mockDashboard('mock')
   }
   try {
-    return await get<DashboardData>('/financial/dashboard')
+    return sanitizeFinancialDashboard(await get<DashboardData>('/financial/dashboard'))
   } catch (e: any) {
     if (!allowMockFallback()) throw e
-    return mockDashboard('mock-fallback', e?.message || 'live API unavailable')
+    return mockDashboard('mock-fallback', 'live API unavailable')
   }
 }
 
@@ -159,7 +164,11 @@ export async function fetchWatchlist(): Promise<DashboardData['watchlist']> {
 export async function fetchAlertRules(): Promise<AlertRule[]> {
   if (useMock()) return mockAlertRules()
   try {
-    return await get<AlertRule[]>('/financial/alert/rules')
+    const data = sanitizeFinancialAlertData({
+      ...(await get<AlertRulesData>('/financial/alert/rules')),
+      history: [],
+    })
+    return data.rules
   } catch (e) {
     if (!allowMockFallback()) throw e
     return mockAlertRules()
@@ -252,6 +261,43 @@ function mockDashboard(mode: 'mock' | 'mock-fallback', detail = 'front-end gener
       },
     ],
     alert_rules: mockAlertRules(),
+    trust: mockTrust(mode),
+    trust_status: 'mock',
+    freshness_status: 'mock',
+    data_as_of: new Date().toISOString(),
+    model_version: 'frontend-mock-v1',
+    method_version: 'frontend-mock-v1',
+    schema_version: 'financial-trust-v1',
+    snapshot_id: `frontend-${mode}`,
+  }
+}
+
+function mockTrust(mode: 'mock' | 'mock-fallback'): FinancialTrust {
+  return {
+    schema_version: 'financial-trust-v1',
+    snapshot_id: `frontend-${mode}`,
+    trust_status: 'mock',
+    freshness_status: 'mock',
+    computability: 'not_computable',
+    computable: false,
+    data_as_of: new Date().toISOString(),
+    evaluated_at: new Date().toISOString(),
+    coverage_ratio: 0,
+    minimum_coverage_ratio: 0.5,
+    usable_sources: 0,
+    source_total: 0,
+    usable_source_ids: [],
+    unavailable_source_ids: [],
+    source_status: { mock: 1 },
+    model_version: 'frontend-mock-v1',
+    method_version: 'frontend-mock-v1',
+    unavailable_reasons: [
+      {
+        code: mode === 'mock' ? 'EXPLICIT_MOCK_MODE' : 'LIVE_API_UNAVAILABLE',
+        message: mode === 'mock' ? 'Explicit mock mode is enabled.' : 'Live API is unavailable.',
+      },
+    ],
+    alerts_enabled: mode === 'mock',
   }
 }
 
@@ -264,10 +310,23 @@ export async function fetchAlertData(): Promise<AlertData> {
     return {
       rules: mockAlertRules(),
       history: [],
+      trust: mockTrust('mock'),
+      trust_status: 'mock',
+      freshness_status: 'mock',
+      model_version: 'frontend-mock-v1',
+      method_version: 'frontend-mock-v1',
+      schema_version: 'financial-trust-v1',
+      snapshot_id: 'frontend-mock',
+      unavailable_reasons: mockTrust('mock').unavailable_reasons,
     }
   }
-  return get<AlertData>('/financial/alert/data')
+  return sanitizeFinancialAlertData(await get<AlertData>('/financial/alert/data'))
 }
+
+export {
+  fetchAlertTriageDetail,
+  submitAdminAlertTriageEvent,
+} from './triage.ts'
 
 /**
  * 创建预警规则

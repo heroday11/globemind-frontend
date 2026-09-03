@@ -2,20 +2,96 @@
   <div class="login-page">
     <router-link class="home-link" to="/">← 返回首页</router-link>
     <div class="login-card glass-panel">
-      <h1>欢迎登录</h1>
-      <p class="auth-subtitle">登录后即可访问 GlobeMind 数据服务平台</p>
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div class="form-item">
-          <label>用户名或邮箱</label>
-          <input v-model="username" type="text" required placeholder="用户名或邮箱" />
+      <h1>{{ mfaChallenge ? '完成双因素验证' : '欢迎登录' }}</h1>
+      <p class="auth-subtitle">
+        {{
+          mfaChallenge
+            ? '密码已验证。请输入验证器中的 6 位动态码，或使用一枚恢复码。'
+            : '登录后即可访问 GlobeMind 数据服务平台'
+        }}
+      </p>
+      <form @submit.prevent="handleLogin" class="login-form" :aria-busy="loading">
+        <div v-if="!mfaChallenge" class="form-item">
+          <label for="login-username">用户名或邮箱</label>
+          <input
+            id="login-username"
+            ref="firstField"
+            v-model="username"
+            name="username"
+            type="text"
+            required
+            autocomplete="username"
+            placeholder="用户名或邮箱"
+          />
         </div>
-        <div class="form-item">
-          <label>密码</label>
-          <input v-model="password" type="password" required placeholder="请输入密码" />
+        <div v-if="!mfaChallenge" class="form-item">
+          <label for="login-password">密码</label>
+          <input
+            id="login-password"
+            v-model="password"
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password"
+            placeholder="请输入密码"
+          />
         </div>
-        <p v-if="error" class="error">{{ error }}</p>
-        <button type="submit" :disabled="loading">{{ loading ? '登录中...' : '登录' }}</button>
-        <div class="links">
+        <template v-else>
+          <fieldset class="mfa-methods">
+            <legend>验证方式</legend>
+            <label><input v-model="mfaMethod" type="radio" value="totp" />动态验证码</label>
+            <label><input v-model="mfaMethod" type="radio" value="recovery" />恢复码</label>
+          </fieldset>
+          <div class="form-item">
+            <label for="login-mfa-code">{{
+              mfaMethod === 'totp' ? '6 位动态验证码' : '恢复码'
+            }}</label>
+            <input
+              id="login-mfa-code"
+              ref="mfaField"
+              v-model="mfaValue"
+              :inputmode="mfaMethod === 'totp' ? 'numeric' : 'text'"
+              :autocomplete="mfaMethod === 'totp' ? 'one-time-code' : 'off'"
+              :pattern="
+                mfaMethod === 'totp' ? '[0-9]{6}' : '[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}'
+              "
+              required
+            />
+          </div>
+        </template>
+        <p
+          v-if="error"
+          ref="errorMessage"
+          class="error"
+          role="alert"
+          aria-live="assertive"
+          tabindex="-1"
+        >
+          {{ error }}
+        </p>
+        <p
+          v-if="success"
+          ref="successMessage"
+          class="success"
+          role="status"
+          aria-live="polite"
+          tabindex="-1"
+        >
+          {{ success }}
+        </p>
+        <button type="submit" :disabled="loading" :aria-disabled="loading">
+          {{ loading ? '验证中...' : mfaChallenge ? '验证并登录' : '登录' }}
+        </button>
+        <button
+          v-if="mfaChallenge"
+          type="button"
+          class="restart-login"
+          :disabled="loading"
+          @click="restartLogin"
+        >
+          返回密码登录
+        </button>
+        <div v-if="!mfaChallenge" class="links">
           <router-link to="/register">注册账号</router-link>
           <router-link to="/forgot-password">忘记密码</router-link>
         </div>
@@ -25,15 +101,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { API_PREFIX } from '@/config/api'
 import { formatApiErrorDetail } from '@/utils/apiError'
 import { getToken, setToken, setCurrentUser } from '@/utils/auth'
+import { resolveSafeInternalRedirect } from '@/utils/internalRedirect.js'
 
 // 定义组件名以符合 Vue 规范
 defineOptions({
-  name: 'LoginPage'
+  name: 'LoginPage',
 })
 
 const router = useRouter()
@@ -41,47 +118,101 @@ const route = useRoute()
 const username = ref('')
 const password = ref('')
 const error = ref('')
+const success = ref('')
 const loading = ref(false)
+const firstField = ref(null)
+const errorMessage = ref(null)
+const successMessage = ref(null)
+const mfaChallenge = ref('')
+const mfaMethod = ref('totp')
+const mfaValue = ref('')
+const mfaField = ref(null)
+
+async function showError(message) {
+  error.value = message
+  await nextTick()
+  errorMessage.value?.focus()
+}
 
 async function handleLogin() {
   error.value = ''
+  success.value = ''
   loading.value = true
   try {
-    const res = await fetch(`${API_PREFIX}/auth/login`, {
+    const completingMfa = Boolean(mfaChallenge.value)
+    const payload = completingMfa
+      ? {
+          challenge: mfaChallenge.value,
+          ...(mfaMethod.value === 'totp'
+            ? { code: mfaValue.value }
+            : {
+                recovery_code: String(mfaValue.value || '')
+                  .trim()
+                  .toUpperCase(),
+              }),
+        }
+      : {
+          username: String(username.value || '').trim(),
+          password: password.value,
+        }
+    const res = await fetch(`${API_PREFIX}${completingMfa ? '/auth/login/mfa' : '/auth/login'}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: String(username.value || '').trim(),
-        password: password.value,
-      }),
+      body: JSON.stringify(payload),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      error.value = formatApiErrorDetail(data)
+      await showError(formatApiErrorDetail(data))
       return
     }
-    if (data.access_token) {
+    if (data.mfa_required === true && data.challenge && !data.access_token) {
+      mfaChallenge.value = data.challenge
+      password.value = ''
+      mfaValue.value = ''
+      success.value = '密码验证通过，请完成双因素验证。'
+      await nextTick()
+      mfaField.value?.focus()
+    } else if (data.access_token) {
       setToken(data.access_token)
       if (data.user) {
         setCurrentUser(data.user)
       }
-      const redirect = route.query.redirect || '/'
-      router.replace(redirect)
+      success.value = '登录成功，正在跳转…'
+      await nextTick()
+      successMessage.value?.focus()
+      await router.replace(resolveSafeInternalRedirect(route.query.redirect, router.resolve))
     } else {
-      error.value = '未返回 token'
+      await showError('登录响应缺少身份凭据，请重试或联系支持')
     }
   } catch {
-    error.value = '网络错误，请稍后重试'
+    await showError('网络错误，请稍后重试')
   } finally {
     loading.value = false
   }
 }
 
+async function restartLogin() {
+  mfaChallenge.value = ''
+  mfaValue.value = ''
+  mfaMethod.value = 'totp'
+  error.value = ''
+  success.value = ''
+  await nextTick()
+  firstField.value?.focus()
+}
+
+watch(mfaMethod, async () => {
+  mfaValue.value = ''
+  await nextTick()
+  mfaField.value?.focus()
+})
+
 onMounted(() => {
   if (getToken()) {
-    const redirect = route.query.redirect || '/'
-    router.replace(redirect)
+    router.replace(resolveSafeInternalRedirect(route.query.redirect, router.resolve))
+    return
   }
+  firstField.value?.focus()
 })
 </script>
 
@@ -107,7 +238,9 @@ onMounted(() => {
   font-weight: 600;
   text-decoration: none;
 }
-.home-link:hover { text-decoration: underline; }
+.home-link:hover {
+  text-decoration: underline;
+}
 .login-card {
   width: min(100%, 500px);
   padding: 36px 34px 30px;
@@ -154,7 +287,10 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.84);
   color: #17375f;
   font-size: 1rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
   box-sizing: border-box;
 }
 .login-form input:focus {
@@ -167,6 +303,16 @@ onMounted(() => {
   color: #b42318;
   font-size: 0.95rem;
   margin: 4px 0 12px;
+}
+.login-form .success {
+  color: #1f7a39;
+  font-size: 0.95rem;
+  margin: 4px 0 12px;
+}
+.login-form .error:focus,
+.login-form .success:focus {
+  outline: 3px solid currentColor;
+  outline-offset: 4px;
 }
 .login-form button {
   width: 100%;
@@ -181,7 +327,9 @@ onMounted(() => {
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
 }
 .login-form button:not(:disabled):hover {
   transform: translateY(-1px);
@@ -190,6 +338,35 @@ onMounted(() => {
 .login-form button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+.login-form .restart-login {
+  margin-top: 10px;
+  color: #214d84;
+  border: 1px solid rgba(47, 92, 145, 0.3);
+  background: rgba(255, 255, 255, 0.72);
+}
+.mfa-methods {
+  display: flex;
+  gap: 18px;
+  margin: 0 0 16px;
+  border: 1px solid rgba(47, 92, 145, 0.26);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.mfa-methods legend {
+  padding: 0 6px;
+  color: #1e3a61;
+  font-weight: 600;
+}
+.mfa-methods label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+}
+.mfa-methods input {
+  width: auto;
+  min-height: 20px;
 }
 .links {
   margin-top: 16px;
@@ -206,6 +383,9 @@ onMounted(() => {
   text-decoration: underline;
 }
 @media (max-width: 520px) {
-  .home-link { top: 18px; left: 18px; }
+  .home-link {
+    top: 18px;
+    left: 18px;
+  }
 }
 </style>

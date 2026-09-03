@@ -1,8 +1,22 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Activity, ChevronDown, CircleHelp, Crosshair, FileText, Folder, LogOut, Search, User, X } from 'lucide-vue-next'
+import {
+  Activity,
+  ChevronDown,
+  CircleHelp,
+  Crosshair,
+  FileText,
+  Folder,
+  LogOut,
+  Network,
+  Search,
+  ShieldCheck,
+  User,
+  X,
+} from 'lucide-vue-next'
 import { getToken, getAuthChangedEventName } from '@/utils/auth'
+import { createRoutePreloadController } from '@/router/routePreloadController.js'
 import LoginModal from './LoginModal.vue'
 
 const props = defineProps({
@@ -18,8 +32,9 @@ const navLogoUrl = '/imgs/logo2_orig.png'
 const DROPDOWN_CLOSE_DELAY = 280
 const PRIMARY_PRELOAD_DELAY = 120
 
-const preloadedRoutes = new Set()
-const primaryPreloadTimers = new Set()
+const preloadController = createRoutePreloadController(props.routePreloaders, {
+  delay: PRIMARY_PRELOAD_DELAY,
+})
 
 // 监听路由变化，确保组件状态正确
 const currentPath = ref(route.path)
@@ -34,6 +49,9 @@ const globalSearchQuery = ref('')
 
 // 移动端菜单
 const isMobileMenuOpen = ref(false)
+const mobileHamburger = ref(null)
+const mobileDrawer = ref(null)
+const mobileDrawerClose = ref(null)
 
 // 移动端子菜单展开
 const mobileExpandedMenus = ref({})
@@ -42,14 +60,54 @@ function toggleMobileSubmenu(key) {
   mobileExpandedMenus.value[key] = !mobileExpandedMenus.value[key]
 }
 
-function closeMobileMenu() {
+async function toggleMobileMenu() {
+  if (isMobileMenuOpen.value) {
+    await closeMobileMenu()
+    return
+  }
+  isMobileMenuOpen.value = true
+  await nextTick()
+  mobileDrawerClose.value?.focus()
+}
+
+async function closeMobileMenu({ restoreFocus = true } = {}) {
+  const wasOpen = isMobileMenuOpen.value
   isMobileMenuOpen.value = false
   mobileExpandedMenus.value = {}
+  if (wasOpen && restoreFocus) {
+    await nextTick()
+    mobileHamburger.value?.focus()
+  }
+}
+
+function trapMobileMenuFocus(event) {
+  const drawer = mobileDrawer.value
+  if (!drawer) return
+  const focusable = Array.from(drawer.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  ))
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (!drawer.contains(document.activeElement)) {
+    event.preventDefault()
+    first.focus()
+  } else if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 function mobileNavigateTo(path) {
   navigateTo(path)
-  closeMobileMenu()
+  void closeMobileMenu({ restoreFocus: false })
+}
+
+function closeMobileMenuForNavigation() {
+  void closeMobileMenu({ restoreFocus: false })
 }
 
 /** 移动端搜索关键词 */
@@ -57,7 +115,8 @@ const mobileSearchQuery = ref('')
 
 function submitMobileSearch() {
   const q = String(mobileSearchQuery.value || '').trim()
-  closeMobileMenu()
+  void closeMobileMenu({ restoreFocus: false })
+  void preloadController.loadNow('/data-service/data-search')
   if (q) {
     router.push({ path: '/data-service/data-search', query: { topic: q } })
   } else {
@@ -67,8 +126,13 @@ function submitMobileSearch() {
 }
 
 function openNewUserGuide() {
-  closeMobileMenu()
+  void closeMobileMenu({ restoreFocus: false })
   window.dispatchEvent(new CustomEvent('openGlobeMindGuide'))
+}
+
+function openMobileLogin() {
+  void closeMobileMenu({ restoreFocus: false })
+  showLoginModal.value = true
 }
 
 // 添加监听路由变化的方法
@@ -76,6 +140,7 @@ const handleRouteChange = () => {
   currentPath.value = route.path
   hasToken.value = !!getToken()
   closeDropdowns()
+  void closeMobileMenu({ restoreFocus: false })
 }
 
 // 新增：判断当前页面是否需要隐藏导航栏
@@ -89,7 +154,7 @@ const isHomePage = computed(() => {
 })
 
 /** Orbis 展示页：深色顶栏以适配太空主题背景 */
-const isShowcasePage = computed(() => route.path === '/showcase')
+const isShowcasePage = computed(() => route.name === 'ShowcaseOrbis')
 
 /** 数值分析预警：白色顶栏 */
 const isFinancialTerminal = computed(() => route.path === '/financial-terminal')
@@ -97,7 +162,7 @@ const isFinancialTerminal = computed(() => route.path === '/financial-terminal')
 // 检查数据服务系统下拉菜单是否应该高亮（不含报告中心）
 const isDataServiceActive = computed(() => {
   const dropdownRoutes = ['/data-service/data-search', '/data-service/pipeline-monitor']
-  return dropdownRoutes.some(p => route.path === p || route.path.startsWith(p + '/')) || route.path === '/data-service'
+  return dropdownRoutes.some(p => route.path === p || route.path.startsWith(p + '/')) || route.path === '/data-service' || route.path === '/research-workspace' || route.path === '/model-assurance' || route.path === '/entity-governance' || route.path === '/country-profiles'
 })
 
 // 数据服务系统下拉菜单状态
@@ -128,24 +193,7 @@ function closeDropdowns() {
 }
 
 function preloadRoute(path) {
-  schedulePrimaryPreload(path)
-}
-
-function loadRouteNow(path) {
-  const loader = props.routePreloaders[path]
-  if (!loader || preloadedRoutes.has(path)) return
-  preloadedRoutes.add(path)
-  Promise.resolve()
-    .then(loader)
-    .catch(() => preloadedRoutes.delete(path))
-}
-
-function schedulePrimaryPreload(path) {
-  const timer = setTimeout(() => {
-    primaryPreloadTimers.delete(timer)
-    loadRouteNow(path)
-  }, PRIMARY_PRELOAD_DELAY)
-  primaryPreloadTimers.add(timer)
+  preloadController.schedule(path)
 }
 
 // 监听自定义事件，当返回首页时重置状态
@@ -173,10 +221,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearDropdownTimers()
-  for (const timer of primaryPreloadTimers) {
-    clearTimeout(timer)
-  }
-  primaryPreloadTimers.clear()
+  preloadController.dispose()
   if (removeRouteAfterEach) {
     removeRouteAfterEach()
     removeRouteAfterEach = null
@@ -197,6 +242,13 @@ const enterDataServiceDropdown = () => {
   isUserCenterDropdownOpen.value = false
   clearDropdownTimers()
   preloadRoute('/data-service/data-search')
+}
+
+const toggleDataServiceDropdown = () => {
+  const opening = !isDataServiceDropdownOpen.value
+  closeDropdowns()
+  isDataServiceDropdownOpen.value = opening
+  if (opening) preloadRoute('/data-service/data-search')
 }
 
 // 鼠标进入数据服务系统下拉菜单内容
@@ -222,6 +274,13 @@ const enterUserCenterDropdown = () => {
   preloadRoute('/user-center/personal-center')
 }
 
+const toggleUserCenterDropdown = () => {
+  const opening = !isUserCenterDropdownOpen.value
+  closeDropdowns()
+  isUserCenterDropdownOpen.value = opening
+  if (opening) preloadRoute('/user-center/personal-center')
+}
+
 // 鼠标进入用户中心下拉菜单内容
 const enterUserCenterDropdownContent = () => {
   clearDropdownTimers()
@@ -239,7 +298,7 @@ const leaveUserCenterDropdown = () => {
 // 导航到指定路由
 const navigateTo = (path) => {
   closeDropdowns()
-  preloadRoute(path)
+  void preloadController.loadNow(path)
   router.push(path)
 }
 
@@ -247,7 +306,7 @@ const navigateTo = (path) => {
 const submitGlobalSearch = () => {
   const q = String(globalSearchQuery.value || '').trim()
   closeDropdowns()
-  preloadRoute('/data-service/data-search')
+  void preloadController.loadNow('/data-service/data-search')
   if (q) {
     router.push({ path: '/data-service/data-search', query: { topic: q } })
   } else {
@@ -269,17 +328,21 @@ const submitGlobalSearch = () => {
     }"
     v-if="!shouldHideNavbar"
   >
-    <div class="logo-corner" @pointerenter="preloadRoute('/')" @click="navigateTo('/')" title="返回首页">
+    <router-link class="logo-corner" to="/" @pointerenter="preloadRoute('/')" @focus="preloadRoute('/')" @click="closeDropdowns" title="返回首页" aria-label="返回 GlobeMind 首页">
       <span class="logo-shine" aria-hidden="true" />
       <img :src="navLogoUrl" alt="GlobeMind" class="logo-img" width="204" height="46" fetchpriority="high" decoding="async" />
-    </div>
+    </router-link>
 
     <!-- 移动端汉堡菜单按钮 -->
     <button
+      ref="mobileHamburger"
+      type="button"
       class="mobile-hamburger"
       :class="{ 'mobile-hamburger--active': isMobileMenuOpen }"
-      @click="isMobileMenuOpen = !isMobileMenuOpen"
-      aria-label="打开菜单"
+      @click="toggleMobileMenu"
+      :aria-label="isMobileMenuOpen ? '关闭菜单' : '打开菜单'"
+      :aria-expanded="isMobileMenuOpen"
+      aria-controls="mobile-navigation-drawer"
       title="菜单"
     >
       <span class="hamburger-line" />
@@ -288,7 +351,7 @@ const submitGlobalSearch = () => {
     </button>
 
     <div class="nav-shell">
-      <div class="nav-center">
+      <nav class="nav-center" aria-label="主导航">
         <div class="middle">
           <ul class="nav-list">
         <!-- 使用 <router-link> 实现路由跳转，to 属性指定目标路径 -->
@@ -304,41 +367,105 @@ const submitGlobalSearch = () => {
           @focusin="enterDataServiceDropdown"
           @focusout="leaveDataServiceDropdown"
         >
-          <div class="dropdown-trigger" @click="navigateTo('/data-service/data-search')">
+          <button
+            type="button"
+            class="dropdown-trigger"
+            :aria-expanded="isDataServiceDropdownOpen"
+            aria-controls="desktop-data-service-menu"
+            aria-haspopup="true"
+            @click="toggleDataServiceDropdown"
+          >
             <span>数据服务</span>
             <ChevronDown class="nav-icon dropdown-icon" :class="{ rotate: isDataServiceDropdownOpen }" :size="14" />
-          </div>
+          </button>
           <div
+            id="desktop-data-service-menu"
             class="dropdown-menu"
             :class="{ show: isDataServiceDropdownOpen }"
             @pointerenter="enterDataServiceDropdownContent"
             @pointerleave="leaveDataServiceDropdown"
           >
             <!-- 修改后 -->
-            <div
+            <button
+              type="button"
               class="dropdown-item-content"
               @click="navigateTo('/data-service/data-search')"
               style="--item-index: 0"
             >
               <FileText class="nav-icon dropdown-item-icon" :size="16" />
               <span>数据搜索</span>
-            </div>
+            </button>
 
-            <div
+            <button
+              type="button"
+              class="dropdown-item-content"
+              @click="navigateTo('/country-profiles')"
+              style="--item-index: 1"
+            >
+              <FileText class="nav-icon dropdown-item-icon" :size="16" />
+              <span>国家档案目录</span>
+            </button>
+
+            <button
+              v-if="hasToken"
+              type="button"
               class="dropdown-item-content"
               @click="navigateTo('/data-service/pipeline-monitor')"
-              style="--item-index: 1"
+              style="--item-index: 2"
             >
               <Activity class="nav-icon dropdown-item-icon" :size="16" />
               <span>管线监控</span>
-            </div>
+            </button>
+
+            <button
+              v-if="hasToken"
+              type="button"
+              class="dropdown-item-content"
+              @click="navigateTo('/research-workspace')"
+              style="--item-index: 3"
+            >
+              <Folder class="nav-icon dropdown-item-icon" :size="16" />
+              <span>研究工作台</span>
+            </button>
+
+            <button
+              v-if="hasToken"
+              type="button"
+              class="dropdown-item-content"
+              @click="navigateTo('/entity-governance')"
+              style="--item-index: 4"
+            >
+              <Network class="nav-icon dropdown-item-icon" :size="16" />
+              <span>实体治理</span>
+            </button>
+
+            <button
+              v-if="hasToken"
+              type="button"
+              class="dropdown-item-content"
+              @click="navigateTo('/model-assurance')"
+              style="--item-index: 5"
+            >
+              <ShieldCheck class="nav-icon dropdown-item-icon" :size="16" />
+              <span>模型评测与保障</span>
+            </button>
+
+            <button
+              type="button"
+              class="dropdown-item-content"
+              @click="navigateTo('/data-service/help-docs')"
+              style="--item-index: 6"
+            >
+              <CircleHelp class="nav-icon dropdown-item-icon" :size="16" />
+              <span>帮助文档</span>
+            </button>
 
           </div>
         </li>
         <li class="nav-item"><router-link to="/data-service/report-center" @pointerenter="preloadRoute('/data-service/report-center')" @focus="preloadRoute('/data-service/report-center')" @click="closeDropdowns">报告中心</router-link></li>
         <li class="nav-item"><router-link to="/data-assistant" @pointerenter="preloadRoute('/data-assistant')" @focus="preloadRoute('/data-assistant')" @click="closeDropdowns">数据助手</router-link></li>
         <li class="nav-item"><router-link to="/financial-terminal" @pointerenter="preloadRoute('/financial-terminal')" @focus="preloadRoute('/financial-terminal')" @click="closeDropdowns">数值分析预警</router-link></li>
-        <li class="nav-item"><router-link to="/academic-data" @pointerenter="preloadRoute('/academic-data')" @focus="preloadRoute('/academic-data')" @click="closeDropdowns">智库信息汇聚</router-link></li>
+        <li class="nav-item"><router-link to="/academic-data" @pointerenter="preloadRoute('/academic-data')" @focus="preloadRoute('/academic-data')" @click="closeDropdowns">Agent 能力市场</router-link></li>
         <li
           v-if="hasToken"
           class="nav-item dropdown-item"
@@ -347,63 +474,76 @@ const submitGlobalSearch = () => {
           @focusin="enterUserCenterDropdown"
           @focusout="leaveUserCenterDropdown"
         >
-          <div class="dropdown-trigger" @click="navigateTo('/user-center/personal-center')">
+          <button
+            type="button"
+            class="dropdown-trigger"
+            :aria-expanded="isUserCenterDropdownOpen"
+            aria-controls="desktop-user-center-menu"
+            aria-haspopup="true"
+            @click="toggleUserCenterDropdown"
+          >
             <span>用户中心</span>
             <ChevronDown class="nav-icon dropdown-icon" :class="{ rotate: isUserCenterDropdownOpen }" :size="14" />
-          </div>
+          </button>
           <div
+            id="desktop-user-center-menu"
             class="dropdown-menu"
             :class="{ show: isUserCenterDropdownOpen }"
             @pointerenter="enterUserCenterDropdownContent"
             @pointerleave="leaveUserCenterDropdown"
           >
-            <div
+            <button
+              type="button"
               class="dropdown-item-content"
               style="--item-index: 0"
               @click="navigateTo('/user-center/personal-center')"
             >
               <User class="nav-icon dropdown-item-icon" :size="16" />
               <span>个人中心</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               class="dropdown-item-content"
               @click="navigateTo('/user-center/my-applications')"
               style="--item-index: 1"
             >
               <Crosshair class="nav-icon dropdown-item-icon" :size="16" />
               <span>我的报告</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               class="dropdown-item-content"
               @click="navigateTo('/user-center/help-docs')"
               style="--item-index: 2"
             >
               <FileText class="nav-icon dropdown-item-icon" :size="16" />
               <span>帮助文档</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               class="dropdown-item-content"
               @click="navigateTo('/user-center/my-collections')"
               style="--item-index: 3"
             >
               <Folder class="nav-icon dropdown-item-icon" :size="16" />
               <span>我的收录</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               class="dropdown-item-content"
               @click="navigateTo('/user-center/logout')"
               style="--item-index: 4"
             >
               <LogOut class="nav-icon dropdown-item-icon" :size="16" />
               <span>退出登录</span>
-            </div>
+            </button>
           </div>
         </li>
           </ul>
         </div>
 
         <router-link class="about-us-link" to="/about-us" @pointerenter="preloadRoute('/about-us')" @focus="preloadRoute('/about-us')" @click="closeDropdowns">关于我们</router-link>
-      </div>
+      </nav>
 
       <!-- 页面最右：搜索 + 登录 -->
       <div class="header-actions header-actions--right">
@@ -444,12 +584,25 @@ const submitGlobalSearch = () => {
       </div>
     </div>
     <!-- 移动端抽屉菜单 -->
-    <Teleport to="body">
-      <transition name="mobile-drawer">
-        <div v-if="isMobileMenuOpen" class="mobile-drawer-overlay" @click="closeMobileMenu">
-          <div class="mobile-drawer" @click.stop>
+    <transition name="mobile-drawer">
+      <div
+        id="mobile-navigation-drawer"
+        v-if="isMobileMenuOpen"
+        class="mobile-drawer-overlay"
+        @click="closeMobileMenu"
+        @keydown.esc.stop.prevent="closeMobileMenu"
+        @keydown.tab="trapMobileMenuFocus"
+      >
+        <div
+          ref="mobileDrawer"
+          class="mobile-drawer"
+          role="dialog"
+          aria-label="主导航菜单"
+          aria-modal="true"
+          @click.stop
+        >
           <div class="mobile-drawer-header">
-            <button class="mobile-drawer-close" @click="closeMobileMenu" aria-label="关闭菜单">
+            <button ref="mobileDrawerClose" type="button" class="mobile-drawer-close" @click="closeMobileMenu" aria-label="关闭菜单">
               <X class="nav-icon" :size="24" />
             </button>
           </div>
@@ -464,21 +617,22 @@ const submitGlobalSearch = () => {
               placeholder="检索情报、实体、事件…"
               enterkeyhint="search"
               autocomplete="off"
+              aria-label="情报检索"
             />
           </form>
 
           <!-- 移动端导航列表 -->
-          <nav class="mobile-nav">
-            <router-link class="mobile-nav-item" to="/" @click="closeMobileMenu">
+          <nav class="mobile-nav" aria-label="移动端主导航">
+            <router-link class="mobile-nav-item" to="/" @click="closeMobileMenuForNavigation">
               <span>首页</span>
             </router-link>
-            <router-link class="mobile-nav-item" to="/data-service/ground-news" @click="closeMobileMenu">
+            <router-link class="mobile-nav-item" to="/data-service/ground-news" @click="closeMobileMenuForNavigation">
               <span>全球新闻观察台</span>
             </router-link>
-            <router-link class="mobile-nav-item" to="/sentiment-analysis" @click="closeMobileMenu">
+            <router-link class="mobile-nav-item" to="/sentiment-analysis" @click="closeMobileMenuForNavigation">
               <span>涉华舆情分析</span>
             </router-link>
-            <router-link class="mobile-nav-item" to="/data-service/story-graph" @click="closeMobileMenu">
+            <router-link class="mobile-nav-item" to="/data-service/story-graph" @click="closeMobileMenuForNavigation">
               <span>事件故事脉络</span>
             </router-link>
 
@@ -488,34 +642,55 @@ const submitGlobalSearch = () => {
                 type="button"
                 class="mobile-nav-item-row"
                 :aria-expanded="Boolean(mobileExpandedMenus.dataService)"
+                aria-controls="mobile-data-service-submenu"
                 @click="toggleMobileSubmenu('dataService')"
               >
                 <span>数据服务</span>
                 <ChevronDown class="nav-icon mobile-nav-arrow" :class="{ 'arrow-open': mobileExpandedMenus.dataService }" :size="14" />
               </button>
-              <div v-if="mobileExpandedMenus.dataService" class="mobile-submenu">
-                <div class="mobile-submenu-item" @click="mobileNavigateTo('/data-service/data-search')">
+              <div id="mobile-data-service-submenu" v-if="mobileExpandedMenus.dataService" class="mobile-submenu">
+                <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/data-service/data-search')">
                   <FileText class="nav-icon mobile-submenu-icon" :size="16" />
                   <span>数据搜索</span>
-                </div>
-                <div class="mobile-submenu-item" @click="mobileNavigateTo('/data-service/pipeline-monitor')">
+                </button>
+                <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/country-profiles')">
+                  <FileText class="nav-icon mobile-submenu-icon" :size="16" />
+                  <span>国家档案目录</span>
+                </button>
+                <button v-if="hasToken" type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/data-service/pipeline-monitor')">
                   <Activity class="nav-icon mobile-submenu-icon" :size="16" />
                   <span>管线监控</span>
-                </div>
+                </button>
+                <button v-if="hasToken" type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/research-workspace')">
+                  <Folder class="nav-icon mobile-submenu-icon" :size="16" />
+                  <span>研究工作台</span>
+                </button>
+                <button v-if="hasToken" type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/entity-governance')">
+                  <Network class="nav-icon mobile-submenu-icon" :size="16" />
+                  <span>实体治理</span>
+                </button>
+                <button v-if="hasToken" type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/model-assurance')">
+                  <ShieldCheck class="nav-icon mobile-submenu-icon" :size="16" />
+                  <span>模型评测与保障</span>
+                </button>
+                <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/data-service/help-docs')">
+                  <CircleHelp class="nav-icon mobile-submenu-icon" :size="16" />
+                  <span>帮助文档</span>
+                </button>
               </div>
             </div>
 
-            <router-link class="mobile-nav-item" to="/data-service/report-center" @click="closeMobileMenu">
+            <router-link class="mobile-nav-item" to="/data-service/report-center" @click="closeMobileMenuForNavigation">
               <span>报告中心</span>
             </router-link>
-            <router-link class="mobile-nav-item" to="/data-assistant" @click="closeMobileMenu">
+            <router-link class="mobile-nav-item" to="/data-assistant" @click="closeMobileMenuForNavigation">
               <span>数据助手</span>
             </router-link>
-            <router-link class="mobile-nav-item" to="/financial-terminal" @click="closeMobileMenu">
+            <router-link class="mobile-nav-item" to="/financial-terminal" @click="closeMobileMenuForNavigation">
               <span>数值分析预警</span>
             </router-link>
-            <router-link class="mobile-nav-item" to="/academic-data" @click="closeMobileMenu">
-              <span>智库信息汇聚</span>
+            <router-link class="mobile-nav-item" to="/academic-data" @click="closeMobileMenuForNavigation">
+              <span>Agent 能力市场</span>
             </router-link>
             <button class="mobile-nav-item mobile-guide-item" type="button" @click="openNewUserGuide">
               <span>新手指南</span>
@@ -529,37 +704,38 @@ const submitGlobalSearch = () => {
                   type="button"
                   class="mobile-nav-item-row"
                   :aria-expanded="Boolean(mobileExpandedMenus.userCenter)"
+                  aria-controls="mobile-user-center-submenu"
                   @click="toggleMobileSubmenu('userCenter')"
                 >
                   <span>用户中心</span>
                   <ChevronDown class="nav-icon mobile-nav-arrow" :class="{ 'arrow-open': mobileExpandedMenus.userCenter }" :size="14" />
                 </button>
-                <div v-if="mobileExpandedMenus.userCenter" class="mobile-submenu">
-                  <div class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/personal-center')">
+                <div id="mobile-user-center-submenu" v-if="mobileExpandedMenus.userCenter" class="mobile-submenu">
+                  <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/personal-center')">
                     <User class="nav-icon mobile-submenu-icon" :size="16" />
                     <span>个人中心</span>
-                  </div>
-                  <div class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/my-applications')">
+                  </button>
+                  <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/my-applications')">
                     <Crosshair class="nav-icon mobile-submenu-icon" :size="16" />
                     <span>我的报告</span>
-                  </div>
-                  <div class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/help-docs')">
+                  </button>
+                  <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/help-docs')">
                     <FileText class="nav-icon mobile-submenu-icon" :size="16" />
                     <span>帮助文档</span>
-                  </div>
-                  <div class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/my-collections')">
+                  </button>
+                  <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/my-collections')">
                     <Folder class="nav-icon mobile-submenu-icon" :size="16" />
                     <span>我的收录</span>
-                  </div>
-                  <div class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/logout')">
+                  </button>
+                  <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/user-center/logout')">
                     <LogOut class="nav-icon mobile-submenu-icon" :size="16" />
                     <span>退出登录</span>
-                  </div>
+                  </button>
                 </div>
               </div>
             </template>
 
-            <router-link class="mobile-nav-item" to="/about-us" @click="closeMobileMenu">
+            <router-link class="mobile-nav-item" to="/about-us" @click="closeMobileMenuForNavigation">
               <span>关于我们</span>
             </router-link>
           </nav>
@@ -567,21 +743,21 @@ const submitGlobalSearch = () => {
           <!-- 移动端登录/用户按钮 -->
           <div class="mobile-drawer-footer">
             <button
-              v-if="!hasToken"
-              class="mobile-login-btn"
-              @click="closeMobileMenu(); showLoginModal = true"
+                v-if="!hasToken"
+                type="button"
+                class="mobile-login-btn"
+                @click="openMobileLogin"
             >
               登录 / 注册
             </button>
-            <div v-else class="mobile-user-info" @click="mobileNavigateTo('/user-center/personal-center')">
+            <button v-else type="button" class="mobile-user-info" @click="mobileNavigateTo('/user-center/personal-center')">
               <User class="nav-icon" :size="20" />
               <span>个人中心</span>
-            </div>
-          </div>
+            </button>
           </div>
         </div>
-      </transition>
-    </Teleport>
+      </div>
+    </transition>
 
     <LoginModal :visible="showLoginModal" @close="showLoginModal = false" />
   </div>

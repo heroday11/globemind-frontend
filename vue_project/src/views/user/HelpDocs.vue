@@ -1,5 +1,5 @@
 <template>
-  <div class="hd-root">
+  <div class="hd-root" :class="{ 'hd-root--public': isPublicHelp }">
     <!-- Header hero -->
     <header class="hd-hero">
       <div class="hd-hero-body">
@@ -15,6 +15,24 @@
 
     <!-- Content -->
     <div class="hd-body">
+      <section class="hd-section">
+        <div class="hd-section-head">
+          <span class="hd-section-num">00</span>
+          <div class="hd-section-head-text">
+            <h2 class="hd-section-title">使用边界与数据状态</h2>
+            <p class="hd-section-sub">先核验时效、覆盖和来源，再使用分析结果</p>
+          </div>
+        </div>
+        <div class="hd-card hd-card--warning">
+          <p class="hd-p">
+            GlobeMind 当前用于历史新闻线索发现、试验性事件聚合和辅助浏览。它不应被直接当作实时预警、风险评级或无需复核的决策依据。
+          </p>
+          <p class="hd-p">
+            使用关键结果前，请核对页面显示的数据状态、截止时间、覆盖率、来源状态和模型版本。这些信息缺失或输入降级时，请回到原文核验，不要仅依赖精确分数。
+          </p>
+        </div>
+      </section>
+
       <section class="hd-section">
         <div class="hd-section-head">
           <span class="hd-section-num">01</span>
@@ -33,6 +51,50 @@
         <div class="hd-section-head">
           <span class="hd-section-num">02</span>
           <div class="hd-section-head-text">
+            <h2 class="hd-section-title">研究模块关系与任务交接</h2>
+            <p class="hd-section-sub">这是用户显式操作地图，不是自动数据管线</p>
+          </div>
+        </div>
+        <div class="hd-card hd-card--warning">
+          <p class="hd-p">
+            各模块保留自己的输入、回执、抽样和审阅边界；模块之间的交接不会把检索命中、模型输出或图上关系自动升级为已核验事实。
+          </p>
+          <p class="hd-p">
+            下列关系只说明当前源码支持的任务步骤。所有交接的事实保障状态均为
+            <code>not_established</code>，关键结论仍需回到原始来源和人工审阅。
+          </p>
+        </div>
+        <ol class="hd-flow-list" aria-label="研究模块任务交接">
+          <li v-for="flow in PRODUCT_TASK_FLOWS" :key="flow.id" class="hd-flow-item">
+            <div class="hd-flow-path">
+              <strong>{{ productModuleById(flow.from).label }}</strong>
+              <span aria-hidden="true">→</span>
+              <strong>{{ productModuleById(flow.to).label }}</strong>
+            </div>
+            <p>{{ flow.handoff }}</p>
+            <small>
+              {{ flow.automatic ? '自动' : '用户显式操作' }} ·
+              provenance {{ flow.provenanceState }} · truth {{ flow.truthAssurance }}
+            </small>
+          </li>
+        </ol>
+        <details class="hd-module-details">
+          <summary>查看各模块输入、输出与边界</summary>
+          <dl>
+            <template v-for="module in PRODUCT_MODULES" :key="module.id">
+              <dt>{{ module.label }} · <code>{{ module.state }}</code></dt>
+              <dd>
+                输入：{{ module.input }}；输出：{{ module.output }}；边界：{{ module.boundary }}
+              </dd>
+            </template>
+          </dl>
+        </details>
+      </section>
+
+      <section class="hd-section">
+        <div class="hd-section-head">
+          <span class="hd-section-num">03</span>
+          <div class="hd-section-head-text">
             <h2 class="hd-section-title">数据服务</h2>
             <p class="hd-section-sub">数据搜索、知识图谱与预警报告</p>
           </div>
@@ -49,7 +111,7 @@
             <div class="hd-feature-dot hd-feature-dot--blue"></div>
             <h3 class="hd-feature-title">全球新闻观察台</h3>
             <p class="hd-feature-desc">
-              将新闻按 L1 事件聚合，并结合 L2/L3 走势、信源立场、报道盲区和代表性标题，形成可下钻的故事卡分析台。
+              试验性地将候选新闻按 L1 事件聚合，并展示有界的 L2/L3 抽样、目录标签和代表性标题；它不等于完整事件图、来源真值或因果结论。
             </p>
           </div>
           <div class="hd-card hd-card--feature">
@@ -62,20 +124,20 @@
 
       <section class="hd-section">
         <div class="hd-section-head">
-          <span class="hd-section-num">03</span>
+          <span class="hd-section-num">04</span>
           <div class="hd-section-head-text">
             <h2 class="hd-section-title">舆情分析系统</h2>
-            <p class="hd-section-sub">舆情指数可视化与下钻分析</p>
+            <p class="hd-section-sub">立场统计的历史可视化与下钻线索</p>
           </div>
         </div>
         <div class="hd-card">
-          <p class="hd-p">提供舆情指数折线图，可设置起始日期与视距（近 7 天 / 1 个月 / 3 个月 / 全年）。点击图表数据点可打开侧边栏查看下钻分析。支持检索目标、事件、关键字进行筛选。</p>
+          <p class="hd-p">提供历史立场统计折线，可设置起始日期与视距（近 7 天 / 1 个月 / 3 个月 / 全年）。点击数据点可查看候选下钻线索，并按目标、事件、关键字筛选。立场、语气和现实影响是不同维度；当前没有证据时，语气和现实影响保持未知。</p>
         </div>
       </section>
 
       <section class="hd-section">
         <div class="hd-section-head">
-          <span class="hd-section-num">04</span>
+          <span class="hd-section-num">05</span>
           <div class="hd-section-head-text">
             <h2 class="hd-section-title">用户中心</h2>
             <p class="hd-section-sub">账号管理、个人资料与偏好设置</p>
@@ -100,14 +162,36 @@
 
       <section class="hd-section">
         <div class="hd-section-head">
-          <span class="hd-section-num">05</span>
+          <span class="hd-section-num">06</span>
           <div class="hd-section-head-text">
             <h2 class="hd-section-title">关于我们</h2>
             <p class="hd-section-sub">平台与实验室介绍</p>
           </div>
         </div>
         <div class="hd-card">
-          <p class="hd-p">点击导航栏「关于我们」可查看平台与实验室介绍、联系方式等信息。</p>
+          <p class="hd-p">点击导航栏「关于我们」可查看平台与实验室介绍，并进入公开的治理、安全和纠错页面。</p>
+        </div>
+      </section>
+
+      <section class="hd-section">
+        <div class="hd-section-head">
+          <span class="hd-section-num">07</span>
+          <div class="hd-section-head-text">
+            <h2 class="hd-section-title">治理、安全与纠错</h2>
+            <p class="hd-section-sub">公开稳定路径，无需登录</p>
+          </div>
+        </div>
+        <nav class="hd-governance-links" aria-label="治理页面">
+          <router-link to="/privacy">隐私说明</router-link>
+          <router-link to="/terms">服务条款与使用边界</router-link>
+          <router-link to="/security">安全报告与披露</router-link>
+          <router-link to="/methodology">方法说明与解读边界</router-link>
+          <router-link to="/sources">数据来源与许可说明</router-link>
+          <router-link to="/status">数据与服务状态</router-link>
+          <router-link to="/corrections">纠错与权利请求</router-link>
+        </nav>
+        <div class="hd-card">
+          <p class="hd-p">上述页面会如实标注尚未指定的负责人、尚未承诺的 SLA 以及尚未完成的许可/个人信息盘点，不以页面上线代替后续治理工作。</p>
         </div>
       </section>
     </div>
@@ -115,7 +199,16 @@
 </template>
 
 <script setup>
-import { onActivated, onMounted, onUnmounted } from 'vue'
+import { computed, onActivated, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
+import {
+  PRODUCT_MODULES,
+  PRODUCT_TASK_FLOWS,
+  productModuleById,
+} from '@/governance/productDataFlow.js'
+
+const route = useRoute()
+const isPublicHelp = computed(() => route.path === '/data-service/help-docs')
 
 function resetScroll() {
   window.scrollTo(0, 0)
@@ -165,6 +258,108 @@ onUnmounted(() => {
   max-width: 860px;
   margin: 0 auto;
   animation: hd-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hd-root--public {
+  max-width: 960px;
+  box-sizing: border-box;
+  padding: 104px 24px 64px;
+}
+
+.hd-card--warning {
+  border-color: #e8cf8a;
+  background: #fffaf0;
+}
+
+.hd-governance-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.hd-governance-links a {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border: 1px solid var(--hd-border);
+  border-radius: 12px;
+  color: #385cb4;
+  background: var(--hd-surface);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.hd-flow-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hd-flow-item {
+  padding: 14px;
+  border: 1px solid var(--hd-border);
+  border-radius: var(--hd-radius-sm);
+  background: var(--hd-surface);
+}
+
+.hd-flow-item p {
+  margin: 8px 0;
+  color: var(--hd-text-secondary);
+  line-height: 1.65;
+}
+
+.hd-flow-item small {
+  color: var(--hd-text-muted);
+}
+
+.hd-flow-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hd-module-details {
+  padding: 14px;
+  border: 1px solid var(--hd-border);
+  border-radius: var(--hd-radius-sm);
+}
+
+.hd-module-details summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.hd-module-details dl {
+  margin: 10px 0 0;
+}
+
+.hd-module-details dt {
+  margin-top: 12px;
+  font-weight: 650;
+}
+
+.hd-module-details dd {
+  margin: 4px 0 0;
+  color: var(--hd-text-secondary);
+  line-height: 1.65;
+}
+
+.hd-governance-links a:hover {
+  border-color: #9bacdf;
+  background: #f6f8ff;
+}
+
+.hd-governance-links a:focus-visible {
+  outline: 3px solid rgba(70, 94, 190, 0.3);
+  outline-offset: 3px;
 }
 
 @keyframes hd-fade-up {
@@ -398,6 +593,10 @@ onUnmounted(() => {
 
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
+  .hd-root--public {
+    padding: 92px 14px 44px;
+  }
+
   .hd-hero {
     padding: 24px 20px;
   }
@@ -407,7 +606,9 @@ onUnmounted(() => {
   }
 
   .hd-grid--3,
-  .hd-grid--2 {
+  .hd-grid--2,
+  .hd-governance-links,
+  .hd-flow-list {
     grid-template-columns: 1fr;
   }
 }

@@ -1,4 +1,10 @@
 export {
+  SEARCH_HIT_SCHEMA_VERSION,
+  buildHighlightedSegments,
+  normalizeSearchHitDisclosure,
+} from './hit-fields.js'
+
+export {
   SEARCH_API_ENDPOINTS,
   SearchApiError,
   buildNewsListUrl,
@@ -10,22 +16,31 @@ export {
 
 export {
   SEARCH_HIT_LOCATIONS,
+  SEARCH_MODE_SEMANTICS_VERSION,
   SEARCH_MODES,
   SEARCH_PARAM_DEFAULTS,
   SEARCH_SITUATION_PRESETS,
   SEARCH_TIME_RANGES,
   SEARCH_TYPES,
   activeSearchSurfaceLabel,
+  applySearchSituationPreset,
   buildSearchHistoryKeyword,
   buildSearchRequestDto,
   buildVisiblePages,
   calculateTotalPages,
   createSearchParams,
   mergeFavoriteNewsIds,
+  normalizeSearchParamsForType,
   normalizeDisplayNewsRows,
   normalizeNewsListResponse,
+  normalizeNewsTimeSemantics,
+  normalizeQueryExplain,
+  normalizeQueryReceipt,
   normalizeSearchResponse,
+  resolveLanguageDisplay,
   resolveJumpPage,
+  searchModeDisclosure,
+  searchSortSemantics,
 } from './model.js'
 
 export {

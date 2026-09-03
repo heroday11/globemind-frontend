@@ -1,3 +1,5 @@
+import { storyRelationLabel } from '../../governance/storyRelations.js'
+
 export const familyFilters = [
   { label: '全部', value: '' },
   { label: '外交', value: 'diplomacy' },
@@ -8,9 +10,9 @@ export const familyFilters = [
 ]
 
 export const sortOptions = [
-  { label: '重要性', value: 'importance' },
+  { label: '媒体关注', value: 'importance' },
   { label: '最新', value: 'recent' },
-  { label: '多信源', value: 'coverage' },
+  { label: '多来源', value: 'coverage' },
 ]
 
 export const dateRangeOptions = [
@@ -41,24 +43,24 @@ export const qualityOptions = [
 export const groundNewsTabs = [
   { key: 'coverage', label: '报道切面' },
   { key: 'timeline', label: '时间线' },
-  { key: 'sources', label: '信源光谱' },
-  { key: 'l2', label: 'L2 走势' },
+  { key: 'sources', label: '来源目录' },
+  { key: 'l2', label: '关联线索' },
 ]
 
 export const biasModel = [
-  { key: 'left', label: '左翼', color: '#2f7dd1' },
-  { key: 'center', label: '中间', color: '#2ca66f' },
-  { key: 'right', label: '右翼', color: '#d77b2a' },
-  { key: 'state_aligned', label: '国家立场', color: '#7a6a55' },
-  { key: 'unknown', label: '未评级', color: '#aab3bd' },
+  { key: 'left', label: '目录：偏左', color: '#2f7dd1' },
+  { key: 'center', label: '目录：中间', color: '#2ca66f' },
+  { key: 'right', label: '目录：偏右', color: '#d77b2a' },
+  { key: 'state_aligned', label: '目录：国家关联', color: '#7a6a55' },
+  { key: 'unknown', label: '目录：未评级', color: '#aab3bd' },
 ]
 
 export const sourceColumnsModel = [
-  { key: 'left', label: '左翼倾向', color: '#2f7dd1' },
-  { key: 'center', label: '中间 / 低偏见', color: '#2ca66f' },
-  { key: 'right', label: '右翼倾向', color: '#d77b2a' },
-  { key: 'state_aligned', label: '国家立场', color: '#7a6a55' },
-  { key: 'unknown', label: '未评级', color: '#aab3bd' },
+  { key: 'left', label: '第三方目录：偏左', color: '#2f7dd1' },
+  { key: 'center', label: '第三方目录：中间', color: '#2ca66f' },
+  { key: 'right', label: '第三方目录：偏右', color: '#d77b2a' },
+  { key: 'state_aligned', label: '第三方目录：国家关联', color: '#7a6a55' },
+  { key: 'unknown', label: '第三方目录：未评级', color: '#aab3bd' },
 ]
 
 export function newsDetailPath(newsId) {
@@ -168,8 +170,8 @@ export function formatPct(value) {
 }
 
 export function qualityPct(value) {
-  if (value === null || value === undefined) return '未评分'
-  return `${Math.round(Number(value) * 100)}%`
+  void value
+  return '质量指标未知'
 }
 
 export function sourceTypeLabel(value) {
@@ -268,10 +270,10 @@ export function toneLabel(value) {
 
 export function credibilityLabel(value) {
   const labels = {
-    high: '高可信',
-    medium: '中等可信',
-    low: '低可信',
-    unknown: '未知',
+    high: '目录标签：高',
+    medium: '目录标签：中',
+    low: '目录标签：低',
+    unknown: '目录标签：未知',
   }
   return labels[value] || codeLabel(value)
 }
@@ -301,19 +303,13 @@ export function biasGroupLabel(value) {
 }
 
 export function blindspotLevelLabel(value) {
-  const labels = {
-    high: '高风险',
-    medium: '中风险',
-    watch: '观察',
-    low: '低风险',
-    insufficient_data: '数据不足',
-  }
-  return labels[value] || '低风险'
+  void value
+  return 'Blindspot 状态未知'
 }
 
 export function statusLabel(value) {
   const labels = {
-    ready: '已就绪',
+    ready: '目录处理完成（非质量通过）',
     not_built: '未构建',
     single_source: '单一信源',
     low_source_count: '信源偏少',
@@ -323,26 +319,12 @@ export function statusLabel(value) {
 }
 
 export function qualityLabel(value) {
-  const labels = {
-    strong: '强关联',
-    usable: '可用',
-    weak: '弱关联',
-    unselected: '未选择',
-  }
-  return labels[value] || codeLabel(value)
+  void value
+  return '链质量未知'
 }
 
 export function edgeTypeLabel(value) {
-  const labels = {
-    continuation: '延续',
-    continued: '延续',
-    escalation: '升级',
-    response: '回应',
-    transition: '转折',
-    context: '背景关联',
-    same_thread: '同一线索',
-  }
-  return labels[value] || codeLabel(value, '关系未知')
+  return storyRelationLabel(value)
 }
 
 export function riskFlagLabel(value) {

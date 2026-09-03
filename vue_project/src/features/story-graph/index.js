@@ -10,6 +10,30 @@ export {
 export { L2_RUN_ID, L3_RUN_ID, storyGraphAdapterConfig } from './config.js'
 
 export {
+  buildLayoutStoryRelationClaim,
+  normalizeStoryRelationClaim,
+} from './claims.js'
+
+export {
+  STORY_RELATION_SEMANTICS_VERSION,
+  buildLayoutStoryRelationSemantics,
+  isStoryRelationSemantics,
+  normalizeLayoutStoryRelation,
+  normalizeStoryRelation,
+  storyRelationLabel,
+  storyRelationReason,
+  unknownStoryRelationSemantics,
+} from '../../governance/storyRelations.js'
+
+export {
+  GRAPH_METRIC_INVENTORY,
+  graphMetricExplanation,
+  graphMetricMethodCard,
+  graphMetricPresentation,
+  projectGraphMetric,
+} from '../../governance/graphMetrics.js'
+
+export {
   avoidMacroCollisions,
   buildMacroDisplayEdges,
   buildMacroLaneMap,
@@ -31,8 +55,18 @@ export {
   transformL3MacroResponse,
 } from './model.js'
 
+export { graphSamplingNotice, normalizeGraphSampling } from './sampling.js'
+
+export {
+  buildStoryGraphQueryStatus,
+  createLatestRequestGate,
+} from './query-state.js'
+
 export {
   angleLabel,
+  buildStoryGraphAccessibleList,
+  buildStoryGraphEdgeInspector,
+  buildStoryGraphNodeInspector,
   buildGraphMetrics,
   buildStoryStatsText,
   buildStorySummaryLine,
@@ -44,6 +78,7 @@ export {
   filterStorySummaries,
   focusKindLabel,
   formatActorPair,
+  formatCountLabel,
   formatNewsDate,
   formatRange,
   getFallbackStoryTitle,
@@ -53,7 +88,9 @@ export {
   qualityLabel,
   relationLabel,
   relationEvidenceText,
+  relationResearchGuidance,
   relationStrengthLabel,
+  reportingCoverageGuidance,
   researchValueLabel,
   researchValueScore,
   sortStorySummariesByResearchValue,

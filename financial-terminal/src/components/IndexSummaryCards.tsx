@@ -22,7 +22,8 @@ export default function IndexSummaryCards({ indices, activeMetricId, onSelectMet
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
       {indices.map((index) => {
-        const up = index.change_pct >= 0
+        const available = index.availability !== 'not_computable' && index.value !== null && index.change_pct !== null
+        const up = available && index.change_pct! >= 0
         const active = activeMetricId && index.metric_id === activeMetricId
         return (
           <button
@@ -50,14 +51,18 @@ export default function IndexSummaryCards({ indices, activeMetricId, onSelectMet
             <div className="mt-2 flex items-end justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-mono text-xl font-semibold text-slate-900">
-                  {index.value.toFixed(index.value >= 100 ? 0 : 2)}
+                  {available ? index.value!.toFixed(index.value! >= 100 ? 0 : 2) : '不可计算'}
                 </div>
-                <div className={`mt-1 font-mono text-xs font-semibold ${up ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {up ? '+' : ''}
-                  {index.change_pct.toFixed(2)}%
-                </div>
+                {available ? (
+                  <div className={`mt-1 font-mono text-xs font-semibold ${up ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {up ? '+' : ''}
+                    {index.change_pct!.toFixed(2)}%
+                  </div>
+                ) : (
+                  <div className="mt-1 text-xs font-semibold text-amber-700">当前值已隐藏</div>
+                )}
               </div>
-              <Sparkline values={index.spark} positive={up} className={`shrink-0 opacity-90 transition-transform ${active ? 'scale-105' : 'group-hover:scale-105'}`} />
+              {available ? <Sparkline values={index.spark} positive={up} className={`shrink-0 opacity-90 transition-transform ${active ? 'scale-105' : 'group-hover:scale-105'}`} /> : null}
             </div>
           </button>
         )

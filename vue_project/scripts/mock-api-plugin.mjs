@@ -107,6 +107,16 @@ async function tryHandle(req, res) {
     return true
   }
 
+  if (method === 'GET' && pathname === '/api/dashboard/search/capabilities') {
+    sendJson(res, 200, {
+      keyword: true,
+      semantic: false,
+      hybrid: false,
+      reason: 'indexed_search_not_enabled',
+    })
+    return true
+  }
+
   if (method === 'GET' && pathname === '/api/dashboard/stats') {
     sendJson(res, 200, getStatsPayload())
     return true
@@ -148,6 +158,17 @@ async function tryHandle(req, res) {
   if (method === 'POST' && pathname === '/api/dashboard/search') {
     const body = await readJsonBody(req)
     sendJson(res, 200, buildSearchResponse(body))
+    return true
+  }
+
+  if (method === 'POST' && pathname === '/api/dashboard/search/preflight') {
+    const body = await readJsonBody(req)
+    sendJson(res, 200, {
+      valid: true,
+      mode: String(body.mode || 'exact'),
+      search_type: String(body.search_type || 'news'),
+      fields: {},
+    })
     return true
   }
 

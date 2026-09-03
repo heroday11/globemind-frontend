@@ -7,7 +7,7 @@ export const SEARCH_DATA_OPERATION_KINDS = Object.freeze({
   SEARCH: 'search',
 })
 
-export const SEARCH_REQUEST_TIMEOUT_MS = 8_000
+export const SEARCH_REQUEST_TIMEOUT_MS = 12_000
 
 export class SearchRequestTimeoutError extends Error {
   constructor(timeoutMs = SEARCH_REQUEST_TIMEOUT_MS) {

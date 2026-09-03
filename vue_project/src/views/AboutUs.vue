@@ -63,9 +63,9 @@ onUnmounted(() => {
     <div class="page-header">
       <div class="page-kicker">Moonlit Data Intelligence Lab</div>
       <h1 class="page-title">关于我们</h1>
-      <p class="page-subtitle">数据挖掘实验室 · 交叉学科创新团队</p>
+      <p class="page-subtitle">团队介绍页 · 组织信息待核验</p>
       <p class="page-deck">
-        在多语种文本、数据挖掘与智能决策之间建立观测坐标，把科研训练、工程实践和国际化数据理解汇聚成一座面向真实问题的月光观测台。
+        在多语种文本、数据挖掘与研究辅助之间建立观测坐标，把科研训练、工程实践和国际化数据理解汇聚成一座面向真实问题的月光观测台。
       </p>
       <div class="page-header-brand" aria-hidden="true">
         <img :src="brandLogoUrl" alt="" />
@@ -78,33 +78,33 @@ onUnmounted(() => {
       <div class="intro-card">
         <div class="card-icon">🏛️</div>
         <p class="intro-text">
-          本实验室是跨学科科研与人才培养平台，成立于 2006 年，由资深教授领衔，长期探索 "计算机 + 外语 + 大数据" 融合的科研训练与工程实践。
+          本页保留团队介绍框架。成立时间、负责人、成员规模和历史成果尚未绑定可核验出处、统计口径与更新时间；补齐并复核前，不作为当前组织事实或成果证明。
         </p>
       </div>
       <div class="focus-strip">
         <div class="focus-item">
-          <div class="focus-value">125</div>
-          <div class="focus-label">在研学生成员</div>
+          <div class="focus-value">待核验</div>
+          <div class="focus-label">成员规模</div>
         </div>
         <div class="focus-item">
-          <div class="focus-value">330+</div>
-          <div class="focus-label">累计培养学生</div>
+          <div class="focus-value">待核验</div>
+          <div class="focus-label">培养记录</div>
         </div>
         <div class="focus-item">
-          <div class="focus-value">60+</div>
-          <div class="focus-label">近年高水平论文</div>
+          <div class="focus-value">待核验</div>
+          <div class="focus-label">论文清单</div>
         </div>
         <div class="focus-item">
-          <div class="focus-value">30+</div>
-          <div class="focus-label">省级以上奖项</div>
+          <div class="focus-value">待核验</div>
+          <div class="focus-label">奖项清单</div>
         </div>
       </div>
       <div class="highlight-banner">
-        <div class="highlight-title">重点成果速览</div>
+        <div class="highlight-title">公开前置条件</div>
         <div class="highlight-points">
-          <span>2019-2026 累计发表高水平论文 60+</span>
-          <span>国家级/省部级科研项目协同推进</span>
-          <span>形成“计算机 + 外语 + 大数据”特色培养范式</span>
+          <span>具名负责人和更新时间待补齐</span>
+          <span>论文、项目、奖项需绑定可核验目录</span>
+          <span>当前页面不作数量、级别或影响力背书</span>
         </div>
       </div>
 
@@ -118,25 +118,25 @@ onUnmounted(() => {
           <div class="info-grid">
             <div class="info-item">
               <div class="info-label">定位</div>
-              <div class="info-value">教师引导、学生自主管理的创新型科研组织，以学术科研为主导，聚焦数据挖掘与自然语言处理技术的基础研究与应用落地。</div>
+              <div class="info-value">介绍材料将围绕科研训练、数据挖掘与自然语言处理展开；组织性质和当前活动范围待具名负责人确认。</div>
             </div>
             <div class="info-item">
               <div class="info-label">规模</div>
-              <div class="info-value">现有学生成员 125 人，设 9 个研究小组；累计毕业 330 余名优秀学生，推动学院 13 个学生科技团队、2 个创新创业实践团队建设，覆盖全院近 50% 在校生。</div>
+              <div class="info-value">成员、研究小组、毕业生和参与范围尚无带截止时间的可核验名册，本页暂不展示数量。</div>
             </div>
             <div class="info-item">
               <div class="info-label">特色</div>
-              <div class="info-value">依托外语与国际化优势，深耕 "多语种 + 数据智能" 交叉领域，是文科高校新工科人才培养的典型样本。</div>
+              <div class="info-value">页面以“多语种 + 数据智能”为主题描述交叉方向，不据此评价培养成效或代表性。</div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 二、核心研究方向 -->
+      <!-- 二、研究主题标签 -->
       <section class="content-section">
         <div class="section-header">
           <span class="section-number">02</span>
-          <h2 class="section-title">核心研究方向</h2>
+          <h2 class="section-title">研究主题标签</h2>
         </div>
         <div class="section-content">
           <div class="research-grid">
@@ -174,148 +174,163 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- 三、核心师资团队 -->
+      <!-- 三、师资信息 -->
       <section class="content-section">
         <div class="section-header">
           <span class="section-number">03</span>
-          <h2 class="section-title">核心师资团队</h2>
+          <h2 class="section-title">师资信息</h2>
         </div>
         <div class="section-content">
           <div class="team-info">
             <p class="team-lead">
-              由<strong>资深教授</strong>（实验室创始人、学科带头人）领衔，核心师资团队覆盖多个研究方向：
+              师资姓名、职称、职责、任期与联系方式尚待具名负责人提供并复核。
             </p>
             <ul class="team-list">
-              <li><strong>教授 A</strong>：NLP 与多语种智能信息处理专家，主持多项国家级、省部级项目</li>
-              <li><strong>多位副教授、讲师</strong>，覆盖数据挖掘、机器学习、网络安全等方向</li>
+              <li>匿名占位称谓不作为人员身份、专业资历或项目经历证明。</li>
+              <li>完成公开授权前，本页不列出个人履历或联系方式。</li>
             </ul>
             <p class="team-note">
-              团队长期深耕 "一带一路"、重点区域相关的多语种数据智能研究，科研与项目经验丰富。
+              研究方向标签仅用于页面导航；当前人员与项目归属需要独立核验。
             </p>
           </div>
         </div>
       </section>
 
-      <!-- 四、近年核心成就 -->
+      <!-- 四、成果目录状态 -->
       <section class="content-section">
         <div class="section-header">
           <span class="section-number">04</span>
-          <h2 class="section-title">近年核心成就（2019-2026）</h2>
+          <h2 class="section-title">成果目录状态</h2>
         </div>
         <div class="section-content">
           <div class="achievement-tabs">
             <div class="achievement-item achievement-item-featured">
               <div class="achievement-icon">📝</div>
-              <h3 class="achievement-title">学术成果（高水平论文）</h3>
+              <h3 class="achievement-title">论文与会议记录</h3>
               <ul class="achievement-list">
-                <li>累计发表学术论文 <strong>60 余篇</strong>，其中 SCI 收录 4 篇、EI 收录 12 篇、CSCD/CSSCI 论文 37 篇</li>
-                <li>2021 年：发表 / 录用高水平论文 <strong>18 篇</strong>，申请软著 / 专利 <strong>15 项</strong></li>
-                <li>2024 年：团队本科生以第一作者在 <strong>EMNLP 2024</strong>（CCF B 类、NLP 顶级会议）发表论文</li>
-                <li>多篇论文发表于《Information Sciences》（SCI Q1，IF=6.795）等国际权威期刊</li>
+                <li>作者、题名、出版物、DOI、收录口径与归属证明待绑定。</li>
+                <li>目录复核前不展示论文数量、会议级别或期刊影响力结论。</li>
               </ul>
             </div>
             <div class="achievement-item">
               <div class="achievement-icon">🔬</div>
-              <h3 class="achievement-title">科研项目（国家级 / 省部级）</h3>
+              <h3 class="achievement-title">科研项目</h3>
               <ul class="achievement-list">
-                <li>成员参与 <strong>5 项国家级科研项目</strong>、<strong>6 项省部级科研项目</strong></li>
-                <li><strong>国家自然科学基金</strong>：面向中国英语学习者的英文作文全自动评分、无线网络资源优化机制研究</li>
-                <li><strong>国家社科基金</strong>：东盟涉华舆情观点挖掘、"一带一路" 科技合作机理研究</li>
-                <li><strong>省级自然科学基金</strong>：基于 LDA 的可监管推荐系统、图卷积网络自动问答系统</li>
-                <li><strong>省级重点领域研发计划</strong>：自主可控联盟区块链关键技术研究</li>
+                <li>项目编号、资助机构、起止时间、参与角色和公开链接待复核。</li>
+                <li>仅出现项目名称不能证明承担单位、负责人或完成状态。</li>
               </ul>
             </div>
             <div class="achievement-item">
               <div class="achievement-icon">💡</div>
               <h3 class="achievement-title">知识产权与技术成果</h3>
               <ul class="achievement-list">
-                <li>累计申请<strong>软件著作权 20 项</strong>、<strong>专利 5 项</strong></li>
-                <li>研发多语种舆情监测、跨境电商数据挖掘、教育智能评分等系统，服务政府与企业需求</li>
+                <li>登记号、权利人、法律状态和产品对应关系待绑定。</li>
+                <li>完成证据目录前不声明申请数量、授权状态或应用成效。</li>
               </ul>
             </div>
             <div class="achievement-item">
               <div class="achievement-icon">🏆</div>
-              <h3 class="achievement-title">学科竞赛（国际 / 国家级奖项）</h3>
+              <h3 class="achievement-title">竞赛记录</h3>
               <ul class="achievement-list">
-                <li>2015 年至今，获 <strong>"挑战杯"、区域计算机作品赛、全国大学生计算机大赛、重点区域计算机作品赛等省级以上奖项 30 余项</strong></li>
-                <li>2021 年：斩获 <strong>6 项国际级奖项</strong>、<strong>4 项国家级奖项</strong>、<strong>4 项省级奖项</strong></li>
-                <li>多次在大数据、人工智能、软件设计类赛事中夺冠，如 <strong>2016 年大数据竞赛冠军</strong></li>
+                <li>赛事全称、届次、主办方、获奖名单和证书链接待复核。</li>
+                <li>目录复核前不作奖项数量、级别或名次声明。</li>
               </ul>
             </div>
             <div class="achievement-item">
               <div class="achievement-icon">⭐</div>
               <h3 class="achievement-title">荣誉称号</h3>
               <ul class="achievement-list">
-                <li>2012 年：实验室团队获<strong>校级最高荣誉</strong></li>
-                <li>2018 年：实验室成员获<strong>校级最高荣誉</strong></li>
-                <li>2021 年：实验室获评<strong>省级创新科研团队</strong></li>
+                <li>授予机构、正式称号、获授主体、日期和公告链接待复核。</li>
+                <li>未绑定公告的荣誉描述不作为公开背书。</li>
               </ul>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 五、人才培养成果 -->
+      <!-- 五、人才培养资料 -->
       <section class="content-section">
         <div class="section-header">
           <span class="section-number">05</span>
-          <h2 class="section-title">人才培养成果</h2>
+          <h2 class="section-title">人才培养资料</h2>
         </div>
         <div class="section-content">
           <div class="talent-grid">
             <div class="talent-card">
-              <div class="talent-number">30+</div>
+              <div class="talent-number">待核验</div>
               <div class="talent-label">升学深造</div>
-              <div class="talent-desc">近 30 人赴国内外攻读硕士（推免 14 人），多名学生获地方人才计划资助赴海外名校深造</div>
+              <div class="talent-desc">去向、统计周期、是否去重和授权披露状态待核验</div>
             </div>
             <div class="talent-card">
-              <div class="talent-number">10+</div>
-              <div class="talent-label">国家奖学金</div>
-              <div class="talent-desc">累计获国家奖学金 10 余人次</div>
+              <div class="talent-number">待核验</div>
+              <div class="talent-label">奖学金记录</div>
+              <div class="talent-desc">奖项名称、年度、获奖主体与公告链接待核验</div>
             </div>
             <div class="talent-card">
-              <div class="talent-number">20+</div>
+              <div class="talent-number">待核验</div>
               <div class="talent-label">学生项目</div>
-              <div class="talent-desc">学生主持省级以上学术研究项目 20 余项</div>
+              <div class="talent-desc">项目编号、参与角色、起止时间与状态待核验</div>
             </div>
             <div class="talent-card">
               <div class="talent-icon">💼</div>
-              <div class="talent-label">就业质量</div>
-              <div class="talent-desc">毕业生进入腾讯、阿里、华为、百度、金融机构、政府部门等，从事数据挖掘、算法研发、NLP 工程师等岗位</div>
+              <div class="talent-label">就业去向</div>
+              <div class="talent-desc">聚合统计口径、样本覆盖和个人披露授权待核验</div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 六、社会影响与特色价值 -->
+      <!-- 六、影响材料状态 -->
       <section class="content-section">
         <div class="section-header">
           <span class="section-number">06</span>
-          <h2 class="section-title">社会影响与特色价值</h2>
+          <h2 class="section-title">影响材料状态</h2>
         </div>
         <div class="section-content">
           <div class="impact-grid">
             <div class="impact-card impact-card-emphasis">
               <div class="impact-icon">🚀</div>
-              <h3 class="impact-title">交叉创新标杆</h3>
-              <p class="impact-desc">开创 "计算机 + 外语 + 大数据" 培养模式，实现教学组织、方式、模式的 "三个转变"，为文科高校新工科建设提供范本</p>
+              <h3 class="impact-title">交叉培养材料</h3>
+              <p class="impact-desc">培养模式、课程变化和学习成效需要方案、样本和评估材料支持。</p>
             </div>
             <div class="impact-card">
               <div class="impact-icon">🌏</div>
-              <h3 class="impact-title">服务国家战略</h3>
-              <p class="impact-desc">围绕 "一带一路""重点区域"，开展多语种舆情、跨境数据、科技合作等研究，支撑区域与国家数字化发展</p>
+              <h3 class="impact-title">研究主题材料</h3>
+              <p class="impact-desc">课题、委托关系、交付物和实际采用情况尚待逐项核验。</p>
             </div>
             <div class="impact-card">
               <div class="impact-icon">🤝</div>
-              <h3 class="impact-title">产学研融合</h3>
-              <p class="impact-desc">与企业合作研发智能系统，将科研成果转化为实际应用，提升技术落地能力</p>
+              <h3 class="impact-title">合作项目材料</h3>
+              <p class="impact-desc">合作方、授权范围、项目状态和应用成效尚未形成公开证据目录。</p>
             </div>
             <div class="impact-card">
               <div class="impact-icon">✨</div>
-              <h3 class="impact-title">示范引领</h3>
-              <p class="impact-desc">作为学院科创核心平台，带动学生科创氛围，建设具有多语种数据智能特色的标志性团队</p>
+              <h3 class="impact-title">组织影响材料</h3>
+              <p class="impact-desc">影响范围和因果归属尚未评估，本页不作代表性或示范性结论。</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="content-section" aria-labelledby="governance-heading">
+        <div class="section-header">
+          <span class="section-number">07</span>
+          <h2 id="governance-heading" class="section-title">产品治理与联系</h2>
+        </div>
+        <div class="governance-panel">
+          <p>
+            GlobeMind 的数据、模型、服务、隐私与安全具名负责人尚待指定。下列公开页面提供当前可验证的使用边界、责任矩阵和共享受理入口；未取得批准的许可、保留期或 SLA 不会在页面中虚构。
+          </p>
+          <nav class="governance-links" aria-label="产品治理页面">
+            <router-link to="/data-service/help-docs">帮助文档</router-link>
+            <router-link to="/privacy">隐私说明</router-link>
+            <router-link to="/terms">服务条款</router-link>
+            <router-link to="/security">安全报告</router-link>
+            <router-link to="/methodology">方法说明</router-link>
+            <router-link to="/sources">来源与许可说明</router-link>
+            <router-link to="/status">数据与服务状态</router-link>
+            <router-link to="/corrections">纠错与权利请求</router-link>
+          </nav>
         </div>
       </section>
     </div>
@@ -556,6 +571,54 @@ onUnmounted(() => {
   margin-bottom: 34px;
   padding: 34px 0 0;
   border-top: 1px solid rgba(177, 210, 255, 0.16);
+}
+
+.governance-panel {
+  padding: 24px;
+  border: 1px solid var(--about-line-strong);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 241, 189, 0.09), rgba(104, 216, 255, 0.07)),
+    var(--about-card);
+  box-shadow: 0 20px 54px var(--about-shadow);
+}
+
+.governance-panel p {
+  margin: 0;
+  color: var(--about-copy);
+  font-size: 0.98rem;
+  line-height: 1.85;
+}
+
+.governance-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.governance-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 9px 13px;
+  border: 1px solid rgba(177, 210, 255, 0.26);
+  border-radius: 8px;
+  color: var(--about-moon);
+  background: rgba(237, 245, 255, 0.06);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.governance-links a:hover {
+  border-color: rgba(247, 226, 164, 0.52);
+  background: rgba(255, 241, 189, 0.11);
+}
+
+.governance-links a:focus-visible {
+  outline: 3px solid rgba(104, 216, 255, 0.55);
+  outline-offset: 3px;
 }
 
 .intro-card,

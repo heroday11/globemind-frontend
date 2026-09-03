@@ -26,18 +26,18 @@
         <article class="result-block">
           <div class="block-head">
             <span>Sources</span>
-            <small>{{ searchData.sources?.length || 0 }}</small>
+            <small>{{ searchSources.length }}</small>
           </div>
           <div class="source-grid">
             <RouterLink
-              v-for="source in searchData.sources || []"
+              v-for="source in searchSources"
               :key="source.domain"
               class="source-card"
               :to="sourcePath(source.domain)"
             >
-              <strong>{{ source.source_name || source.domain }}</strong>
+              <strong>{{ source.sourceName }}</strong>
               <span>{{ source.domain }}</span>
-              <small>{{ biasLabel(source.political_leaning) }} · {{ credibilityLabel(source.credibility_tier) }}</small>
+              <small>{{ source.politicalLabel }} · {{ source.credibilityLabel }}</small>
             </RouterLink>
           </div>
         </article>
@@ -54,7 +54,7 @@
               :to="timelinePath(chain.chain_id)"
             >
               <strong>{{ chain.title || chain.chain_id }}</strong>
-              <small>{{ chain.segment_count }} 节点 · {{ chain.article_count }} 新闻 · {{ qualityLabel(chain.chain_quality) }}</small>
+              <small>{{ chain.segment_count }} 节点 · {{ chain.article_count }} 新闻 · 质量指标未知</small>
             </RouterLink>
           </div>
         </article>
@@ -65,13 +65,22 @@
           <article>
             <span>结果</span>
             <strong>{{ formatNumber(total) }}</strong>
-            <small>{{ mode === 'blindspot' ? '按盲区风险排序' : topicLabel }}</small>
+            <small>{{ mode === 'blindspot' ? '服务端候选顺序（排序方法未批准）' : topicLabel }}</small>
           </article>
-          <article v-if="formula">
-            <span>公式</span>
-            <strong>{{ formula.version }}</strong>
-            <small>{{ formula.signals?.slice(0, 3).join(' / ') }}</small>
-          </article>
+          <details v-if="mode === 'blindspot'" class="metric-explanation">
+            <summary>展开 Blindspot 公式、输入和证据</summary>
+            <strong>{{ blindspotMetric.valueLabel }}</strong>
+            <p>方法：{{ blindspotExplanation.method_version || '未建立' }}</p>
+            <p>公式：{{ blindspotExplanation.formula }}</p>
+            <p>证据定位：{{ blindspotExplanation.evidence.locator || '不可用' }}；{{ blindspotExplanation.reason_code }}</p>
+          </details>
+          <details class="metric-explanation">
+            <summary>展开时间线质量公式、输入和证据</summary>
+            <strong>{{ timelineQualityExplanation.valueLabel }}</strong>
+            <p>方法：{{ timelineQualityExplanation.method_version || '未建立' }}</p>
+            <p>公式：{{ timelineQualityExplanation.formula }}</p>
+            <p>证据定位：{{ timelineQualityExplanation.evidence.locator || '不可用' }}；{{ timelineQualityExplanation.reason_code }}</p>
+          </details>
         </aside>
         <section class="story-list-grid">
           <StoryCard v-for="story in items" :key="story.cluster_id" :story="story" :show-blindspot="mode === 'blindspot'" />
@@ -84,7 +93,11 @@
 <script setup>
 import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
-import { groundNewsApi } from '@/features/ground-news/index.js'
+import { buildGroundNewsSourceProfileModel, groundNewsApi } from '@/features/ground-news/index.js'
+import {
+  graphMetricExplanation,
+  graphMetricPresentation,
+} from '@/governance/graphMetrics.js'
 const route = useRoute()
 
 const loading = ref(false)
@@ -103,7 +116,7 @@ const title = computed(() => {
 })
 const eyebrow = computed(() => (mode.value === 'blindspot' ? 'Blindspot Feed' : 'Topic Feed'))
 const subtitle = computed(() => {
-  if (mode.value === 'blindspot') return '按左右覆盖缺口、来源评级、事实性风险和未评级比例排序。'
+  if (mode.value === 'blindspot') return '按左右覆盖缺口、来源数量和未评级比例排序；第三方目录标签仅作目录构成展示，不代表事实准确率或来源可靠性。'
   if (mode.value === 'topic') return '同一主题下的 L1 事件卡，保留信源覆盖和 Bias 分布。'
   return ''
 })
@@ -112,6 +125,37 @@ const items = computed(() => data.value.items || [])
 const total = computed(() => Number(data.value.total || 0))
 const formula = computed(() => data.value.formula || null)
 const searchData = computed(() => data.value || {})
+const blindspotMetric = computed(() => graphMetricPresentation('ground_news.blindspot_score', {
+  value: items.value[0]?.blindspot_score ?? items.value[0]?.blindspot?.score,
+  method_card: formula.value,
+}))
+const blindspotExplanation = computed(() => graphMetricExplanation('ground_news.blindspot_score', {
+  inputs: {
+    source_count: items.value[0]?.source_count,
+    reviewed_known_source_count: items.value[0]?.blindspot?.reviewed_known_source_count,
+    unknown_source_count: items.value[0]?.blindspot?.unknown_source_count,
+  },
+}))
+const timelineQualityExplanation = computed(() => graphMetricExplanation('ground_news.timeline_quality', {
+  inputs: {
+    quality_score: searchData.value.timelines?.[0]?.quality_score,
+    chain_quality: searchData.value.timelines?.[0]?.chain_quality,
+  },
+}))
+const searchSources = computed(() => {
+  const sources = Array.isArray(searchData.value.sources)
+    ? searchData.value.sources.slice(0, 80)
+    : []
+  return sources.map((source) => {
+    const model = buildGroundNewsSourceProfileModel(source)
+    return {
+      domain: model.domain,
+      sourceName: model.sourceName,
+      politicalLabel: model.labels.politicalLeaning,
+      credibilityLabel: model.labels.credibility,
+    }
+  })
+})
 
 const StoryCard = defineComponent({
   name: 'StoryCard',
@@ -134,10 +178,12 @@ const StoryCard = defineComponent({
       h('div', { class: 'story-card__foot' }, [
         h('span', `${props.story.article_count || 0} 新闻`),
         h('span', `${props.story.source_count || 0} 信源`),
-        props.showBlindspot ? h('strong', `Blindspot ${Math.round(props.story.blindspot_score || props.story.blindspot?.score || 0)}`) : null,
+        props.showBlindspot ? h('strong', `Blindspot ${graphMetricPresentation('ground_news.blindspot_score', {
+          value: props.story.blindspot_score ?? props.story.blindspot?.score,
+        }).valueLabel}`) : null,
       ]),
-      props.showBlindspot && props.story.blindspot?.reasons?.length
-        ? h('small', { class: 'blind-reason' }, props.story.blindspot.reasons.slice(0, 2).join(' / '))
+      props.showBlindspot
+        ? h('small', { class: 'blind-reason' }, '证据定位不可用；不代表事实准确率、来源可靠性或风险事实')
         : null,
     ])
   },
@@ -227,20 +273,6 @@ function familyLabel(value) {
   return labels[value] || String(value || '全球').replaceAll('_', ' / ')
 }
 
-function biasLabel(value) {
-  const text = String(value || 'unknown').replaceAll('_', ' / ')
-  return text === 'unknown' ? '未评级' : text
-}
-
-function credibilityLabel(value) {
-  const labels = { high: '高可信', medium: '中等可信', low: '低可信', unknown: '可信度未知' }
-  return labels[value] || biasLabel(value)
-}
-
-function qualityLabel(value) {
-  const labels = { strong: '强关联', usable: '可用', weak: '弱关联' }
-  return labels[value] || biasLabel(value)
-}
 </script>
 
 <style scoped>
@@ -453,5 +485,19 @@ function qualityLabel(value) {
   .feed-layout {
     grid-template-columns: 1fr;
   }
+}
+
+.ground-feed .back-link,
+.ground-feed .story-card,
+.ground-feed .source-card,
+.ground-feed .timeline-card {
+  box-sizing: border-box;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.ground-feed .back-link {
+  display: inline-flex;
+  align-items: center;
 }
 </style>

@@ -36,14 +36,14 @@ const commonSteps = [
   },
   {
     chapter: '发现', route: '/data-service/ground-news', selector: '[data-tour="ground-news-overview"]',
-    eyebrow: '全球新闻观察台 · 总览', title: '先判断今天有哪些事件值得关注',
-    description: '事件首页按时间和多源覆盖展示国际焦点，顶部同时给出故事卡、新闻量和最近有效日期。',
-    tips: ['优先查看多源事件', '注意快照更新日期', '刷新当前快照不会改变你的筛选偏好'],
+    eyebrow: '全球新闻观察台 · 总览', title: '先判断已收录事件中哪些值得关注',
+    description: '事件首页按已收录时间和多源覆盖展示国际焦点，顶部同时给出故事卡、新闻量和最近有效日期。',
+    tips: ['优先查看多源事件', '注意数据最新日期', '刷新事件流不会改变你的筛选偏好'],
   },
   {
     chapter: '发现', route: '/data-service/ground-news', selector: '[data-tour="ground-news-edition"]',
     eyebrow: '全球新闻观察台 · 新闻版面', title: '从快讯、多源报道和走势链交叉判断',
-    description: '快照快讯回答“发生了什么”，本周多源帮助比较报道覆盖，L2 走势链用于理解连续演变。',
+    description: '快讯列表用于查看已收录事件，多源版面帮助比较报道覆盖，L2 走势链用于理解连续演变。',
     tips: ['先看来源数量而不是只看标题', '打开事件后继续核对原始报道'],
   },
   {
@@ -198,9 +198,9 @@ const memberSteps = [
   },
   {
     chapter: '账户', route: '/user-center/personal-center', selector: '[data-tour="account-settings"]',
-    eyebrow: '个人中心 · 账户设置', title: '管理资料、模型配置与助手记忆',
-    description: '个人中心包含基本资料、密码、API 配置和助手长期记忆。教程入口固定在左侧栏底部。',
-    tips: ['API 密钥不会在页面回显', '可随时点击“重看新手教程”'],
+    eyebrow: '个人中心 · 账户设置', title: '管理资料、模型、记忆与显示偏好',
+    description: '个人中心包含基本资料、密码、API 配置、助手记忆和全站显示设置。教程入口固定在左侧栏底部。',
+    tips: ['API 密钥不会在页面回显', '显示设置会在当前浏览器自动保存'],
   },
   {
     chapter: '完成', route: '/user-center/personal-center', selector: '[data-tour="account-guide-entry"]', placement: 'right',

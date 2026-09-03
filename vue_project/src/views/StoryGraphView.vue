@@ -11,10 +11,22 @@
 
       <div class="intel-topbar__meta">
         <div class="intel-mode-switch" data-tour="story-level-switch" role="tablist" aria-label="图谱层级">
-          <button :class="{ 'is-active': graphMode === 'l3' }" @click="switchGraphMode('l3')">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="graphMode === 'l3'"
+            :class="{ 'is-active': graphMode === 'l3' }"
+            @click="switchGraphMode('l3')"
+          >
             L3 大事件
           </button>
-          <button :class="{ 'is-active': graphMode === 'l2' }" @click="switchGraphMode('l2')">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="graphMode === 'l2'"
+            :class="{ 'is-active': graphMode === 'l2' }"
+            @click="switchGraphMode('l2')"
+          >
             L2 走势链
           </button>
         </div>
@@ -25,13 +37,13 @@
         <span class="intel-badge intel-badge--soft" v-if="storyStatsText">
           {{ storyStatsText }}
         </span>
-        <button class="intel-btn intel-btn--ghost" :disabled="!graph" @click="fitCanvas">
+        <button type="button" class="intel-btn intel-btn--ghost" :disabled="!graph" @click="fitCanvas">
           适配视图
         </button>
-        <button class="intel-btn intel-btn--ghost" :disabled="!graph" @click="toggleContextLinks">
+        <button type="button" class="intel-btn intel-btn--ghost" :disabled="!graph" @click="toggleContextLinks">
           {{ showContextLinks ? '隐藏关联线' : '显示关联线' }}
         </button>
-        <button class="intel-btn intel-btn--assistant intel-topbar__assistant" @click="openStoryAssistantDrawer()">
+        <button type="button" class="intel-btn intel-btn--assistant intel-topbar__assistant" @click="openStoryAssistantDrawer()">
           数据助手
         </button>
       </div>
@@ -50,19 +62,30 @@
               <span class="intel-panel__eyebrow">{{ graphModeLabel }} 导航</span>
               <h2>{{ libraryTitle }}</h2>
             </div>
-            <button class="intel-icon-btn" @click="leftCollapsed = true" title="收起导航">
+            <button type="button" class="intel-icon-btn" @click="leftCollapsed = true" title="收起导航">
               <span>⟨</span>
             </button>
           </div>
 
           <section class="intel-section">
-            <label class="intel-label">{{ searchLabel }}</label>
+            <label class="intel-label" for="story-graph-query">{{ searchLabel }}</label>
             <input
+              id="story-graph-query"
               v-model.trim="storySearch"
               class="intel-input"
               type="text"
               :placeholder="searchPlaceholder"
+              aria-describedby="story-graph-query-status"
             />
+            <p
+              id="story-graph-query-status"
+              class="intel-query-status"
+              :class="{ 'is-empty': storySearch && !filteredStories.length }"
+              role="status"
+              aria-live="polite"
+            >
+              {{ libraryQueryMessage }}
+            </p>
           </section>
 
           <section class="intel-section intel-section--library">
@@ -74,6 +97,7 @@
               <button
                 v-for="story in filteredStories"
                 :key="story.id"
+                type="button"
                 class="intel-story-card"
                 :class="{ 'is-active': String(story.id) === selectedStoryId }"
                 @click="selectStory(story.id)"
@@ -89,7 +113,7 @@
                 <strong>{{ displayStoryTitle(story) }}</strong>
                 <small>{{ storyResearchLine(story) }}</small>
                 <div class="intel-story-card__signals">
-                  <span>{{ researchValueScore(story) }}</span>
+                  <span>{{ storyResearchMetric(story).valueLabel }}</span>
                   <span>{{ evidenceLevel(story.article_count) }}</span>
                   <span>{{ formatRange(story.start_date, story.end_date) }}</span>
                 </div>
@@ -122,7 +146,7 @@
                     ? `${graphMetrics.mainNodes} 个 L2 节点`
                     : `${graphMetrics.mainNodes} 个走势节点`
                 }}</span>
-                <span class="intel-chip">{{ currentStory.meta?.article_count || 0 }} 条新闻</span>
+                <span class="intel-chip">{{ evidenceLevel(currentStory.meta?.article_count) }}</span>
               </div>
             </div>
           </section>
@@ -136,6 +160,7 @@
               <button
                 v-for="item in branchStories"
                 :key="item.story_id"
+                type="button"
                 class="intel-related-card"
                 @click="selectStory(item.story_id)"
               >
@@ -154,6 +179,7 @@
       <main class="intel-canvas-panel" data-tour="story-canvas">
         <button
           v-if="leftCollapsed"
+          type="button"
           class="intel-side-toggle intel-side-toggle--left"
           @click="leftCollapsed = false"
           title="打开导航"
@@ -174,22 +200,72 @@
           </div>
         </div>
 
-        <div ref="graphContainer" class="intel-canvas"></div>
+        <p
+          v-if="currentStory && samplingNotice"
+          class="intel-sampling-notice"
+          role="status"
+          aria-live="polite"
+        >
+          {{ samplingNotice }}
+        </p>
 
-        <div v-if="loading" class="intel-overlay">
+        <p id="story-graph-keyboard-help" class="intel-sr-only">
+          图谱节点和关系可用 Tab 聚焦，并用 Enter 或空格选择。也可展开键盘与列表视图逐项浏览。
+        </p>
+        <div
+          ref="graphContainer"
+          class="intel-canvas"
+          role="region"
+          aria-label="事件故事关系图"
+          aria-describedby="story-graph-keyboard-help"
+        ></div>
+
+        <details v-if="currentStory" class="intel-accessible-list">
+          <summary>
+            <span>键盘与列表视图</span>
+            <strong>{{ accessibleGraphList.nodes.length }} 节点 · {{ accessibleGraphList.edges.length }} 关系</strong>
+          </summary>
+          <div class="intel-accessible-list__body">
+            <p>列表与画布使用同一图谱数据；选择一项会打开相同的结构化焦点面板。</p>
+            <section aria-labelledby="story-graph-node-list-title">
+              <h2 id="story-graph-node-list-title">节点</h2>
+              <ul>
+                <li v-for="item in accessibleGraphList.nodes" :key="`accessible-node-${item.id}`">
+                  <button type="button" @click="selectInspector(item.payload)">
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ item.meta }}</small>
+                  </button>
+                </li>
+              </ul>
+            </section>
+            <section v-if="accessibleGraphList.edges.length" aria-labelledby="story-graph-edge-list-title">
+              <h2 id="story-graph-edge-list-title">关系</h2>
+              <ul>
+                <li v-for="item in accessibleGraphList.edges" :key="`accessible-edge-${item.id}`">
+                  <button type="button" @click="selectInspector(item.payload)">
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ item.meta }}</small>
+                  </button>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </details>
+
+        <div v-if="loading" class="intel-overlay" role="status" aria-live="polite">
           <div class="intel-spinner"></div>
           <span>正在加载{{ graphMode === 'l3' ? ' L3 大事件图谱' : ' L2 走势工作台' }}...</span>
         </div>
 
-        <div v-else-if="error" class="intel-overlay intel-overlay--error">
+        <div v-else-if="error" class="intel-overlay intel-overlay--error" role="alert">
           <strong>走势图谱加载失败</strong>
           <p>{{ error }}</p>
-          <button class="intel-btn" @click="reloadCurrentStory">重试</button>
+          <button type="button" class="intel-btn" @click="reloadCurrentStory">重试</button>
         </div>
 
         <div v-else-if="!currentStory" class="intel-overlay intel-overlay--quiet">
-          <strong>请选择{{ graphMode === 'l3' ? '一个大事件' : '一条走势链' }}</strong>
-          <p>{{ emptyHint }}</p>
+          <strong>{{ queryStatusTitle }}</strong>
+          <p :role="queryStatus.role" aria-live="polite">{{ queryStatus.message }}</p>
         </div>
 
         <div class="intel-footerbar" v-if="currentStory">
@@ -207,7 +283,7 @@
               ><i class="legend-swatch legend-swatch--branch"></i
               >{{ graphMode === 'l3' ? '角度支线' : '关联分支' }}</span
             >
-            <span><i class="legend-swatch legend-swatch--context"></i>影响关系</span>
+            <span><i class="legend-swatch legend-swatch--context"></i>关系假设</span>
           </div>
         </div>
 
@@ -221,7 +297,7 @@
                 <h3>{{ selectedInspectorTitle }}</h3>
                 <p>{{ selectedInspectorSubtitle }}</p>
               </div>
-              <button class="intel-icon-btn" title="关闭详情" @click="closeFocusPanel">
+              <button type="button" class="intel-icon-btn" title="关闭详情" @click="closeFocusPanel">
                 <span>×</span>
               </button>
             </header>
@@ -242,14 +318,46 @@
                 <strong>{{ focusResearchValueText }}</strong>
               </div>
               <div>
-                <label>证据</label>
+                <label>报道覆盖</label>
                 <strong>{{ focusEvidenceText }}</strong>
               </div>
             </div>
 
+            <details class="intel-metric-explanation">
+              <summary>展开指标公式、输入和证据</summary>
+              <dl>
+                <div>
+                  <dt>指标</dt>
+                  <dd>{{ focusMetricExplanation.label }} · {{ focusMetricExplanation.valueLabel }}</dd>
+                </div>
+                <div>
+                  <dt>方法版本</dt>
+                  <dd>{{ focusMetricExplanation.method_version || '未建立' }}</dd>
+                </div>
+                <div>
+                  <dt>公式</dt>
+                  <dd>{{ focusMetricExplanation.formula }}</dd>
+                </div>
+                <div>
+                  <dt>证据定位</dt>
+                  <dd>{{ focusMetricExplanation.evidence.locator || '不可用' }}</dd>
+                </div>
+                <div>
+                  <dt>状态</dt>
+                  <dd>{{ focusMetricExplanation.reason_code }} · 不可用于事实或排序</dd>
+                </div>
+              </dl>
+              <ul>
+                <li v-for="input in focusMetricExplanation.inputs" :key="input.field">
+                  <code>{{ input.field }}</code>：{{ input.state === 'provided_unverified' ? `已提供但未核验（${input.value}）` : '不可用' }}
+                </li>
+              </ul>
+            </details>
+
             <div class="intel-focus-sheet__actions">
               <button
                 v-if="selectedInspector.kind === 'l3-chain' && selectedInspector.l2ChainId"
+                type="button"
                 class="intel-btn"
                 @click="openL2Chain(selectedInspector.l2ChainId)"
               >
@@ -262,7 +370,7 @@
               >
                 打开 Story Page
               </RouterLink>
-              <button class="intel-btn intel-btn--assistant" @click="openStoryAssistantDrawer(focusAssistantQuestion)">
+              <button type="button" class="intel-btn intel-btn--assistant" @click="openStoryAssistantDrawer(focusAssistantQuestion)">
                 让助手研判
               </button>
             </div>
@@ -305,17 +413,27 @@
               </div>
               <div v-if="evidenceLoading" class="intel-evidence-loading">正在加载新闻证据...</div>
               <div v-else-if="focusEvidenceNews.length" class="intel-focus-news__list">
-                <a
-                  v-for="item in focusEvidenceNews"
-                  :key="item.news_id"
-                  class="intel-focus-news__item"
-                  :href="item.url || '#'"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  <small>{{ evidenceNewsMeta(item) }}</small>
-                  <strong>{{ item.title || `新闻 ${item.news_id}` }}</strong>
-                </a>
+                <template v-for="item in focusEvidenceNews" :key="item.news_id">
+                  <a
+                    v-if="item.safe_url"
+                    class="intel-focus-news__item"
+                    :href="item.safe_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <small>{{ evidenceNewsMeta(item) }}</small>
+                    <strong>{{ item.title || `新闻 ${item.news_id}` }}</strong>
+                  </a>
+                  <div
+                    v-else
+                    class="intel-focus-news__item is-unavailable"
+                    aria-disabled="true"
+                    title="原文链接不可用"
+                  >
+                    <small>{{ evidenceNewsMeta(item) }}</small>
+                    <strong>{{ item.title || `新闻 ${item.news_id}` }}</strong>
+                  </div>
+                </template>
               </div>
               <div v-else class="intel-evidence-empty">
                 {{ focusEmptyText }}
@@ -354,23 +472,33 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { getCurrentUser, getToken } from '@/utils/auth'
+import { safeExternalHttpUrl } from '@/utils/externalUrl.js'
+import {
+  graphMetricExplanation,
+  graphMetricPresentation,
+} from '@/governance/graphMetrics.js'
 import {
   L2_RUN_ID as l2RunId,
   L3_RUN_ID as l3RunId,
   angleLabel,
+  buildStoryGraphAccessibleList,
   buildGraphMetrics,
   buildStoryGraphEvidenceParams,
+  buildStoryGraphQueryStatus,
   buildStoryStatsText,
   buildStorySummaryLine,
   cleanStoryTitle,
+  createLatestRequestGate,
   edgeLabel,
   evidenceLevel,
   familyLabel,
   filterStorySummaries,
   focusKindLabel,
   formatActorPair,
+  formatCountLabel,
   formatNewsDate,
   formatRange,
+  graphSamplingNotice,
   getFallbackStoryTitle,
   getSummaryCountLabel,
   hasStoryGraphEvidenceTarget,
@@ -380,7 +508,9 @@ import {
   normalizeL3MacroSummary,
   relationEvidenceText,
   relationLabel,
+  relationResearchGuidance,
   relationStrengthLabel,
+  reportingCoverageGuidance,
   researchValueLabel,
   researchValueScore,
   sortRelatedStories,
@@ -402,8 +532,11 @@ const stories = ref([])
 const storySearch = ref('')
 const selectedStoryId = ref('')
 const currentStory = ref(null)
-const loading = ref(false)
+const listLoading = ref(false)
+const workspaceLoading = ref(false)
+const loading = computed(() => listLoading.value || workspaceLoading.value)
 const error = ref('')
+const queryStatus = ref(buildStoryGraphQueryStatus('idle', { mode: graphMode.value }))
 const leftCollapsed = ref(false)
 const showContextLinks = ref(true)
 const agentMessages = ref([])
@@ -424,11 +557,15 @@ const graph = shallowRef(null)
 let reactFlowFactoryPromise = null
 
 let resizeObserver = null
+let listAbortController = null
 let storyAbortController = null
 let clusterAbortController = null
 let messageId = 0
 let resizeFitTimer = null
 let assistantFabDrag = null
+const listRequestGate = createLatestRequestGate()
+const workspaceRequestGate = createLatestRequestGate()
+const evidenceRequestGate = createLatestRequestGate()
 
 const activeRunId = computed(() => (graphMode.value === 'l3' ? l3RunId : l2RunId))
 const graphModeLabel = computed(() => (graphMode.value === 'l3' ? 'L3' : 'L2'))
@@ -437,7 +574,7 @@ const pageTitle = computed(() =>
 )
 const pageSubtitle = computed(() =>
   graphMode.value === 'l3'
-    ? '从 L2 micro-chain 聚合超级大事件 · 观察主线、支线、角度和影响关系'
+    ? '从 L2 micro-chain 聚合大事件 · 观察主线、支线、角度和待核验关系假设'
     : '从 L1.5 切面进入 L2 走势链 · 追踪阶段节点、关系强度和演化路径',
 )
 const libraryTitle = computed(() => (graphMode.value === 'l3' ? '大事件库' : '走势链库'))
@@ -448,42 +585,81 @@ const searchPlaceholder = computed(() =>
     ? '输入国家、战争、冲突、贸易或宏观议题...'
     : '输入国家、主体、议题或链标题...',
 )
-const emptyHint = computed(() =>
-  graphMode.value === 'l3'
-    ? '从左侧 L3 大事件库选择一个宏观事件，打开 L2 支线和影响关系。'
-    : '从左侧 L2 走势库选择一条链，打开阶段节点和关系图。',
-)
 const filteredStories = computed(() =>
   sortStorySummariesByResearchValue(filterStorySummaries(stories.value, storySearch.value)),
 )
+const libraryQueryMessage = computed(() => {
+  const query = String(storySearch.value || '').trim()
+  if (query && !filteredStories.value.length) {
+    return buildStoryGraphQueryStatus('search-empty', {
+      mode: graphMode.value,
+      query,
+    }).message
+  }
+  if (query) return `当前查询“${query}”匹配 ${filteredStories.value.length} 条。`
+  return `当前批次共 ${stories.value.length} 条。`
+})
+const queryStatusTitle = computed(() => ({
+  error: '当前查询失败',
+  'list-empty': '当前批次暂无结果',
+  'workspace-empty': '所选结果暂无图谱节点',
+  'search-empty': '当前查询无结果',
+  'list-loading': '正在加载事件库',
+  'workspace-loading': '正在加载图谱',
+  'selection-required': '请选择当前查询结果',
+}[queryStatus.value.kind] || `请选择${graphMode.value === 'l3' ? '一个大事件' : '一条走势链'}`))
 const branchStories = computed(() => sortRelatedStories(currentStory.value?.related_stories))
 const graphMetrics = computed(() => buildGraphMetrics(currentStory.value, branchStories.value))
+const accessibleGraphList = computed(() => buildStoryGraphAccessibleList(currentStory.value, {
+  includeContext: showContextLinks.value,
+}))
 const storyStatsText = computed(() =>
   buildStoryStatsText(currentStory.value, graphMetrics.value, branchStories.value),
 )
+const samplingNotice = computed(() => graphSamplingNotice(currentStory.value))
 const currentResearchSignals = computed(() => {
   const story = currentStory.value
   if (!story) return []
-  const score = researchValueScore({
+  const metric = storyResearchMetric({
     ...story,
     article_count: story.meta?.article_count,
     segment_count: story.meta?.segment_count,
     l2_chain_count: story.meta?.l2_chain_count,
     quality_score: story.meta?.quality_score,
   })
+  const visibleNodes = Number.isInteger(story.meta?.visible_node_count)
+    ? story.meta.visible_node_count
+    : graphMetrics.value.mainNodes
+  const totalNodes = Number.isInteger(story.meta?.total_node_count)
+    ? story.meta.total_node_count
+    : null
   return [
-    { label: '研究价值', value: `${score} · ${researchValueLabel(score)}` },
-    { label: '证据规模', value: evidenceLevel(story.meta?.article_count || 0) },
+    { label: '研究价值', value: `${metric.valueLabel} · 公式/输入/证据未形成可发布合同` },
+    { label: '报道规模', value: evidenceLevel(story.meta?.article_count) },
     {
       label: '结构覆盖',
-      value:
-        graphMode.value === 'l3'
-          ? `${story.meta?.visible_node_count || graphMetrics.value.mainNodes}/${story.meta?.total_node_count || graphMetrics.value.mainNodes} L2`
-          : `${story.meta?.segment_count || graphMetrics.value.mainNodes} 节点`,
+      value: totalNodes === null
+        ? `${visibleNodes} 个已加载节点 / 候选总数未知`
+        : `${visibleNodes}/${totalNodes} 个候选节点（非完整图）`,
     },
     { label: '运行批次', value: story.meta?.run_id || activeRunId.value },
   ]
 })
+
+function storyResearchMetric(item = {}) {
+  const meta = item.meta || {}
+  return graphMetricPresentation('story_graph.research_value', {
+    value: item.research_value,
+    method_card: item.research_value_method_card,
+    evidence_locator: item.research_value_evidence_locator,
+    inputs: {
+      article_count: item.article_count ?? item.articleCount ?? meta.article_count,
+      segment_count: item.segment_count ?? item.segmentCount ?? meta.segment_count,
+      l2_chain_count: item.l2_chain_count ?? item.cluster_count ?? meta.l2_chain_count,
+      quality_score: item.quality_score ?? item.importance_score ?? meta.quality_score,
+    },
+  })
+}
 const assistantFabStyle = computed(() => {
   const position = assistantFabPosition.value
   if (!position) return {}
@@ -501,7 +677,7 @@ const storyGraphAssistantSkill = computed(() => {
   return {
     page: '事件故事脉络',
     path: '/data-service/story-graph',
-    summary: `${story.story_title || story.story_id || '当前故事图谱'}；节点 ${(story.nodes || []).length} 个，关系边 ${(story.edges || []).length} 条，当前焦点 ${focus}。`,
+    summary: `${story.story_title || story.story_id || '当前故事图谱'}；节点 ${(story.nodes || []).length} 个，关系边 ${(story.edges || []).length} 条；${samplingNotice.value || '抽样范围未知，不得视为完整图。'}当前焦点 ${focus}。`,
     access: [
       '数据服务 > 事件故事脉络',
       '数据搜索页的 L2/L3 结果可进入故事图谱',
@@ -521,7 +697,7 @@ const storyGraphAssistantSkill = computed(() => {
       '进入 L2 链详情',
     ],
     aiActions: [
-      '解释当前图谱主线和影响关系',
+      '解释当前图谱主线和待核验关系假设',
       '基于焦点节点/关系边指出证据缺口',
       '生成后续核验问题和报告提纲',
     ],
@@ -564,22 +740,34 @@ const selectedInspectorChips = computed(() => {
   if (selectedInspector.value.kind === 'l2-segment') {
     return [
       angleLabel(selectedInspector.value.storyAngle || selectedInspector.value.eventType),
-      `${selectedInspector.value.articleCount || 0} 条新闻`,
+      formatCountLabel(selectedInspector.value.articleCount, {
+        unit: '条新闻',
+        unknown: '新闻数未知',
+      }),
       formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate),
     ].filter(Boolean)
   }
   if (selectedInspector.value.kind === 'l3-chain') {
     return [
       familyLabel(selectedInspector.value.lane || selectedInspector.value.eventType),
-      `${selectedInspector.value.segmentCount || 0} 个 L1.5 片段`,
-      `${selectedInspector.value.articleCount || 0} 条新闻`,
+      formatCountLabel(selectedInspector.value.segmentCount, {
+        unit: '个 L1.5 片段',
+        unknown: 'L1.5 片段数未知',
+      }),
+      formatCountLabel(selectedInspector.value.articleCount, {
+        unit: '条新闻',
+        unknown: '新闻数未知',
+      }),
       formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate),
     ].filter(Boolean)
   }
   if (selectedInspector.value.kind === 'cluster') {
     return [
       angleLabel(selectedInspector.value.eventType) || '未知类型',
-      `${selectedInspector.value.articleCount || 0} 条新闻`,
+      formatCountLabel(selectedInspector.value.articleCount, {
+        unit: '条新闻',
+        unknown: '新闻数未知',
+      }),
       formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate),
     ].filter(Boolean)
   }
@@ -587,16 +775,18 @@ const selectedInspectorChips = computed(() => {
     return [
       selectedInspector.value.relation?.layer || '关联',
       relationLabel(selectedInspector.value.relation),
-      `${selectedInspector.value.nodeCount || 0} 个节点`,
+      selectedInspector.value.nodeCount == null
+        ? '节点数未知'
+        : `${selectedInspector.value.nodeCount} 个节点`,
     ].filter(Boolean)
   }
   if (selectedInspector.value.kind === 'edge') {
     return [
       edgeLabel(selectedInspector.value.edgeType),
       selectedInspector.value.layer || 'story',
-      selectedInspector.value.weight
-        ? `权重 ${Number(selectedInspector.value.weight).toFixed(2)}`
-        : '',
+      graphMetricPresentation('story_graph.edge_weight', {
+        value: selectedInspector.value.weight,
+      }).valueLabel,
     ].filter(Boolean)
   }
   return [
@@ -610,16 +800,17 @@ const selectedEvidenceNews = computed(() => {
   return Array.isArray(selectedClusterDetail.value?.news) ? selectedClusterDetail.value.news : []
 })
 
-const focusEvidenceNews = computed(() => selectedEvidenceNews.value.slice(0, 8))
+const focusEvidenceNews = computed(() => selectedEvidenceNews.value.slice(0, 8).map((item) => ({
+  ...item,
+  safe_url: safeExternalHttpUrl(item.url),
+})))
 
 const focusArticleCount = computed(() => {
-  return (
-    selectedClusterDetail.value?.article_count ||
-    selectedClusterDetail.value?.articleCount ||
-    selectedInspector.value?.articleCount ||
-    selectedInspector.value?.segmentCount ||
-    0
-  )
+  return selectedClusterDetail.value?.article_count
+    ?? selectedClusterDetail.value?.articleCount
+    ?? selectedInspector.value?.articleCount
+    ?? selectedInspector.value?.segmentCount
+    ?? null
 })
 
 const focusResearchScore = computed(() => {
@@ -627,9 +818,9 @@ const focusResearchScore = computed(() => {
   if (!item) return 0
   return researchValueScore({
     ...item,
-    article_count: focusArticleCount.value || item.article_count || item.articleCount,
-    segment_count: item.segment_count || item.segmentCount,
-    quality_score: item.quality_score || item.importanceScore || currentStory.value?.meta?.quality_score,
+    article_count: focusArticleCount.value ?? item.article_count ?? item.articleCount,
+    segment_count: item.segment_count ?? item.segmentCount,
+    quality_score: item.quality_score ?? item.importanceScore ?? currentStory.value?.meta?.quality_score,
     start_date: item.start_date || item.startDate,
     end_date: item.end_date || item.endDate,
   })
@@ -637,7 +828,34 @@ const focusResearchScore = computed(() => {
 
 const focusResearchValueText = computed(() => {
   if (selectedInspector.value?.kind === 'edge') return relationStrengthLabel(selectedInspector.value)
-  return `${focusResearchScore.value} · ${researchValueLabel(focusResearchScore.value)}`
+  return `${graphMetricPresentation('story_graph.research_value', {
+    value: focusResearchScore.value,
+  }).valueLabel} · ${researchValueLabel(focusResearchScore.value)}`
+})
+
+const focusMetricExplanation = computed(() => {
+  const item = selectedInspector.value || currentStory.value || {}
+  if (selectedInspector.value?.kind === 'edge') {
+    return graphMetricExplanation('story_graph.relation_strength', {
+      inputs: {
+        edge_weight: item.weight ?? item.edge_weight,
+        shared_actor_count: item.sharedActorCount ?? item.shared_actor_count,
+        shared_topic_count: item.sharedTopicCount ?? item.shared_topic_count,
+        relation_reason: item.relationReason ?? item.relation_reason,
+      },
+    })
+  }
+  const meta = item.meta || currentStory.value?.meta || {}
+  return graphMetricExplanation('story_graph.research_value', {
+    inputs: {
+      article_count: focusArticleCount.value ?? item.article_count ?? item.articleCount,
+      segment_count: item.segment_count ?? item.segmentCount ?? meta.segment_count,
+      l2_chain_count: item.l2_chain_count ?? item.cluster_count ?? meta.l2_chain_count,
+      quality_score: item.quality_score ?? item.importanceScore ?? meta.quality_score,
+      actor_count: Object.keys(meta.actor_counts || {}).length,
+      topic_count: Object.keys(meta.topic_counts || {}).length,
+    },
+  })
 })
 
 const focusEvidenceText = computed(() => {
@@ -668,7 +886,7 @@ const focusEmptyText = computed(() => {
     return '该节点是一条 L2 支线，可打开 L2 查看内部阶段和原文证据。'
   }
   if (selectedInspector.value?.kind === 'edge') {
-    return selectedInspector.value.relationReason || '该关系边表达两个节点之间的推进或影响关系。'
+    return relationEvidenceText(selectedInspector.value)
   }
   return '当前焦点暂无可展示的新闻证据。'
 })
@@ -687,13 +905,16 @@ const focusDetailRows = computed(() => {
     ['时间范围', focusTimeRange.value],
     ['分类角度', focusPrimaryType.value],
     ['研究价值', focusResearchValueText.value],
-    ['证据等级', focusEvidenceText.value],
+    ['报道量状态', focusEvidenceText.value],
   ]
 
   if (item.kind === 'l3-chain') {
     rows.push(
       ['L2 链 ID', item.l2ChainId],
-      ['片段规模', `${item.segmentCount || 0} 个 L1.5 片段`],
+      ['片段规模', formatCountLabel(item.segmentCount, {
+        unit: '个 L1.5 片段',
+        unknown: 'L1.5 片段数未知',
+      })],
       ['取证方式', '打开 L2 后查看阶段证据'],
     )
   } else if (item.kind === 'l2-segment') {
@@ -704,6 +925,10 @@ const focusDetailRows = computed(() => {
     rows.push(
       ['起点', findStoryNodeTitle(item.sourceId)],
       ['终点', findStoryNodeTitle(item.targetId)],
+      ['主张 ID', item.claimId || '不可用（旧载荷）'],
+      ['引用定位', item.citationLocator || '不可用'],
+      ['未知门禁', item.unknownGate || 'explicit_unknown'],
+      ['原因码', item.reasonCode || 'GRAPH_RELATION_CLAIM_CONTRACT_MISSING'],
       ['关系强度', relationStrengthLabel(item)],
       ['判定依据', relationEvidenceText(item)],
     )
@@ -721,10 +946,10 @@ const focusInsightText = computed(() => {
     return `该边表示“${edgeLabel(item.edgeType)}”。${relationEvidenceText(item)}；作为研究证据时应优先核验两端节点的原文、日期先后和共同主体，避免把单纯时间重叠解读为因果。`
   }
   if (item.kind === 'l3-chain') {
-    return `该支线承担“${familyLabel(item.lane || item.eventType)}”角色，聚合 ${item.segmentCount || 0} 个片段和 ${item.articleCount || 0} 条新闻。它适合作为 L3 事件中的独立研究子样本，但直接取证需要进入 L2。`
+    return `该支线承担“${familyLabel(item.lane || item.eventType)}”角色，当前显示${formatCountLabel(item.segmentCount, { unit: '个片段', unknown: '片段数未知' })}和${formatCountLabel(item.articleCount, { unit: '条新闻', unknown: '新闻数未知' })}。它可作为待核验研究子样本，但直接取证需要进入 L2。`
   }
   if (item.kind === 'l2-segment') {
-    return `该节点来自 L1 事件聚类，当前聚合 ${item.articleCount || 0} 条新闻；适合核验其时间位置、主体关系、来源分布，以及是否构成走势拐点。`
+    return `该节点来自 L1 事件聚类，当前${formatCountLabel(item.articleCount, { unit: '条新闻', unknown: '新闻数未知' })}；适合核验其时间位置、主体关系、来源分布，以及是否构成走势拐点。`
   }
   if (item.kind === 'cluster') {
     return buildStorySummaryLine(selectedClusterDetail.value || item) || selectedInspectorSubtitle.value
@@ -736,13 +961,7 @@ const focusResearchActions = computed(() => {
   const item = selectedInspector.value
   if (!item) return []
   if (item.kind === 'edge') {
-    return [
-      '先比较起点和终点的发布时间，确认方向是否成立。',
-      '检查共同主体、共同议题和原文来源，区分相关性与因果性。',
-      relationStrengthLabel(item) === '弱解释关系'
-        ? '该边解释较弱，暂时作为待核验假设使用。'
-        : '该边可进入报告草稿，但需要保留依据字段。',
-    ]
+    return relationResearchGuidance(item)
   }
   if (item.kind === 'l3-chain') {
     return [
@@ -755,24 +974,26 @@ const focusResearchActions = computed(() => {
     return [
       '优先打开相关新闻，核验标题、来源和发布时间。',
       '检查该节点前后相邻节点，判断它是否是拐点或只是并行报道。',
-      focusArticleCount.value < 5
-        ? '当前证据量偏少，作为线索使用，不宜直接下结论。'
-        : '证据量可用，可进一步做来源交叉核查。',
+      reportingCoverageGuidance(focusArticleCount.value),
     ]
   }
   return [
-    '先看研究价值和证据等级，再决定是否下钻。',
+    '先看研究价值和未核验报道覆盖，再决定是否下钻。',
     '保留 run_id、时间范围和节点 ID，便于复现。',
   ]
 })
 
 const focusAssistantQuestion = computed(() => {
-  return `请基于当前焦点「${selectedInspectorTitle.value}」做结构化研判：解释其在整张图谱中的位置、与相邻节点/关系的影响方向、证据强弱、仍需核验的问题和下一步观察清单。`
+  return `请基于当前焦点「${selectedInspectorTitle.value}」做结构化研判：解释其在整张图谱中的位置、与相邻节点的候选关系方向、证据强弱、仍需核验的问题和下一步观察清单。`
 })
 
 watch(selectedStoryId, async (value) => {
   if (!value) return
   await loadStoryWorkspace(value)
+})
+
+watch(storySearch, () => {
+  handleStorySearchChange()
 })
 
 watch(showContextLinks, async () => {
@@ -789,8 +1010,12 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', clampAssistantFabPosition)
-  if (storyAbortController) storyAbortController.abort()
-  if (clusterAbortController) clusterAbortController.abort()
+  listRequestGate.invalidate()
+  workspaceRequestGate.invalidate()
+  evidenceRequestGate.invalidate()
+  listAbortController?.abort()
+  storyAbortController?.abort()
+  clusterAbortController?.abort()
   if (resizeFitTimer) window.clearTimeout(resizeFitTimer)
   resizeObserver?.disconnect()
   graph.value?.destroy()
@@ -802,45 +1027,120 @@ async function switchGraphMode(mode, preferredId = '') {
   if (graphMode.value !== mode) {
     graphMode.value = mode
     storySearch.value = ''
-    selectedStoryId.value = ''
-    currentStory.value = null
-    selectedInspector.value = null
-    selectedClusterDetail.value = null
-    focusPanelOpen.value = false
   }
   await loadStories(preferredId)
 }
 
 async function loadStories(preferredId = '') {
+  listAbortController?.abort()
+  listAbortController = new AbortController()
+  const requestToken = listRequestGate.begin()
+  const requestedMode = graphMode.value
+  listLoading.value = true
+  error.value = ''
+  stories.value = []
+  clearWorkspaceState({ clearSelection: true })
+  queryStatus.value = buildStoryGraphQueryStatus('list-loading', { mode: requestedMode })
+
   try {
-    const isL3 = graphMode.value === 'l3'
-    const payload = await storyGraphApi.listStories(graphMode.value)
-    stories.value = isL3
+    const isL3 = requestedMode === 'l3'
+    const payload = await storyGraphApi.listStories(requestedMode, {
+      signal: listAbortController.signal,
+    })
+    if (!listRequestGate.isCurrent(requestToken) || graphMode.value !== requestedMode) return
+
+    const nextStories = isL3
       ? (payload.macros || []).map(normalizeL3MacroSummary)
       : (payload.chains || []).map(normalizeL2ChainSummary)
+    stories.value = nextStories
+
+    if (!nextStories.length) {
+      queryStatus.value = buildStoryGraphQueryStatus('list-empty', { mode: requestedMode })
+      return
+    }
 
     const preferred = preferredId ? String(preferredId) : ''
     const nextId =
-      preferred && stories.value.some((story) => String(story.id) === preferred)
+      preferred && nextStories.some((story) => String(story.id) === preferred)
         ? preferred
-        : stories.value[0]?.id
+        : nextStories[0]?.id
     if (nextId) {
-      if (selectedStoryId.value === String(nextId)) {
-        await loadStoryWorkspace(String(nextId))
-      } else {
-        selectedStoryId.value = String(nextId)
-      }
+      queryStatus.value = buildStoryGraphQueryStatus('selection-required', {
+        count: nextStories.length,
+        mode: requestedMode,
+      })
+      selectedStoryId.value = String(nextId)
     }
   } catch (err) {
+    if (!listRequestGate.isCurrent(requestToken) || isCanceledRequest(err)) return
     stories.value = []
-    error.value =
-      err?.response?.data?.detail || err.message || `无法加载 ${graphModeLabel.value} 图谱列表。`
+    clearWorkspaceState({ clearSelection: true })
+    error.value = `无法加载 ${requestedMode === 'l3' ? 'L3' : 'L2'} 图谱列表，请稍后重试。`
+    queryStatus.value = buildStoryGraphQueryStatus('error', {
+      error: error.value,
+      mode: requestedMode,
+    })
+  } finally {
+    if (listRequestGate.isCurrent(requestToken)) {
+      listLoading.value = false
+      listAbortController = null
+    }
+  }
+}
+
+function handleStorySearchChange() {
+  if (listLoading.value) return
+  const query = String(storySearch.value || '').trim()
+  const matches = filteredStories.value
+
+  if (!query) {
+    if (!stories.value.length) {
+      clearWorkspaceState({ clearSelection: true })
+      queryStatus.value = buildStoryGraphQueryStatus('list-empty', { mode: graphMode.value })
+      return
+    }
+    if (!selectedStoryId.value) {
+      queryStatus.value = buildStoryGraphQueryStatus('selection-required', {
+        count: stories.value.length,
+        mode: graphMode.value,
+      })
+      selectedStoryId.value = String(stories.value[0].id)
+    }
+    return
+  }
+
+  if (!matches.length) {
+    clearWorkspaceState({ clearSelection: true })
+    error.value = ''
+    queryStatus.value = buildStoryGraphQueryStatus('search-empty', {
+      mode: graphMode.value,
+      query,
+    })
+    return
+  }
+
+  const selectedStillMatches = matches.some(
+    (story) => String(story.id) === selectedStoryId.value,
+  )
+  if (!selectedStillMatches) {
+    clearWorkspaceState({ clearSelection: true })
+    error.value = ''
+    queryStatus.value = buildStoryGraphQueryStatus('selection-required', {
+      count: matches.length,
+      mode: graphMode.value,
+      query,
+    })
   }
 }
 
 function selectStory(storyId) {
   focusPanelOpen.value = false
-  selectedStoryId.value = String(storyId)
+  const nextStoryId = String(storyId)
+  if (selectedStoryId.value === nextStoryId && !currentStory.value) {
+    void loadStoryWorkspace(nextStoryId)
+    return
+  }
+  selectedStoryId.value = nextStoryId
 }
 
 async function reloadCurrentStory() {
@@ -849,38 +1149,100 @@ async function reloadCurrentStory() {
 }
 
 async function loadStoryWorkspace(storyId) {
-  if (storyAbortController) storyAbortController.abort()
+  storyAbortController?.abort()
   storyAbortController = new AbortController()
-  loading.value = true
+  const requestController = storyAbortController
+  const requestToken = workspaceRequestGate.begin()
+  const requestedMode = graphMode.value
+  const requestedStoryId = String(storyId)
+  workspaceLoading.value = true
   error.value = ''
-  selectedClusterDetail.value = null
-  selectedInspector.value = null
-  evidenceLoading.value = false
-  focusPanelOpen.value = false
-  resetAgentState()
+  clearWorkspacePresentation()
+  queryStatus.value = buildStoryGraphQueryStatus('workspace-loading', {
+    mode: requestedMode,
+    storyId: requestedStoryId,
+  })
 
   try {
-    const isL3 = graphMode.value === 'l3'
-    const payload = await storyGraphApi.getWorkspace(graphMode.value, storyId, {
-      signal: storyAbortController.signal,
+    const isL3 = requestedMode === 'l3'
+    const payload = await storyGraphApi.getWorkspace(requestedMode, requestedStoryId, {
+      signal: requestController.signal,
     })
-    currentStory.value = isL3
+    if (
+      !workspaceRequestGate.isCurrent(requestToken)
+      || graphMode.value !== requestedMode
+      || selectedStoryId.value !== requestedStoryId
+    ) return
+
+    const nextStory = isL3
       ? transformL3MacroResponse(payload)
       : transformL2ChainResponse(payload)
-    selectedInspector.value = makeMainInspector(currentStory.value, graphMode.value)
-    await bootstrapStoryAssistantSession()
+    if (!Array.isArray(nextStory.nodes) || !nextStory.nodes.length) {
+      clearWorkspacePresentation()
+      queryStatus.value = buildStoryGraphQueryStatus('workspace-empty', {
+        mode: requestedMode,
+        storyId: requestedStoryId,
+      })
+      return
+    }
+    currentStory.value = nextStory
+    selectedInspector.value = makeMainInspector(nextStory, requestedMode)
+    await bootstrapStoryAssistantSession(requestToken, requestController.signal)
+    if (!workspaceRequestGate.isCurrent(requestToken) || currentStory.value !== nextStory) return
     await nextTick()
-    await renderWorkspaceGraph()
+    await renderWorkspaceGraph(requestToken, nextStory)
+    if (!workspaceRequestGate.isCurrent(requestToken) || currentStory.value !== nextStory) return
+    queryStatus.value = buildStoryGraphQueryStatus('ready', {
+      mode: requestedMode,
+      storyId: requestedStoryId,
+    })
   } catch (err) {
-    if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
-    currentStory.value = null
-    error.value =
-      err?.response?.data?.detail || err.message || `无法加载所选 ${graphModeLabel.value} 图谱。`
-    graph.value?.destroy()
-    graph.value = null
+    if (!workspaceRequestGate.isCurrent(requestToken) || isCanceledRequest(err)) return
+    clearWorkspacePresentation()
+    error.value = `无法加载所选 ${requestedMode === 'l3' ? 'L3' : 'L2'} 图谱，请稍后重试。`
+    queryStatus.value = buildStoryGraphQueryStatus('error', {
+      error: error.value,
+      mode: requestedMode,
+    })
   } finally {
-    loading.value = false
+    if (workspaceRequestGate.isCurrent(requestToken)) {
+      workspaceLoading.value = false
+      if (storyAbortController === requestController) storyAbortController = null
+    }
   }
+}
+
+function isCanceledRequest(errorValue) {
+  return errorValue?.name === 'AbortError'
+    || errorValue?.name === 'CanceledError'
+    || errorValue?.code === 'ERR_CANCELED'
+}
+
+function invalidateEvidenceRequest() {
+  evidenceRequestGate.invalidate()
+  clusterAbortController?.abort()
+  clusterAbortController = null
+  evidenceLoading.value = false
+  selectedClusterDetail.value = null
+}
+
+function clearWorkspacePresentation() {
+  invalidateEvidenceRequest()
+  currentStory.value = null
+  selectedInspector.value = null
+  focusPanelOpen.value = false
+  resetAgentState()
+  graph.value?.destroy()
+  graph.value = null
+}
+
+function clearWorkspaceState({ clearSelection = false } = {}) {
+  workspaceRequestGate.invalidate()
+  storyAbortController?.abort()
+  storyAbortController = null
+  workspaceLoading.value = false
+  if (clearSelection) selectedStoryId.value = ''
+  clearWorkspacePresentation()
 }
 
 function setupResizeObserver() {
@@ -913,7 +1275,10 @@ function storyResearchLine(story) {
   const parts = [
     familyLabel(story.family_group || story.event_type || story.meta?.dominant_type),
     getSummaryCountLabel(graphMode.value, story),
-    story.article_count || story.meta?.article_count ? `${story.article_count || story.meta?.article_count} 条新闻` : '',
+    formatCountLabel(story.article_count ?? story.meta?.article_count, {
+      unit: '条新闻',
+      unknown: '新闻数未知',
+    }),
   ].filter(Boolean)
   return parts.join(' · ')
 }
@@ -923,19 +1288,23 @@ function evidenceNewsMeta(item) {
   return `${source} · ${formatNewsDate(item)}`
 }
 
-async function renderWorkspaceGraph() {
-  if (!graphContainer.value || !currentStory.value) return
+async function renderWorkspaceGraph(requestToken = null, story = currentStory.value) {
+  if (!graphContainer.value || !story) return
   if (!reactFlowFactoryPromise) {
     reactFlowFactoryPromise = loadStoryGraphRenderer()
   }
   const createStoryGraphRenderer = await reactFlowFactoryPromise
+  if (
+    (requestToken !== null && !workspaceRequestGate.isCurrent(requestToken))
+    || currentStory.value !== story
+  ) return
 
   if (!graph.value) {
     graph.value = createStoryGraphRenderer(graphContainer.value)
   }
 
   graph.value.render({
-    storyGraph: currentStory.value,
+    storyGraph: story,
     showContextLinks: showContextLinks.value,
     onSelectInspector: selectInspector,
     onCanvasClick() {
@@ -947,6 +1316,7 @@ async function renderWorkspaceGraph() {
 }
 
 async function selectInspector(payload) {
+  if (selectedInspector.value === payload && focusPanelOpen.value) return
   selectedInspector.value = payload
   focusPanelOpen.value = payload.kind !== 'main-story'
 
@@ -956,43 +1326,52 @@ async function selectInspector(payload) {
   }
 
   if (payload.kind === 'edge') {
-    selectedClusterDetail.value = null
-    evidenceLoading.value = false
+    invalidateEvidenceRequest()
     return
   }
 
-  selectedClusterDetail.value = null
-  evidenceLoading.value = false
+  invalidateEvidenceRequest()
 }
 
 async function loadNodeEvidence(payload) {
-  selectedClusterDetail.value = payload
   const params = buildStoryGraphEvidenceParams(payload, {
     currentL2RunId: currentStory.value?.meta?.l2_run_id,
   })
 
   if (!hasStoryGraphEvidenceTarget(params)) {
-    evidenceLoading.value = false
+    invalidateEvidenceRequest()
+    selectedClusterDetail.value = payload
     return
   }
 
-  if (clusterAbortController) clusterAbortController.abort()
+  clusterAbortController?.abort()
   clusterAbortController = new AbortController()
+  const requestToken = evidenceRequestGate.begin()
+  const workspaceStory = currentStory.value
+  selectedClusterDetail.value = payload
   evidenceLoading.value = true
   try {
     const evidence = await storyGraphApi.getEvidence(params, {
       signal: clusterAbortController.signal,
     })
+    if (
+      !evidenceRequestGate.isCurrent(requestToken)
+      || currentStory.value !== workspaceStory
+      || selectedInspector.value !== payload
+    ) return
     selectedClusterDetail.value = {
       ...payload,
       ...evidence,
       news: evidence.news || [],
     }
   } catch (err) {
-    if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return
+    if (!evidenceRequestGate.isCurrent(requestToken) || isCanceledRequest(err)) return
     selectedClusterDetail.value = payload
   } finally {
-    evidenceLoading.value = false
+    if (evidenceRequestGate.isCurrent(requestToken)) {
+      evidenceLoading.value = false
+      clusterAbortController = null
+    }
   }
 }
 
@@ -1064,28 +1443,31 @@ function mapAssistantMessageRow(row) {
   }
 }
 
-async function loadAssistantSessionMessages(sessionId) {
+async function loadAssistantSessionMessages(sessionId, requestToken, signal) {
   const sid = String(sessionId || '').trim()
   if (!sid || !getToken()) return false
   try {
     const rows = await storyGraphApi.getAssistantSessionMessages(sid, {
       token: getToken(),
+      signal,
     })
+    if (!workspaceRequestGate.isCurrent(requestToken)) return null
     agentMessages.value = Array.isArray(rows) ? rows.map(mapAssistantMessageRow) : []
     return true
-  } catch {
+  } catch (err) {
+    if (!workspaceRequestGate.isCurrent(requestToken) || isCanceledRequest(err)) return null
     return false
   }
 }
 
-async function bootstrapStoryAssistantSession() {
+async function bootstrapStoryAssistantSession(requestToken, signal) {
   resetAgentState()
-  if (!currentStory.value || !getToken()) return
+  if (!workspaceRequestGate.isCurrent(requestToken) || !currentStory.value || !getToken()) return
   const cachedSessionId = readCachedStoryAssistantSession()
   if (!cachedSessionId) return
   assistantSessionId.value = cachedSessionId
-  const loaded = await loadAssistantSessionMessages(cachedSessionId)
-  if (!loaded) {
+  const loaded = await loadAssistantSessionMessages(cachedSessionId, requestToken, signal)
+  if (loaded === false && workspaceRequestGate.isCurrent(requestToken)) {
     assistantSessionId.value = ''
     clearCachedStoryAssistantSession()
     agentMessages.value = []
@@ -1093,7 +1475,7 @@ async function bootstrapStoryAssistantSession() {
 }
 
 function buildStoryGraphAutorunContext(question = '') {
-  const fallbackQuestion = '请解释当前事件故事脉络，指出主线、关键节点、影响关系、证据缺口和下一步观察方向。'
+  const fallbackQuestion = '请解释当前事件故事脉络，指出主线、关键节点、待核验关系假设、证据缺口和下一步观察方向。'
   const visibleQuestion = String(question || fallbackQuestion).trim()
   return {
     visibleMessage: visibleQuestion,
@@ -1229,10 +1611,10 @@ function buildStoryGraphAssistantContext() {
     const title = compactText(cleanStoryTitle(node.label || node.title, node) || node.id, 120)
     const family = familyLabel(node.lane || node.story_angle || node.event_type || node.event_family)
     const dates = formatRange(node.start_date, node.end_date)
-    const evidence = node.article_count ? evidenceLevel(node.article_count) : ''
+    const evidence = evidenceLevel(node.article_count)
     const actors = formatActorPair(node.initiator, node.target, '')
     const value = researchValueScore(node)
-    return `${index + 1}. ${type} ${title}；${family}；${dates}；价值 ${value}/${researchValueLabel(value)}${evidence ? `；${evidence}` : ''}${actors ? `；主体 ${actors}` : ''}`
+    return `${index + 1}. ${type} ${title}；${family}；${dates}；研究价值 ${researchValueLabel(value)}${evidence ? `；${evidence}` : ''}${actors ? `；主体 ${actors}` : ''}`
   })
 
   const edges = (story.edges || []).slice(0, 22).map((edge, index) => {
@@ -1245,7 +1627,7 @@ function buildStoryGraphAssistantContext() {
 
   const branches = branchStories.value.slice(0, 10).map((item, index) => {
     const title = compactText(cleanStoryTitle(item.title, item) || item.story_id, 110)
-    return `${index + 1}. ${title}；${relationLabel(item)}；${formatRange(item.start_date, item.end_date)}；${evidenceLevel(item.article_count || 0)}`
+    return `${index + 1}. ${title}；${relationLabel(item)}；${formatRange(item.start_date, item.end_date)}；${evidenceLevel(item.article_count)}`
   })
 
   const focus = selectedInspector.value
@@ -1256,7 +1638,7 @@ function buildStoryGraphAssistantContext() {
         `焦点说明：${compactText(selectedInspectorSubtitle.value, 220)}`,
         `焦点标签：${selectedInspectorChips.value.join(' / ') || '无'}`,
         `焦点研究价值：${focusResearchValueText.value}`,
-        `焦点证据等级：${focusEvidenceText.value}`,
+        `焦点报道覆盖（未核验）：${focusEvidenceText.value}`,
         `研究使用建议：${focusResearchActions.value.join('；') || '无'}`,
       ]
     : ['当前未选择具体焦点。']
@@ -1275,6 +1657,7 @@ function buildStoryGraphAssistantContext() {
     `图谱 ID：${story.story_id}`,
     `摘要：${compactText(story.meta?.summary || buildStorySummaryLine(story), 500)}`,
     `统计：${storyStatsText.value || '无'}`,
+    `抽样与覆盖：${samplingNotice.value || '范围未知，不得视为完整图。'}`,
     `研究基线：${currentResearchSignals.value.map((signal) => `${signal.label}=${signal.value}`).join('；')}`,
     '',
     '【当前焦点】',
@@ -1289,13 +1672,14 @@ function buildStoryGraphAssistantContext() {
     `【关联分支｜最多 ${branches.length} 条】`,
     ...(branches.length ? branches : ['无关联分支']),
     '',
-    `【焦点证据新闻｜最多 ${evidence.length} 条】`,
-    ...(evidence.length ? evidence : ['当前焦点未加载新闻证据']),
+    `【焦点候选报道（未核验）｜最多 ${evidence.length} 条】`,
+    ...(evidence.length ? evidence : ['当前焦点未加载候选报道']),
     '',
     '【回答要求】',
-    '请把图谱结构当作当前工作台上下文，首轮只基于这里给出的节点、关系边、分支和证据新闻研判，不自动调用外部工具。',
+    '请把图谱结构当作当前工作台上下文，首轮只基于这里给出的节点、关系边、分支和未核验候选报道研判，不自动调用外部工具。',
     '输出结构：1）主线；2）关键节点与关系强弱；3）证据缺口；4）下一步观察；5）后续精确检索词（最多 4 条）。',
-    '明确区分“图谱事实 / 分析推断 / 待核实”。不得把 continuation、parallel、influence 等图谱边直接写成因果；弱边必须说明局限。',
+    '明确区分“图谱事实 / 分析推断 / 待核实”。不得把时间相邻、时间重叠或未验证关系写成影响或因果；弱边必须说明局限。',
+    '只把节点视为当前有界抽样或已加载候选；不得声称图谱完整，也不得据此推断未展示节点不存在。',
     '不得引入当前材料之外的人物言论、会议细节、争议传闻或新闻事实。需要补证时只写检索建议，不得假装已经检索。',
     '正文控制在 1200 字以内，优先回答用户问题，不复述全部上下文。',
   ]
@@ -1478,6 +1862,8 @@ function clampText(value, max = 11000) {
   background: transparent;
   color: var(--muted);
   padding: 9px 11px;
+  min-width: 44px;
+  min-height: 44px;
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
@@ -1613,6 +1999,7 @@ function clampText(value, max = 11000) {
   color: var(--navy);
   border-radius: var(--panel-radius);
   padding: 10px 14px;
+  min-height: 44px;
   font-size: 13px;
   cursor: pointer;
   transition:
@@ -1623,7 +2010,7 @@ function clampText(value, max = 11000) {
 
 .intel-icon-btn {
   padding: 10px 12px;
-  min-width: 42px;
+  min-width: 44px;
 }
 
 .intel-btn:hover,
@@ -1780,6 +2167,22 @@ function clampText(value, max = 11000) {
 .intel-textarea:focus {
   border-color: rgba(39, 124, 139, 0.42);
   box-shadow: 0 0 0 3px rgba(39, 124, 139, 0.12);
+}
+
+.intel-query-status {
+  min-height: 34px;
+  margin: -2px 0 0;
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--muted);
+  background: rgba(232, 240, 247, 0.62);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.intel-query-status.is-empty {
+  color: #8a341f;
+  background: rgba(254, 235, 226, 0.82);
 }
 
 .intel-textarea {
@@ -1965,6 +2368,25 @@ function clampText(value, max = 11000) {
 .intel-canvas-toolbar {
   top: 16px;
   right: 18px;
+}
+
+.intel-sampling-notice {
+  position: absolute;
+  z-index: 5;
+  top: 58px;
+  left: 18px;
+  right: 18px;
+  width: fit-content;
+  max-width: min(820px, calc(100% - 36px));
+  margin: 0;
+  padding: 8px 11px;
+  border: 1px solid rgba(168, 101, 32, 0.25);
+  border-radius: 7px;
+  background: rgba(255, 247, 232, 0.94);
+  color: #744516;
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 4px 12px rgba(80, 56, 28, 0.08);
 }
 
 .intel-footerbar {
@@ -2231,6 +2653,16 @@ function clampText(value, max = 11000) {
   box-shadow: 0 12px 26px rgba(28, 80, 124, 0.12);
 }
 
+.intel-focus-news__item.is-unavailable {
+  opacity: 0.72;
+}
+
+.intel-focus-news__item.is-unavailable:hover {
+  transform: none;
+  border-color: rgba(52, 91, 128, 0.14);
+  box-shadow: none;
+}
+
 .intel-focus-news__item small {
   color: var(--muted);
   font-size: 11px;
@@ -2350,6 +2782,8 @@ function clampText(value, max = 11000) {
 
 .intel-evidence-link {
   display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   width: max-content;
   margin-top: 10px;
   border: 1px solid rgba(31, 123, 189, 0.36);
@@ -2377,12 +2811,128 @@ function clampText(value, max = 11000) {
   background: var(--paper-strong);
   color: var(--soft);
   padding: 12px 10px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: var(--panel-radius);
   cursor: pointer;
 }
 
 .intel-side-toggle--left {
   left: 12px;
+}
+
+.intel-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.intel-accessible-list {
+  position: absolute;
+  top: 64px;
+  right: 18px;
+  z-index: 6;
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 36px));
+  border: 1px solid var(--stroke);
+  border-radius: var(--panel-radius);
+  background: var(--paper-strong);
+  box-shadow: 0 14px 32px rgba(24, 67, 106, 0.16);
+}
+
+.intel-accessible-list > summary {
+  box-sizing: border-box;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  color: var(--soft);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.intel-accessible-list > summary strong {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.intel-accessible-list__body {
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--stroke);
+  padding: 12px;
+}
+
+.intel-accessible-list__body > p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.intel-accessible-list__body h2 {
+  margin: 12px 0 6px;
+  color: var(--soft);
+  font-size: 13px;
+}
+
+.intel-accessible-list__body ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.intel-accessible-list__body button {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--paper-soft);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.intel-accessible-list__body button small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.intel-page button,
+.intel-page input,
+.intel-page .intel-focus-news__item {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.intel-page .intel-icon-btn {
+  min-width: 44px;
+}
+
+.intel-canvas :deep(.react-flow__node:focus-visible),
+.intel-canvas :deep(.react-flow__edge:focus-visible) {
+  outline: 3px solid #0b6ea8;
+  outline-offset: 4px;
 }
 
 @keyframes spin {
@@ -2475,6 +3025,104 @@ function clampText(value, max = 11000) {
   .intel-focus-news__list,
   .intel-focus-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .intel-accessible-list {
+    top: 174px;
+    left: 18px;
+    right: 18px;
+    width: auto;
+  }
+
+  .intel-accessible-list__body {
+    max-height: 390px;
+  }
+}
+
+@media (max-width: 640px) {
+  .intel-topbar {
+    gap: 12px;
+    padding: 14px 12px 12px;
+  }
+
+  .intel-topbar__brand {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    gap: 4px;
+  }
+
+  .intel-kicker {
+    padding-top: 0;
+  }
+
+  .intel-topbar__brand > div {
+    min-width: 0;
+  }
+
+  .intel-topbar h1 {
+    font-size: clamp(23px, 7.5vw, 28px);
+    overflow-wrap: anywhere;
+  }
+
+  .intel-topbar p {
+    line-height: 1.45;
+  }
+
+  .intel-topbar__meta {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .intel-mode-switch {
+    width: 100%;
+  }
+
+  .intel-mode-switch button {
+    flex: 1 1 50%;
+  }
+
+  .intel-badge,
+  .intel-chip {
+    max-width: 100%;
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .intel-topbar__meta > .intel-btn {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+  }
+
+  .intel-shell {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .intel-panel {
+    padding: 12px;
+  }
+
+  .intel-canvas-panel {
+    min-height: 620px;
+  }
+
+  .intel-accessible-list {
+    left: 10px;
+    right: 10px;
+  }
+
+  .intel-footerbar {
+    left: 10px;
+    right: 10px;
+  }
+
+  .intel-assistant-fab {
+    right: 12px;
+    bottom: 12px;
+    padding-right: 12px;
   }
 }
 </style>

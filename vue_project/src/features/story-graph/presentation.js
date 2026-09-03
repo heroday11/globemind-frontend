@@ -1,3 +1,12 @@
+import {
+  normalizeStoryRelation,
+  storyRelationLabel,
+} from '../../governance/storyRelations.js'
+import {
+  graphMetricPresentation,
+  projectGraphMetric,
+} from '../../governance/graphMetrics.js'
+
 export function filterStorySummaries(stories, query) {
   const normalizedQuery = String(query || '').trim().toLowerCase()
   if (!normalizedQuery) return stories
@@ -23,20 +32,18 @@ export function filterStorySummaries(stories, query) {
 }
 
 export function sortStorySummariesByResearchValue(stories) {
-  return (stories || []).slice().sort((left, right) => {
-    const scoreDiff = researchValueScore(right) - researchValueScore(left)
-    if (scoreDiff !== 0) return scoreDiff
-    const articleDiff = numericValue(right.article_count) - numericValue(left.article_count)
-    if (articleDiff !== 0) return articleDiff
-    return String(left.title || left.id || '').localeCompare(String(right.title || right.id || ''))
-  })
+  return (stories || []).slice().sort((left, right) => (
+    String(left.title || left.id || '').localeCompare(String(right.title || right.id || ''))
+  ))
 }
 
 export function sortRelatedStories(stories) {
   return (stories || []).slice().sort((left, right) => {
     const layerDiff = layerPriority(left.layer) - layerPriority(right.layer)
     if (layerDiff !== 0) return layerDiff
-    return (right.score || 0) - (left.score || 0)
+    return String(left.story_id || left.title || '').localeCompare(
+      String(right.story_id || right.title || ''),
+    )
   })
 }
 
@@ -57,13 +64,21 @@ export function buildStoryStatsText(story, graphMetrics, relatedStories = []) {
   if (!story) return ''
   const crossLinks = (story.edges || []).filter((edge) => edge.layer && edge.layer !== 'story').length
   const branches = relatedStories.length
-  const articles = story.meta?.article_count || 0
+  const articles = knownCount(story.meta?.article_count)
+  const articleText = articles === null ? '新闻数未知' : `${articles} 条新闻`
   if (story.source === 'l3-macro') {
-    const total = story.meta?.total_node_count || graphMetrics.mainNodes
-    const visible = story.meta?.visible_node_count || graphMetrics.mainNodes
-    return `${visible}/${total} 个 L2 节点 · ${story.meta?.segment_count || 0} 个 L1.5 片段 · ${articles} 条新闻 · ${crossLinks} 条影响边`
+    const total = knownCount(story.meta?.total_node_count)
+    const visible = knownCount(story.meta?.visible_node_count) ?? graphMetrics.mainNodes
+    const nodeText = total === null
+      ? `${visible} 个已加载 L2 节点（总数未知）`
+      : `${visible}/${total} 个 L2 节点`
+    const segmentCount = knownCount(story.meta?.segment_count)
+    const segmentText = segmentCount === null
+      ? 'L1.5 片段数未知'
+      : `${segmentCount} 个 L1.5 片段`
+    return `${nodeText} · ${segmentText} · ${articleText} · ${crossLinks} 条跨链边`
   }
-  return `${graphMetrics.mainNodes} 个节点 · ${articles} 条新闻 · ${crossLinks} 条跨链关系 · ${branches} 个分支`
+  return `${graphMetrics.mainNodes} 个节点 · ${articleText} · ${crossLinks} 条跨链关系 · ${branches} 个分支`
 }
 
 export function makeMainInspector(story, mode = 'l2') {
@@ -81,7 +96,9 @@ export function buildStorySummaryLine(story) {
       .slice(0, 4)
       .map(([actor]) => cleanEntityLabel(actor))
       .join(' / ')
-    return `${actors || '多主体'} · ${familyLabel(story.meta?.dominant_type || 'macro')} · ${story.meta?.l2_chain_count || 0} 条 L2 · ${formatRange(story.start_date, story.end_date)}`
+    const l2Count = knownCount(story.meta?.l2_chain_count)
+    const l2Text = l2Count === null ? 'L2 数量未知' : `${l2Count} 条 L2`
+    return `${actors || '多主体'} · ${familyLabel(story.meta?.dominant_type || 'macro')} · ${l2Text} · ${formatRange(story.start_date, story.end_date)}`
   }
   const pair = story.meta?.pair_key?.length
     ? story.meta.pair_key.map(cleanEntityLabel).join(' ↔ ')
@@ -100,6 +117,11 @@ export function formatRange(start, end) {
 
 export function formatNewsDate(item) {
   return item?.published_at ? String(item.published_at).slice(0, 10) : '无日期'
+}
+
+export function formatCountLabel(value, { unit = '项', unknown = '数量未知' } = {}) {
+  const count = knownCount(value)
+  return count === null ? unknown : `${count} ${unit}`
 }
 
 export function getFallbackStoryTitle(mode, id) {
@@ -162,24 +184,21 @@ export function formatActorPair(initiator, target, fallback = '多主体') {
 
 export function getSummaryCountLabel(mode, story) {
   if (mode === 'l3') {
-    return `${story.l2_chain_count || story.cluster_count || 0} 条 L2`
+    const count = knownCount(story.l2_chain_count ?? story.cluster_count)
+    return count === null ? 'L2 数量未知' : `${count} 条 L2`
   }
-  return `${story.segment_count || story.article_count || 0} 节点`
+  const count = knownCount(story.segment_count ?? story.article_count)
+  return count === null ? '节点数未知' : `${count} 节点`
 }
 
 export function relationLabel(relation) {
-  if (!relation) return '关联'
-  const reason = relation.reason || relation.relation_type || 'relation'
-  return edgeLabel(reason)
+  if (!relation) return storyRelationLabel('relation_unknown')
+  return edgeLabel(relation.relation_type)
 }
 
 export function qualityLabel(value) {
-  const labels = {
-    strong: '强关联',
-    usable: '可用',
-    weak: '弱关联',
-  }
-  return labels[value] || String(value || '未评级')
+  void value
+  return '链质量未知'
 }
 
 export function familyLabel(value) {
@@ -220,88 +239,212 @@ export function angleLabel(value) {
 }
 
 export function edgeLabel(value) {
-  const labels = {
-    continuation: '延续',
-    continued: '延续',
-    escalation: '升级',
-    response: '回应',
-    transition: '转折',
-    context: '背景关联',
-    same_thread: '同一线索',
-    event_to_outcome: '事件到后续',
-    outcome_to_context: '后续到背景',
-    chain_start: '起点',
-    relation: '关联',
-    macro_sequence: '宏观推进',
-    influence: '影响',
-    diplomacy: '外交推进',
-    market_reaction: '市场反应',
-    parallel: '并行',
+  return storyRelationLabel(value)
+}
+
+export function buildStoryGraphNodeInspector(node, { storyId = '' } = {}) {
+  const resolvedStoryId = String(storyId || node?.story_id || '')
+  return {
+    kind:
+      node?.source_kind === 'l3-chain' || node?.l2_chain_id
+        ? 'l3-chain'
+        : node?.source_kind === 'l2-segment' || node?.segment_id
+          ? 'l2-segment'
+          : 'cluster',
+    originalClusterId: node?.cluster_id_raw || node?.l1_cluster_id || node?.id,
+    segmentId: node?.segment_id || node?.id,
+    l2ChainId: node?.l2_chain_id,
+    l2RunId: node?.l2_run_id,
+    macroId: node?.story_id,
+    l1ClusterId: node?.l1_cluster_id || node?.cluster_id_raw,
+    storyId: resolvedStoryId,
+    title: node?.label || node?.id || '未命名节点',
+    eventType: node?.event_type,
+    storyAngle: node?.story_angle,
+    lane: node?.lane,
+    articleCount: node?.article_count,
+    segmentCount: node?.segment_count,
+    initiator: node?.initiator,
+    target: node?.target,
+    location: node?.location,
+    detailUrl: node?.detail_url,
+    startDate: node?.start_date,
+    endDate: node?.end_date,
   }
-  return labels[value] || String(value || '关联').replaceAll('_', ' / ')
+}
+
+export function buildStoryGraphEdgeInspector(edge) {
+  const normalizedEdge = normalizeStoryRelation(edge)
+  const sourceId = String(normalizedEdge?.from_id ?? normalizedEdge?.source ?? '')
+  const targetId = String(normalizedEdge?.to_id ?? normalizedEdge?.target ?? '')
+  const edgeType = normalizedEdge.edge_type
+  const claim = normalizedEdge?.claim && typeof normalizedEdge.claim === 'object'
+    ? normalizedEdge.claim
+    : {}
+  return {
+    kind: 'edge',
+    title: edgeLabel(edgeType),
+    subtitle: `${sourceId || '未知节点'} → ${targetId || '未知节点'}`,
+    sourceId,
+    targetId,
+    edgeType,
+    layer: normalizedEdge?.layer || 'story',
+    relationReason: normalizedEdge.relation_reason,
+    relationSemantics: normalizedEdge.relation_semantics,
+    weight: null,
+    synthetic: normalizedEdge?.synthetic === true,
+    evidenceStatus: normalizedEdge?.evidence_status,
+    claimId: claim.claim_id ?? null,
+    citationLocator: claim.citation_locator ?? null,
+    citationStatus: claim.citation_status || 'unavailable',
+    reasonCode: claim.reason_code || 'GRAPH_RELATION_CLAIM_CONTRACT_MISSING',
+    unknownGate: claim.unknown_gate || 'explicit_unknown',
+    usableAsFact: claim.usable_as_fact === true,
+    sharedActorCount: null,
+    sharedTopicCount: null,
+    gapDays: null,
+  }
+}
+
+export function buildStoryGraphAccessibleList(storyGraph, { includeContext = true } = {}) {
+  const rawNodes = Array.isArray(storyGraph?.nodes) ? storyGraph.nodes : []
+  const nodeTitles = new Map()
+  const nodes = rawNodes.map((node, index) => {
+    const id = String(
+      node?.id
+      || node?.segment_id
+      || node?.l1_cluster_id
+      || node?.l2_chain_id
+      || node?.cluster_id_raw
+      || `node-${index + 1}`,
+    )
+    const payload = buildStoryGraphNodeInspector(node, {
+      storyId: node?.story_id || storyGraph?.story_id,
+    })
+    const title = cleanStoryTitle(payload.title, payload) || payload.title
+    nodeTitles.set(id, title)
+    return {
+      id,
+      title,
+      meta: [
+        angleLabel(payload.storyAngle || payload.eventType || payload.lane),
+        formatRange(payload.startDate, payload.endDate),
+        knownCount(payload.articleCount) === null
+          ? '新闻数未知'
+          : `${knownCount(payload.articleCount)} 条新闻`,
+      ].filter(Boolean).join(' · '),
+      payload,
+    }
+  })
+
+  const idCounts = new Map()
+  const edges = (Array.isArray(storyGraph?.edges) ? storyGraph.edges : [])
+    .filter((edge) => includeContext || edge?.layer !== 'context')
+    .map((edge) => {
+      const payload = buildStoryGraphEdgeInspector(edge)
+      const baseId = String(
+        edge?.id
+        || `${payload.sourceId}:${payload.targetId}:${payload.edgeType}:${payload.layer}`,
+      )
+      const occurrence = idCounts.get(baseId) || 0
+      idCounts.set(baseId, occurrence + 1)
+      const sourceTitle = nodeTitles.get(payload.sourceId) || payload.sourceId || '未知节点'
+      const targetTitle = nodeTitles.get(payload.targetId) || payload.targetId || '未知节点'
+      return {
+        id: occurrence ? `${baseId}:${occurrence + 1}` : baseId,
+        title: payload.title,
+        meta: `${sourceTitle} → ${targetTitle}`,
+        payload,
+      }
+    })
+
+  return { nodes, edges }
 }
 
 export function evidenceLevel(count, { direct = true } = {}) {
-  const value = numericValue(count)
-  if (!direct && value > 0) return `可下钻 · ${value} 条`
-  if (value >= 100) return `强证据 · ${value} 条`
-  if (value >= 20) return `充分 · ${value} 条`
-  if (value >= 5) return `可用 · ${value} 条`
-  if (value > 0) return `单点 · ${value} 条`
-  return direct ? '暂无直接证据' : '需下钻取证'
+  const value = knownCount(count)
+  if (value === null) return direct ? '报道数量未知' : '可下钻报道数量未知'
+  if (!direct) return `可下钻 · ${value} 条报道（未核验）`
+  return `已加载 ${value} 条报道（未核验）`
+}
+
+export function reportingCoverageGuidance(count) {
+  const value = knownCount(count)
+  if (value === null) {
+    return '报道数量未知，当前只能作为待核验线索，不得下结论。'
+  }
+  if (value < 5) {
+    return `当前仅加载 ${value} 条报道，样本较少，只能作为线索，不得下结论。`
+  }
+  return `当前已加载 ${value} 条报道；报道数量不等于事实已核验，仍需做来源交叉核查。`
 }
 
 export function researchValueScore(item) {
-  if (!item) return 0
+  if (!item) return null
   const meta = item.meta || {}
-  const articles = numericValue(item.article_count ?? item.articleCount ?? meta.article_count)
-  const segments = numericValue(item.segment_count ?? item.segmentCount ?? meta.segment_count)
-  const chains = numericValue(item.l2_chain_count ?? item.cluster_count ?? meta.l2_chain_count)
-  const quality = numericValue(item.quality_score ?? item.importance_score ?? meta.quality_score)
   const start = item.start_date || item.startDate
   const end = item.end_date || item.endDate
-  const days = dateSpanDays(start, end)
-  const actors = Object.keys(meta.actor_counts || {}).length
-  const topics = Object.keys(meta.topic_counts || {}).length
-
-  const evidenceScore = Math.min(34, Math.log1p(articles) * 5.2)
-  const structureScore = Math.min(22, Math.log1p(segments + chains) * 4.2)
-  const timeScore = Math.min(14, Math.log1p(days) * 2.5)
-  const qualityScore = quality > 0 && quality <= 1 ? quality * 20 : Math.min(20, quality / 5)
-  const coverageScore = Math.min(10, actors * 0.8 + topics * 0.4)
-  return Math.round(Math.min(100, evidenceScore + structureScore + timeScore + qualityScore + coverageScore))
+  return projectGraphMetric('story_graph.research_value', {
+    value: item.research_value,
+    method_card: item.research_value_method_card,
+    evidence_locator: item.research_value_evidence_locator,
+    inputs: {
+      article_count: item.article_count ?? item.articleCount ?? meta.article_count,
+      segment_count: item.segment_count ?? item.segmentCount ?? meta.segment_count,
+      l2_chain_count: item.l2_chain_count ?? item.cluster_count ?? meta.l2_chain_count,
+      quality_score: item.quality_score ?? item.importance_score ?? meta.quality_score,
+      date_span_days: dateSpanDays(start, end),
+      actor_count: Object.keys(meta.actor_counts || {}).length,
+      topic_count: Object.keys(meta.topic_counts || {}).length,
+    },
+  }).value
 }
 
 export function researchValueLabel(score) {
-  const value = numericValue(score)
-  if (value >= 82) return '研究主样本'
-  if (value >= 68) return '高价值样本'
-  if (value >= 50) return '可用线索'
-  if (value > 0) return '待核验线索'
-  return '未评分'
+  void score
+  return '研究价值未知'
 }
 
 export function relationStrengthLabel(edge) {
-  const weight = numericValue(edge?.weight ?? edge?.edge_weight)
-  const sharedTopics = numericValue(edge?.shared_topic_count)
-  const sharedActors = numericValue(edge?.shared_actor_count)
-  const reason = String(edge?.relationReason || edge?.relation_reason || '').trim()
-  if (weight >= 0.75 || sharedActors + sharedTopics >= 3) return '强关系'
-  if (weight >= 0.55 || sharedActors + sharedTopics >= 1) return '中等关系'
-  if (reason && reason !== '时间重叠') return '待核验关系'
-  return '弱解释关系'
+  if (edge?.synthetic === true) {
+    return '布局辅助线（非证据关系）'
+  }
+  return `${graphMetricPresentation('story_graph.relation_strength', {
+    value: edge?.relation_strength,
+    method_card: edge?.relation_strength_method_card,
+    evidence_locator: edge?.citationLocator ?? edge?.citation_locator,
+    inputs: {
+      edge_weight: edge?.weight ?? edge?.edge_weight,
+      shared_actor_count: edge?.shared_actor_count,
+      shared_topic_count: edge?.shared_topic_count,
+      relation_reason: edge?.relationReason ?? edge?.relation_reason,
+    },
+  }).label}未知（方法或证据不可用，不可作为事实）`
 }
 
 export function relationEvidenceText(edge) {
-  const parts = []
-  const weight = numericValue(edge?.weight ?? edge?.edge_weight)
-  if (weight) parts.push(`权重 ${weight.toFixed(2)}`)
-  if (numericValue(edge?.shared_actor_count)) parts.push(`共享主体 ${edge.shared_actor_count}`)
-  if (numericValue(edge?.shared_topic_count)) parts.push(`共享议题 ${edge.shared_topic_count}`)
-  if (numericValue(edge?.gap_days) || edge?.gap_days === 0) parts.push(`间隔 ${edge.gap_days} 天`)
-  const reason = String(edge?.relationReason || edge?.relation_reason || '').trim()
-  if (reason && reason !== '时间重叠') parts.push(reason)
-  return parts.length ? parts.join(' · ') : '仅见时间重叠，需结合原文核验'
+  if (edge?.synthetic === true) {
+    return '仅用于图谱布局，不代表事实、相关或因果已核验'
+  }
+  return '关系强度的方法、输入身份未形成完整合同且证据定位符不可用，状态为明确未知；原始权重、共享计数和时间邻接不得作为事实、相关或因果结论。'
+}
+
+export function relationResearchGuidance(edge) {
+  const relationState = relationStrengthLabel(edge)
+  const guidance = [
+    '先比较起点和终点的发布时间，确认方向是否成立。',
+    '检查共同主体、共同议题和原文来源，区分相关性与因果性。',
+  ]
+  if (relationState === '布局辅助线（非证据关系）') {
+    guidance.push('该线仅辅助布局，不得作为关系证据或写成已核验事实。')
+  } else if (relationState.includes('不可作为事实')) {
+    guidance.push('来源定位符不可用且未知门禁未解除；不得写成事实、相关或因果结论。')
+  } else if (relationState === '弱解释信号（待核验）') {
+    guidance.push('该边解释较弱，暂时作为待核验假设使用。')
+  } else {
+    guidance.push('该边只可作为待核验线索；使用前必须保留并核对其来源定位。')
+  }
+  return guidance
 }
 
 export function focusKindLabel(value) {
@@ -320,9 +463,14 @@ export function layerPriority(layer) {
   return layer === 'backbone' ? 0 : 1
 }
 
-function numericValue(value) {
+function knownCount(value) {
+  if (
+    value == null
+    || typeof value === 'boolean'
+    || (typeof value === 'string' && !value.trim())
+  ) return null
   const number = Number(value)
-  return Number.isFinite(number) ? number : 0
+  return Number.isInteger(number) && number >= 0 ? number : null
 }
 
 function dateSpanDays(start, end) {

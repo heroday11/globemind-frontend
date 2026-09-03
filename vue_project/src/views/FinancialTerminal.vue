@@ -1,14 +1,24 @@
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  DISPLAY_PREFERENCES_EVENT,
+  getDisplayPreferencesSnapshot,
+} from '@/composables/useDisplayPreferences.js'
 
 const router = useRouter()
+const terminalFrame = ref(null)
 
 function handleMessage(e) {
   if (e.origin !== window.location.origin) return
-  if (e.data?.type === 'storeAndNavigate' && e.data?.path) {
+  if (e.source !== terminalFrame.value?.contentWindow) return
+  if (e.data?.type === 'storeAndNavigate') {
+    if (e.data.path !== '/data-assistant') return
     if (e.data.assistantContext && typeof e.data.assistantContext === 'object') {
-      sessionStorage.setItem('data_assistant_autorun_context_v1', JSON.stringify(e.data.assistantContext))
+      sessionStorage.setItem(
+        'data_assistant_autorun_context_v1',
+        JSON.stringify(e.data.assistantContext),
+      )
     } else if (e.data.alertMsg) {
       sessionStorage.setItem('data_assistant_alert_msg', e.data.alertMsg)
     } else {
@@ -17,7 +27,7 @@ function handleMessage(e) {
     sessionStorage.removeItem('data_assistant_alert_ready')
     // 停留 2s 展示加载动效
     setTimeout(() => {
-      router.push(e.data.path)
+      router.push('/data-assistant')
     }, 2000)
   }
   if (e.data?.type === 'alertReady') {
@@ -25,8 +35,30 @@ function handleMessage(e) {
   }
 }
 
-onMounted(() => window.addEventListener('message', handleMessage))
-onUnmounted(() => window.removeEventListener('message', handleMessage))
+function syncDisplayPreferences(preferences = getDisplayPreferencesSnapshot()) {
+  const frameWindow = terminalFrame.value?.contentWindow
+  if (!frameWindow) return
+  let targetOrigin = window.location.origin
+  try {
+    targetOrigin = new URL(iframeSrc.value, window.location.href).origin
+  } catch {
+    // The computed source is always a valid same-site URL in production.
+  }
+  frameWindow.postMessage({ type: DISPLAY_PREFERENCES_EVENT, preferences }, targetOrigin)
+}
+
+function handleDisplayPreferences(event) {
+  syncDisplayPreferences(event.detail)
+}
+
+onMounted(() => {
+  window.addEventListener('message', handleMessage)
+  window.addEventListener(DISPLAY_PREFERENCES_EVENT, handleDisplayPreferences)
+})
+onUnmounted(() => {
+  window.removeEventListener('message', handleMessage)
+  window.removeEventListener(DISPLAY_PREFERENCES_EVENT, handleDisplayPreferences)
+})
 
 /** 开发时可在 vue_project/.env.development 设置 VITE_FIN_TERMINAL_URL=http://127.0.0.1:5175/ 指向 React dev server */
 const iframeSrc = computed(() => {
@@ -40,7 +72,13 @@ const iframeSrc = computed(() => {
 
 <template>
   <div class="financial-terminal-shell" data-tour="financial-terminal">
-    <iframe :src="iframeSrc" class="financial-terminal-iframe" title="金融终端" />
+    <iframe
+      ref="terminalFrame"
+      :src="iframeSrc"
+      class="financial-terminal-iframe"
+      title="金融终端"
+      @load="syncDisplayPreferences()"
+    />
   </div>
 </template>
 

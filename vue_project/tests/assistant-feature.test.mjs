@@ -25,7 +25,9 @@ import {
 } from '../src/features/assistant/state.js'
 import {
   BRIEFING_CADENCE_OPTIONS,
+  BRIEFING_ASSURANCE_SCHEMA,
   BRIEFING_STATUS_LABELS,
+  briefingAssuranceLabel,
   briefingCadenceLabel,
   briefingStatusLabel,
   buildAssistantDashboardTrend,
@@ -36,6 +38,7 @@ import {
   calculateDashboardBarHeight,
   createBriefingScheduleForm,
   dashboardDateKey,
+  normalizeBriefingAssurance,
 } from '../src/features/assistant/briefing/model.js'
 import { createBriefingScheduleService } from '../src/features/assistant/briefing/service.js'
 import { createAssistantWorkspaceController } from '../src/features/assistant/workspace/controller.js'
@@ -66,6 +69,7 @@ import {
 import {
   ChatStreamError,
   createChatStreamController,
+  createTextDeltaPump,
   isChatStreamAbortError,
 } from '../src/features/assistant/chat/stream.js'
 import {
@@ -89,6 +93,13 @@ import {
   createReportStreamController,
   reportStreamEventError,
 } from '../src/features/assistant/reports/stream.js'
+import {
+  directoryLoadErrorText,
+  formatDirectoryCount,
+  formatDirectoryTimestamp,
+  memberPresenceLabel,
+  siteDirectoryStatus,
+} from '../src/features/assistant/directory/model.js'
 
 function jsonResponse(payload, status = 200) {
   return {
@@ -125,6 +136,31 @@ function concatBytes(...parts) {
   }
   return result
 }
+
+test('assistant site and member directory keeps unknown values and catalog state honest', () => {
+  assert.equal(formatDirectoryCount(null), '—')
+  assert.equal(formatDirectoryCount(''), '—')
+  assert.equal(formatDirectoryCount(-1), '—')
+  assert.equal(formatDirectoryCount(12.5), '—')
+  assert.equal(formatDirectoryCount('1234'), '1,234')
+  assert.deepEqual(siteDirectoryStatus('active'), {
+    label: '配置为启用',
+    tone: 'configured',
+  })
+  assert.deepEqual(siteDirectoryStatus('unexpected'), {
+    label: '未登记状态',
+    tone: 'unknown',
+  })
+  assert.equal(formatDirectoryTimestamp(null), '—')
+  assert.equal(formatDirectoryTimestamp('2026-04-30 15:00'), '2026-04-30 15:00')
+  assert.equal(formatDirectoryTimestamp('not-a-time'), '—')
+  assert.equal(memberPresenceLabel(true), '目录标记：在线')
+  assert.equal(memberPresenceLabel(undefined), '目录标记：未知')
+  assert.equal(
+    directoryLoadErrorText({ status: 500, message: 'secret-canary' }),
+    '站点与成员目录加载失败。',
+  )
+})
 
 test('assistant API facade owns auth, encoded routes, bodies, and stream transport', async () => {
   const calls = []
@@ -230,12 +266,18 @@ test('provider, workspace, session, message, and schedule DTOs are deterministic
     {
       id: '4',
       topic: 'Risk',
-      enabled: true,
+      enabled: null,
       run_count: 2,
       title: 'Risk',
       cadence: 'daily',
       timezone: 'Asia/Shanghai',
       recent_runs: [],
+      last_assurance: {
+        schema_version: null,
+        status: 'unavailable',
+        publication_eligibility: 'blocked_assurance_unavailable',
+        source_count: null,
+      },
     },
   )
 })
@@ -257,11 +299,13 @@ test('briefing cadence, status, and form normalization contracts stay stable', (
     running: '生成中',
     done: '已生成',
     failed: '失败',
+    unknown: '状态未知',
   })
   assert.equal(briefingCadenceLabel('weekly'), '每周')
-  assert.equal(briefingCadenceLabel('unknown'), '每天')
+  assert.equal(briefingCadenceLabel('unknown'), '周期未知')
   assert.equal(briefingStatusLabel('running'), '生成中')
-  assert.equal(briefingStatusLabel('unknown'), '待运行')
+  assert.equal(briefingStatusLabel('unknown'), '状态未知')
+  assert.equal(briefingStatusLabel('done'), '已生成 · 可信状态不可用')
 
   assert.deepEqual(createBriefingScheduleForm(), {
     title: '',
@@ -305,6 +349,58 @@ test('briefing cadence, status, and form normalization contracts stay stable', (
       include_sources: false,
       include_charts: true,
     },
+  )
+})
+
+test('briefing assurance is fail-closed and never presented as fact checked', () => {
+  const assurance = {
+    schema_version: BRIEFING_ASSURANCE_SCHEMA,
+    status: 'review_required',
+    publication_eligibility: 'blocked_pending_human_review',
+    source_count: 2,
+    source_inventory_sha256: 'a'.repeat(64),
+    model_output_sha256: 'b'.repeat(64),
+    write_time_saved_draft_sha256: 'c'.repeat(64),
+    substantive_blocks_total: 3,
+    substantive_blocks_cited: 2,
+    substantive_blocks_explicit_unknown: 1,
+    substantive_blocks_uncited: 0,
+    substantive_block_source_citation_rate: '0.666667',
+    substantive_block_disposition_rate: '1.000000',
+    checks: {
+      source_identifier_boundary: 'passed',
+      substantive_block_disposition: 'passed',
+      source_citation_rate: 'measured_not_targeted',
+      source_truth: 'not_verified',
+      semantic_entailment: 'not_verified',
+      fact_check: 'not_performed',
+      human_review: 'required',
+      integrity_on_read: 'not_verified',
+      report_storage: 'local_mutable_file',
+      metadata_storage: 'local_mutable_json',
+      append_only_audit_chain: 'unavailable',
+    },
+  }
+  assert.deepEqual(normalizeBriefingAssurance(assurance), {
+    schema_version: BRIEFING_ASSURANCE_SCHEMA,
+    status: 'review_required',
+    publication_eligibility: 'blocked_pending_human_review',
+    source_count: 2,
+  })
+  assert.equal(
+    briefingStatusLabel('done', assurance),
+    '已生成 · 待人工审阅',
+  )
+  assert.equal(
+    briefingAssuranceLabel({ last_status: 'done', last_assurance: assurance }),
+    '仅检查引用标记与来源边界（2 条）；事实、语义和当前文件完整性未核验，待人工审阅',
+  )
+  const tampered = structuredClone(assurance)
+  tampered.checks.fact_check = 'passed'
+  assert.equal(normalizeBriefingAssurance(tampered).status, 'unavailable')
+  assert.equal(
+    briefingAssuranceLabel({ last_status: 'done', last_assurance: tampered }),
+    '可信状态不可用；不得视为已核验',
   )
 })
 
@@ -425,7 +521,7 @@ test('briefing task stats and seven-day dashboard trend are deterministic', () =
         at: 'fmt:updated',
         stats: '3 · 0 · 0',
         cadence: '每周',
-        status: '已生成',
+        status: '已生成 · 可信状态不可用',
       },
     ],
   )
@@ -500,7 +596,7 @@ test('briefing schedule service owns use-case success and normalization rules', 
       return { ok: false, detail: 'schedule unavailable' }
     },
   })
-  await assert.rejects(failing.list(), /schedule unavailable/)
+  await assert.rejects(failing.list(), /读取定时任务失败/)
 })
 
 test('workspace paths, selection, preview, and download names preserve UI rules', () => {
@@ -915,27 +1011,70 @@ test('chat stream reducer keeps context, tools, sources, done, and error determi
     step: 'thinking_delta',
     text: '核验来源',
   }, adapters).state
+  assert.equal(state.message.thinking, '核验来源')
+  state = reduceChatStreamEvent(state, {
+    step: 'thinking_delta',
+    text: '子任务推理',
+    session_id: 'child-1',
+    agent_role: 'subagent',
+  }, adapters).state
+  state = reduceChatStreamEvent(state, {
+    step: 'subagent_text_delta',
+    text: '子任务结果',
+    session_id: 'child-1',
+    agent_role: 'subagent',
+  }, adapters).state
+  assert.equal(state.message.thinking, '核验来源')
+  assert.deepEqual(state.message.agentTraces, [{
+    sessionId: 'child-1',
+    thinking: '子任务推理',
+    text: '子任务结果',
+  }])
   reduction = reduceChatStreamEvent(state, {
     step: 'tool_executing',
     tool: 'news_search',
+    call_id: 'call-news-1',
+    label: '新闻检索',
     input: { query: 'risk' },
-    invoke: { query_preview: 'risk' },
+    arguments: '{"query":"risk"',
+    invoke: { query_preview: 'risk', publish_time: '近一月' },
   }, adapters)
   state = reduction.state
   assert.equal(reduction.effects.pageActionPhase, 'executing')
   assert.equal(reduction.effects.shouldScroll, true)
   assert.equal(state.message.toolCalls[0].type, 'tool_executing')
+  assert.equal(state.message.toolCalls[0].callId, 'call-news-1')
+  assert.equal(state.message.toolCalls[0].label, '新闻检索')
+  assert.equal(state.message.toolCalls[0].invoke.publish_time, '近一月')
+
+  state = reduceChatStreamEvent(state, {
+    step: 'tool_update',
+    tool: 'news_search',
+    call_id: 'call-news-1',
+    label: '新闻检索',
+    input: { query: 'risk' },
+    arguments: '{"query":"risk"}',
+    invoke: { kind: 'dsh' },
+  }, adapters).state
+  assert.equal(state.message.toolCalls.length, 1)
+  assert.equal(state.message.toolCalls[0].argumentsText, '{"query":"risk"}')
+  assert.equal(state.message.toolCalls[0].invoke.kind, 'dsh')
 
   reduction = reduceChatStreamEvent(state, {
     step: 'tool_finished',
     tool: 'news_search',
-    result: { news: [{ id: 'news-2' }] },
+    call_id: 'call-news-1',
+    result: { label: '新闻检索', news: [{ id: 'news-2' }] },
   }, adapters)
   state = reduction.state
   assert.equal(reduction.effects.pageActionPhase, 'finished')
   assert.equal(state.message.toolCalls.length, 1)
   assert.equal(state.message.toolCalls[0].type, 'tool_finished')
-  assert.deepEqual(state.message.toolCalls[0].result, { news: [{ id: 'news-2' }] })
+  assert.equal(state.message.toolCalls[0].label, '新闻检索')
+  assert.deepEqual(state.message.toolCalls[0].result, {
+    label: '新闻检索',
+    news: [{ id: 'news-2' }],
+  })
   assert.deepEqual(state.message.sources.map((group) => group.key), [
     'existing',
     'web-risk',
@@ -953,6 +1092,7 @@ test('chat stream reducer keeps context, tools, sources, done, and error determi
   assert.equal(state.message.text, '最终答复')
   assert.equal(state.message.finishReason, 'length')
   assert.equal(state.message.truncated, true)
+  assert.equal(state.message.statusLine, '')
   state = reduceChatStreamEvent(state, {
     step: 'error',
     detail: { code: 'source_failed' },
@@ -1058,6 +1198,97 @@ test('chat stream transport preserves headers, UTF-8 tail frames, and event orde
   assert.equal(decoderFlushes, 1)
   assert.equal(cancelled, 1)
   assert.equal(controller.isRunning, false)
+})
+
+test('chat stream transport releases immediately when done arrives', async () => {
+  const encoder = new TextEncoder()
+  let reads = 0
+  let cancelled = 0
+  const controller = createChatStreamController({
+    async openAssistantStream() {
+      return {
+        headers: { get: () => null },
+        body: {
+          getReader() {
+            return {
+              async read() {
+                reads += 1
+                if (reads === 1) {
+                  return {
+                    done: false,
+                    value: encoder.encode('data: {"step":"done","reply":"完成"}\n\n'),
+                  }
+                }
+                return new Promise(() => {})
+              },
+              async cancel() {
+                cancelled += 1
+              },
+            }
+          },
+        },
+      }
+    },
+  })
+
+  const result = await Promise.race([
+    controller.run({ requestBody: { message: 'question' } }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('done did not release stream')), 100)),
+  ])
+
+  assert.deepEqual(result, { eventCount: 1 })
+  assert.equal(reads, 1)
+  assert.equal(cancelled, 1)
+  assert.equal(controller.isRunning, false)
+})
+
+test('chat text delta pump smooths bursts and drains without losing text', async () => {
+  const frames = []
+  const emitted = []
+  const pump = createTextDeltaPump(
+    (event) => emitted.push(event.text),
+    {
+      schedule(callback) {
+        frames.push(callback)
+        return callback
+      },
+      cancelSchedule(callback) {
+        const index = frames.indexOf(callback)
+        if (index >= 0) frames.splice(index, 1)
+      },
+    },
+  )
+
+  pump.enqueue('abcdefghijklmnopqrstuvwxyz')
+  assert.deepEqual(emitted, [])
+  frames.shift()()
+  assert.equal(emitted.length, 1)
+  assert.ok(emitted[0].length < 26)
+
+  const drained = pump.drain()
+  while (frames.length) frames.shift()()
+  await drained
+  assert.equal(emitted.join(''), 'abcdefghijklmnopqrstuvwxyz')
+})
+
+test('assistant chat exposes an edge context handle and inline workspace switcher', async () => {
+  const root = new URL('../src/features/assistant/', import.meta.url)
+  const [experience, styles] = await Promise.all([
+    readFile(new URL('AssistantExperience.vue', root), 'utf8'),
+    readFile(new URL('components/style.css', root), 'utf8'),
+  ])
+
+  assert.match(experience, /class="ys-chat-context-rail"/)
+  assert.match(experience, /class="ys-chat-workspace-menu"/)
+  assert.match(experience, /selectComposerWorkspace\(workspace\)/)
+  assert.match(experience, /clearComposerWorkspace/)
+  assert.match(experience, /currentWorkspace\.value \|\| pinnedWorkspace\.value/)
+  assert.match(experience, /payload\.workspace_subpath = currentFilePath\.value/)
+  assert.match(experience, /event\?\.tool === 'workspace_write_file'/)
+  assert.doesNotMatch(experience, /chatStreamController\.dispose\(\)/)
+  assert.match(styles, /\.ys-chat-context-rail\s*\{/)
+  assert.match(styles, /clip-path: inset\(0 0 0 100%/)
+  assert.match(styles, /\.ys-chat-workspace-menu\s*\{/)
 })
 
 test('chat stream transport is take-latest and supports explicit abort cleanup', async () => {
@@ -1569,10 +1800,10 @@ test('drawer and route compatibility contracts are preserved through public API'
   assert.match(drawer, /defineEmits\(\['update:modelValue', 'page-action', 'layout-change'\]\)/)
   assert.match(drawer, /import DataAssistant from ['"]\.\/AssistantExperience\.vue['"]/)
   assert.match(drawer, /<DataAssistant[\s\S]*embedded[\s\S]*@page-action="forwardPageAction"/)
-  assert.match(routeView, /import\(['"]@\/features\/assistant\/index\.js['"]\)/)
-  assert.match(routeView, /<AssistantExperience/)
-  assert.match(routeView, /<Suspense>/)
-  assert.match(routeView, /assistant-loading-shell/)
+  assert.match(routeView, /fetch\(['"]\/api\/assistant\/dsh-launch['"]/)
+  assert.match(routeView, /<iframe/)
+  assert.match(routeView, /:src="frameUrl"/)
+  assert.doesNotMatch(routeView, /AssistantExperience/)
   assert.match(experience, /from ['"]\.\/briefing\/model\.js['"]/)
   assert.match(experience, /from ['"]\.\/briefing\/service\.js['"]/)
   assert.doesNotMatch(experience, /const briefingCadenceOptions = \[/)
@@ -1616,7 +1847,7 @@ test('drawer and route compatibility contracts are preserved through public API'
     }
     assert.doesNotMatch(source, /@\/components\/AssistantDrawer\.vue/, path)
   }
-  assert.equal(publicImports, 8)
+  assert.equal(publicImports, 7)
   assert.ok(projectRoot)
 })
 

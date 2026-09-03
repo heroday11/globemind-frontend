@@ -7,36 +7,53 @@ export const PRESET_DAYS_MAP = Object.freeze({
   '365d': 365,
 })
 
+function finiteOptionalNumber(value) {
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
 export function trimTrendData(trend) {
   const dates = Array.isArray(trend?.dates) ? trend.dates : []
-  const values = Array.isArray(trend?.values) ? trend.values : []
+  const values = Array.isArray(trend?.values)
+    ? trend.values.map(finiteOptionalNumber)
+    : []
   if (!dates.length) return { dates: [], values: [] }
   const zeroThreshold = 0.01
   let start = 0
-  while (start < values.length && Math.abs(values[start]) < zeroThreshold) start += 1
+  while (
+    start < values.length
+    && (values[start] === null || Math.abs(values[start]) < zeroThreshold)
+  ) start += 1
   let end = values.length - 1
-  while (end >= 0 && Math.abs(values[end]) < zeroThreshold) end -= 1
+  while (
+    end >= 0
+    && (values[end] === null || Math.abs(values[end]) < zeroThreshold)
+  ) end -= 1
   if (start > end) return { dates: [], values: [] }
   return { dates: dates.slice(start, end + 1), values: values.slice(start, end + 1) }
 }
 
 export function findAnomalyPoints(data) {
   const dates = data?.dates || []
-  const values = (data?.values || []).map((value) => Number(value || 0))
+  const values = (data?.values || []).map(finiteOptionalNumber)
   if (dates.length < 4 || values.length < 4) return []
-  const differences = values.slice(1).map((value, index) => value - values[index])
+  const differences = values.slice(1).map((value, index) => (
+    value === null || values[index] === null ? null : value - values[index]
+  ))
   const absolute = differences.map(Math.abs).filter(Number.isFinite)
   if (!absolute.length) return []
   const average = absolute.reduce((sum, value) => sum + value, 0) / absolute.length
   const variance = absolute.reduce((sum, value) => sum + (value - average) ** 2, 0) / absolute.length
   const threshold = Math.max(6, average + Math.sqrt(variance) * 1.25)
   return differences
-    .map((delta, index) => ({
-      date: dates[index + 1],
-      index: index + 1,
-      value: values[index + 1],
-      delta,
-    }))
+    .map((delta, index) => (delta === null ? null : {
+        date: dates[index + 1],
+        index: index + 1,
+        value: values[index + 1],
+        delta,
+      }))
+    .filter(Boolean)
     .filter((point) => Math.abs(point.delta) >= threshold)
     .sort((left, right) => Math.abs(right.delta) - Math.abs(left.delta))
     .slice(0, 8)
@@ -53,7 +70,7 @@ export function normalizeResultDate(value) {
 
 export function buildSearchChartMarkPoints(searchResults, data) {
   if (!searchResults?.length || !data?.dates?.length || !data?.values?.length) return []
-  const values = data.values.map((value) => Number(value || 0))
+  const values = data.values.map(finiteOptionalNumber)
   const counts = new Map()
   for (const item of searchResults) {
     const date = normalizeResultDate(item.pub_time || item.published_at || item.created_at)
@@ -62,7 +79,7 @@ export function buildSearchChartMarkPoints(searchResults, data) {
   return Array.from(counts.entries())
     .map(([date, count]) => {
       const index = data.dates.indexOf(date)
-      if (index < 0) return null
+      if (index < 0 || values[index] === null) return null
       return {
         name: '搜索命中',
         coord: [index, values[index]],
@@ -80,13 +97,14 @@ export function buildSearchChartMarkPoints(searchResults, data) {
 
 export function selectDatePoint(date, data, anomalyPoints = []) {
   const dates = data?.dates || []
-  const values = (data?.values || []).map((value) => Number(value || 0))
+  const values = (data?.values || []).map(finiteOptionalNumber)
   const index = dates.indexOf(date)
-  const value = index >= 0 ? values[index] : 0
+  const value = index >= 0 ? values[index] : null
+  const previous = index > 0 ? values[index - 1] : null
   return {
     date,
     value,
-    delta: index > 0 ? value - values[index - 1] : null,
+    delta: value !== null && previous !== null ? value - previous : null,
     anomaly: anomalyPoints.some((point) => point.date === date),
   }
 }
@@ -120,7 +138,10 @@ export function yAxisRange(values, startPercent, endPercent) {
   const total = values.length - 1
   const startIndex = Math.max(0, Math.floor((startPercent / 100) * total))
   const endIndex = Math.min(total, Math.ceil((endPercent / 100) * total))
-  const visible = values.slice(startIndex, endIndex + 1)
+  const visible = values
+    .slice(startIndex, endIndex + 1)
+    .map(finiteOptionalNumber)
+    .filter((value) => value !== null)
   if (!visible.length) return { min: -10, max: 10 }
   const minimum = Math.min(...visible)
   const maximum = Math.max(...visible)
@@ -130,10 +151,12 @@ export function yAxisRange(values, startPercent, endPercent) {
 
 export function sparklinePoints(values, width = 120, height = 36) {
   if (!values || values.length < 2) return ''
-  const minimum = Math.min(...values)
-  const maximum = Math.max(...values)
+  const normalized = values.map(finiteOptionalNumber)
+  if (normalized.some((value) => value === null)) return ''
+  const minimum = Math.min(...normalized)
+  const maximum = Math.max(...normalized)
   const range = maximum - minimum || 1
-  return values
+  return normalized
     .map((value, index) => {
       const x = (index / (values.length - 1)) * width
       const y = height - ((value - minimum) / range) * height * 0.85 - height * 0.075
@@ -147,8 +170,10 @@ export function resolveChartPointDate(params, data) {
   const raw = params?.data?.coord?.[0]
   if (typeof raw === 'number') return data?.dates?.[raw] || ''
   if (params?.data?.type === 'max' || params?.data?.type === 'min') {
-    const values = (data?.values || []).map((value) => Number(value || 0))
-    const target = params.data.type === 'max' ? Math.max(...values) : Math.min(...values)
+    const values = (data?.values || []).map(finiteOptionalNumber)
+    const available = values.filter((value) => value !== null)
+    if (!available.length) return ''
+    const target = params.data.type === 'max' ? Math.max(...available) : Math.min(...available)
     return data?.dates?.[values.indexOf(target)] || ''
   }
   return String(raw || '')
@@ -238,7 +263,7 @@ export function buildSentimentChartOption({
     },
     series: [
       {
-        name: '舆情指数',
+        name: '加权目标立场指数',
         type: 'line',
         smooth: 0.3,
         symbolSize: 6,
@@ -262,14 +287,14 @@ export function buildSentimentChartOption({
           tooltip: {
             formatter: (params) => {
               if (params.data?.searchHit) {
-                return `${params.data.date}<br/>当前页搜索命中 ${params.data.count} 条<br/>舆情指数 ${formatIndexValue(params.value)}`
+                return `${params.data.date}<br/>当前页搜索命中 ${params.data.count} 条<br/>加权目标立场指数 ${formatIndexValue(params.value)} 指数点`
               }
-              return `${params.name}<br/>舆情指数 ${formatIndexValue(params.value)}`
+              return `${params.name}<br/>加权目标立场指数 ${formatIndexValue(params.value)} 指数点`
             },
           },
           data: [
-            { type: 'max', name: '正面极值', itemStyle: { color: '#5b72df' } },
-            { type: 'min', name: '负面极值', itemStyle: { color: '#ef4444' } },
+            { type: 'max', name: '支持立场极值', itemStyle: { color: '#5b72df' } },
+            { type: 'min', name: '批评立场极值', itemStyle: { color: '#ef4444' } },
             ...anomalyPoints.map((point) => ({
               name: point.delta >= 0 ? '异常上行' : '异常下行',
               coord: [point.index, point.value],

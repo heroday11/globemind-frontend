@@ -280,6 +280,52 @@ textarea:focus-visible,
   padding: 24px 28px 42px;
 }
 
+.route-meaning-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid #c7d8ee;
+  border-radius: 12px;
+  background: #f4f8fe;
+  color: #1f3f67;
+}
+
+.route-meaning-notice p {
+  margin: 4px 0 0;
+  line-height: 1.55;
+}
+
+.route-meaning-notice code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.route-meaning-notice a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: #173e6e;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (max-width: 760px) {
+  .route-meaning-notice {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .route-meaning-notice a {
+    justify-content: center;
+  }
+}
+
 .vault-hero,
 .skill-library,
 .database-console,

@@ -30,11 +30,11 @@ const HOME_SOURCE_TYPE_LABELS = Object.freeze({
 })
 
 const HOME_BIAS_LABELS = Object.freeze({
-  center: '中',
-  left: '左',
-  right: '右',
-  state_aligned: '国家',
-  unknown: '未评级',
+  center: '目录中间',
+  left: '目录偏左',
+  right: '目录偏右',
+  state_aligned: '目录国家关联',
+  unknown: '目录未评级',
 })
 
 function storyDate(story) {
@@ -50,7 +50,6 @@ function storyRecencyRank(story) {
 function storyCoverageRank(story) {
   return Number(story?.source_count || 0) * 1000
     + Number(story?.article_count || 0) * 10
-    + Number(story?.rank_score || 0)
 }
 
 function sortStoriesByRecency(stories) {
@@ -73,7 +72,7 @@ function uniqueStories(rows) {
 
 export function buildGroundNewsHomeModel(payload) {
   const value = payload && typeof payload === 'object' ? payload : {}
-  const leadStory = value.lead_story || null
+  const apiLeadStory = value.lead_story || null
   const metrics = value.metrics || {}
   const edition = value.edition || {}
   const visibleSections = (Array.isArray(value.sections) ? value.sections : [])
@@ -86,9 +85,10 @@ export function buildGroundNewsHomeModel(payload) {
   )
   const l2Watchlist = Array.isArray(value.l2_watchlist) ? value.l2_watchlist : []
   const allHomeStories = uniqueStories([
-    ...(leadStory ? [leadStory] : []),
+    ...(apiLeadStory ? [apiLeadStory] : []),
     ...visibleSections.flatMap((section) => section.stories || []),
   ])
+  const leadStory = selectVisualLeadStory(apiLeadStory, allHomeStories)
   const latestStories = selectLatestStories(allHomeStories)
   const weekStories = (
     sectionByKey.week_watch?.stories?.length
@@ -97,7 +97,13 @@ export function buildGroundNewsHomeModel(payload) {
         ? sectionByKey.pulse_72h.stories
         : latestStories
   )
-  const frontLatestStories = latestStories.slice(0, 6)
+  const frontLatestStories = selectFrontLatestStories(
+    latestStories,
+    [
+      ...(leadStory ? [leadStory] : []),
+      ...(sectionByKey.latest?.stories || []),
+    ],
+  )
 
   return {
     allHomeStories,
@@ -132,11 +138,48 @@ export function buildGroundNewsHomeModel(payload) {
   }
 }
 
+export function selectFrontLatestStories(
+  latestStories,
+  preferredVisualStories = [],
+  targetSize = 6,
+) {
+  const recentRows = uniqueStories(latestStories || [])
+  const preferredVisual = sortStoriesByRecency(
+    uniqueStories(preferredVisualStories || []).filter(homeHasStoryImage),
+  )[0]
+  const visualLead = preferredVisual
+    || sortStoriesByRecency(recentRows.filter(homeHasStoryImage))[0]
+  return uniqueStories([
+    ...(visualLead ? [visualLead] : []),
+    ...recentRows,
+  ]).slice(0, targetSize)
+}
+
+export function selectVisualLeadStory(apiLeadStory, stories) {
+  if (homeHasStoryImage(apiLeadStory)) return apiLeadStory
+  const visualCandidates = (stories || []).filter(homeHasStoryImage)
+  if (!visualCandidates.length) return apiLeadStory || stories?.[0] || null
+  return [...visualCandidates].sort((left, right) => (
+    Number(right?.rank_score || 0) - Number(left?.rank_score || 0)
+    || storyCoverageRank(right) - storyCoverageRank(left)
+    || storyRecencyRank(right) - storyRecencyRank(left)
+    || String(left?.cluster_id || '').localeCompare(String(right?.cluster_id || ''))
+  ))[0]
+}
+
 export function homeProfileCoveragePct(metrics) {
-  const coverage = metrics?.source_profile_coverage || {}
-  const total = Number(coverage.total_profiles || 0)
-  if (!total) return '0%'
-  return `${Math.round((Number(coverage.known_bias_profiles || 0) / total) * 100)}%`
+  const coverage = metrics?.source_profile_coverage
+  if (!coverage || typeof coverage !== 'object') return '待核验'
+  const rawTotal = coverage.total_profiles
+  const rawKnown = coverage.known_bias_profiles
+  if (rawTotal === null || rawTotal === undefined || rawTotal === '') return '待核验'
+  if (rawKnown === null || rawKnown === undefined || rawKnown === '') return '待核验'
+  const total = Number(rawTotal)
+  const known = Number(rawKnown)
+  if (!Number.isFinite(total) || !Number.isFinite(known)) return '待核验'
+  if (total === 0) return '不可计算'
+  if (total < 0 || known < 0 || known > total) return '待核验'
+  return `${Math.round((known / total) * 100)}%`
 }
 
 export function selectLatestStories(allHomeStories) {
@@ -183,9 +226,7 @@ export function selectFrontWeekStories(
 export function selectBlindspotStories(sectionByKey, allHomeStories) {
   const blindspot = sectionByKey.blindspot
   if (blindspot?.stories?.length) return blindspot.stories
-  return [...allHomeStories].sort(
-    (left, right) => Number(right.blindspot_score || 0) - Number(left.blindspot_score || 0),
-  )
+  return sortStoriesByRecency(allHomeStories)
 }
 
 export function buildHomeTopicChips(stories) {
@@ -201,7 +242,13 @@ export function buildHomeTopicChips(stories) {
     }
     item.count += 1
     item.articles += Number(story.article_count || 0)
-    if (Number(story.rank_score || 0) > Number(item.story?.rank_score || 0)) {
+    if (
+      storyRecencyRank(story) > storyRecencyRank(item.story)
+      || (
+        storyRecencyRank(story) === storyRecencyRank(item.story)
+        && String(story.cluster_id || '').localeCompare(String(item.story?.cluster_id || '')) < 0
+      )
+    ) {
       item.story = story
     }
     topics.set(key, item)
@@ -262,14 +309,18 @@ export function homeTimelinePath(chain) {
   return `/data-service/ground-news-timeline/${encodeURIComponent(chain?.chain_id || '')}`
 }
 
-export function homeEditionLabel(sectionByKey, edition, key) {
+export function homeEditionLabel(sectionByKey, edition, key, freshness = null) {
   const section = sectionByKey[key]
-  if (!section) return '实时更新'
-  if (key === 'latest' && section.requires_image) return '重要事件 · 必须配图 · 实时滚动'
+  const historical = freshness?.historical !== false
+  const rotationFallback = historical ? '按历史快照排序' : '按更新批次滚动'
+  if (!section) return rotationFallback
+  if (key === 'latest' && section.requires_image) {
+    return `重要事件 · 必须配图 · ${rotationFallback}`
+  }
   const minArticles = Number(section.min_articles || 0)
   const rotationText = section.rotation === '3d'
     ? `${edition.rotation_days || 3} 天轮换`
-    : '实时滚动'
+    : rotationFallback
   if (key === 'latest' && minArticles > 1) return `${minArticles} 条起 · ${rotationText}`
   const windowText = section.window_days ? `${section.window_days} 天窗口` : '全局窗口'
   return minArticles > 1
@@ -277,8 +328,8 @@ export function homeEditionLabel(sectionByKey, edition, key) {
     : `${windowText} · ${rotationText}`
 }
 
-export function homeSectionBadge(section, sectionByKey, edition) {
-  return `${homeEditionLabel(sectionByKey, edition, section?.key)} · ${section?.stories?.length || 0} 张卡片`
+export function homeSectionBadge(section, sectionByKey, edition, freshness = null) {
+  return `${homeEditionLabel(sectionByKey, edition, section?.key, freshness)} · ${section?.stories?.length || 0} 张卡片`
 }
 
 export function homeBiasBuckets(story) {
@@ -295,9 +346,9 @@ export function homeVisibleBiasBuckets(story) {
 
 export function homeBiasSummary(story) {
   const rows = homeVisibleBiasBuckets(story).filter((bucket) => bucket.key !== 'unknown')
-  if (!rows.length) return '信源政治倾向暂未评级'
+  if (!rows.length) return '第三方目录分组未知'
   const top = [...rows].sort((left, right) => right.value - left.value)[0]
-  return `${top.label}覆盖最高，${homeFormatPct(top.value)}%`
+  return `${top.label}占比最高，${homeFormatPct(top.value)}%`
 }
 
 export function homeCodeLabel(value, fallback = '未知') {
@@ -356,12 +407,18 @@ export function homeSampleNews(story, limit = 3) {
   }]
 }
 
+export function homeStorySourceLine(story, limit = 3) {
+  const sources = homeSourceNames(story).slice(0, limit)
+  if (!sources.length) return `${Number(story?.source_count || 0)} 个信源，名称待补充`
+  const remaining = Math.max(0, Number(story?.source_count || 0) - sources.length)
+  return remaining > 0
+    ? `${sources.join('、')} 等 ${Number(story?.source_count || 0)} 个信源`
+    : sources.join('、')
+}
+
 export function homeQualityLabel(value) {
-  return {
-    strong: '强关联',
-    usable: '可用',
-    weak: '弱关联',
-  }[value] || homeCodeLabel(value, '未评级')
+  void value
+  return '链质量未知'
 }
 
 export function homeFormatDate(value) {
@@ -375,7 +432,11 @@ export function homeFormatRange(start, end) {
 }
 
 export function homeFormatNumber(value) {
-  return Number(value || 0).toLocaleString('zh-CN')
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') {
+    return '待核验'
+  }
+  const number = Number(value)
+  return Number.isFinite(number) ? number.toLocaleString('zh-CN') : '待核验'
 }
 
 export function homeFormatPct(value) {

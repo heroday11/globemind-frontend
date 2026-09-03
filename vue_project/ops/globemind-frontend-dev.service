@@ -1,0 +1,21 @@
+[Unit]
+Description=GlobeMind frontend Vite development server
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data/globemind/vue_project
+Environment=VITE_DEV_PORT=18098
+Environment=VITE_DEV_PUBLIC_HOST=dev.globemind.top
+Environment=VITE_DEV_PUBLIC_PROTOCOL=https
+Environment=VITE_DEV_PUBLIC_PORT=443
+Environment=VITE_API_PROXY_TARGET=http://127.0.0.1:18189
+Environment=VITE_DSH_PROXY_TARGET=http://127.0.0.1:13080
+ExecStart=/usr/bin/npm run dev:main -- --host 0.0.0.0
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

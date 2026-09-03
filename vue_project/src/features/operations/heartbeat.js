@@ -31,7 +31,11 @@ function normalizeDelay(value, fallback, minimum = 0) {
 
 function normalizeClientId(value) {
   const normalized = typeof value === 'string' ? value.trim() : ''
-  return normalized.length >= 8 && normalized.length <= 128 ? normalized : ''
+  return normalized.length >= 8
+    && normalized.length <= 128
+    && /^[A-Za-z0-9_.:-]+$/.test(normalized)
+    ? normalized
+    : ''
 }
 
 function createClientId({ randomUUID, now, random }) {
@@ -103,6 +107,10 @@ function normalizeHeartbeatPath(value) {
   return printablePath.slice(0, 256) || '/'
 }
 
+function normalizeVisibility(value) {
+  return ['visible', 'hidden', 'prerender'].includes(value) ? value : 'visible'
+}
+
 export function createOperationsHeartbeat(options = {}) {
   const fetchImpl = Object.hasOwn(options, 'fetchImpl') ? options.fetchImpl : defaultFetch()
   const storage = Object.hasOwn(options, 'storage') ? options.storage : defaultStorage()
@@ -159,7 +167,7 @@ export function createOperationsHeartbeat(options = {}) {
     return {
       client_id: clientId,
       path: normalizeHeartbeatPath(safeValue(getPath, '/')),
-      visibility: safeValue(getVisibility, 'visible').slice(0, 32),
+      visibility: normalizeVisibility(safeValue(getVisibility, 'visible')),
     }
   }
 

@@ -58,7 +58,6 @@ export const EDGE_COLORS = {
   branch_sequence: '#8b98a7',
   branch: '#B99A45',
   parallel: '#21a8a4',
-  influence: '#806db3',
   diplomacy: '#5578a8',
   market_reaction: '#31a879',
   context: '#7E74A8',

@@ -3,8 +3,8 @@
 // 默认读取后端；设置 VITE_USE_FIN_API_MOCK=true 可强制本地 mock
 // ============================================================
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AlertRule, AlertReport } from '../types'
-import { fetchAlertRules, fetchAlertHistory } from '../api'
+import type { AlertRule, AlertReport, FinancialTrust } from '../types'
+import { fetchAlertData } from '../api'
 import { generateAlertReport } from '../lib/mockData'
 import { useMock } from './useMock'
 
@@ -13,6 +13,7 @@ export function useNumericalAlerts() {
   const [reports, setReports] = useState<AlertReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [trust, setTrust] = useState<FinancialTrust | null>(null)
   const prevBreachedRef = useRef<Record<string, boolean>>({})
   const mock = useMock()
 
@@ -22,17 +23,37 @@ export function useNumericalAlerts() {
     const load = async () => {
       setLoading(true)
       try {
-        const [rulesData, history] = await Promise.all([
-          fetchAlertRules(),
-          fetchAlertHistory(),
-        ])
+        const data = await fetchAlertData()
         if (cancelled) return
-        setRules(rulesData)
-        setReports(history)
+        setRules(data.rules)
+        setReports(data.history)
+        setTrust(data.trust || null)
         setError(null)
-      } catch (e: any) {
+      } catch {
         if (cancelled) return
-        setError(e?.message ?? '预警数据加载失败')
+        setError('预警数据加载失败。')
+        setRules([])
+        setTrust({
+          schema_version: 'financial-trust-v1',
+          snapshot_id: `client-alert-error-${Date.now()}`,
+          trust_status: 'unavailable',
+          freshness_status: 'offline',
+          computability: 'not_computable',
+          computable: false,
+          data_as_of: null,
+          evaluated_at: new Date().toISOString(),
+          coverage_ratio: 0,
+          minimum_coverage_ratio: 0.5,
+          usable_sources: 0,
+          source_total: 0,
+          usable_source_ids: [],
+          unavailable_source_ids: [],
+          source_status: { offline: 1 },
+          model_version: 'unknown',
+          method_version: 'unknown',
+          unavailable_reasons: [{ code: 'ALERT_REQUEST_FAILED', message: '预警数据加载失败。' }],
+          alerts_enabled: false,
+        })
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -73,5 +94,5 @@ export function useNumericalAlerts() {
     }
   }, [rules, mock])
 
-  return { rules, reports, loading, error }
+  return { rules, reports, trust, loading, error }
 }

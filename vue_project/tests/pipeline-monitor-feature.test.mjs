@@ -14,12 +14,16 @@ import {
   createPipelineMonitorApi,
   createPipelineMonitorRefreshScheduler,
   decimateSamples,
+  formatMetricValue,
+  formatNumber,
   groupPipelines,
   mergeFastPipelineSnapshot,
   mergePipelineMetrics,
+  metricValue,
   metricRange,
   normalizePipelineMonitorSnapshot,
   normalizeRuntimeCatalog,
+  pressureTone,
   samplesWithinWindow,
 } from '../src/features/operations/index.js'
 
@@ -207,6 +211,15 @@ test('trend helpers preserve windowing, decimation, flat ranges, and chart bound
   assert.deepEqual(chartTickIndices(10), [0, 3, 6, 9])
   assert.equal(chartPoint([{ value: 1 }], 0, 'value'), null)
   assert.match(chartPath([{ value: 1 }, { value: 2 }], 'value'), /^M .+ L /)
+  assert.equal(metricValue({ value: null }, 'value'), null)
+  assert.equal(metricValue({ value: false }, 'value'), null)
+  assert.equal(metricValue({ value: '0' }, 'value'), null)
+  assert.equal(metricValue({ value: 0 }, 'value'), 0)
+  assert.deepEqual(metricRange([{ value: null }], 'value'), { min: null, max: null })
+  assert.doesNotMatch(
+    chartPath([{ value: 1 }, { value: null }, { value: 2 }], 'value'),
+    / L /,
+  )
 })
 
 test('KPI view model keeps operations labels, icon keys, and pressure thresholds stable', () => {
@@ -242,6 +255,27 @@ test('KPI view model keeps operations labels, icon keys, and pressure thresholds
     'users',
     'gauge',
   ])
+
+  const unknown = buildPipelineKpis({
+    overview: {
+      news_total: null,
+      good_last_24h: null,
+      online_active: null,
+      server_pressure_pct: null,
+    },
+    online: { measurement_state: 'unavailable', ttl_sec: 90 },
+  })
+  assert.equal(formatNumber(null), '—')
+  assert.equal(formatNumber(false), '—')
+  assert.equal(formatNumber('7'), '—')
+  assert.equal(formatMetricValue({ value: null, unit: '条' }), '—')
+  assert.equal(formatMetricValue({ value: Number.NaN, unit: '条' }), '—')
+  assert.equal(unknown[0].value, '—')
+  assert.match(unknown[0].sub, /—/)
+  assert.equal(unknown[4].value, '—')
+  assert.equal(unknown[4].tone, 'neutral')
+  assert.equal(unknown[5].tone, 'neutral')
+  assert.equal(pressureTone(null), 'neutral')
 })
 
 test('latest request coordinator aborts replaced work and blocks stale commits', async () => {

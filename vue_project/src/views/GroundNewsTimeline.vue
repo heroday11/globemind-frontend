@@ -2,23 +2,37 @@
   <main class="timeline-page">
     <header class="timeline-hero">
       <RouterLink class="back-link" to="/data-service/ground-news">Ground News 首页</RouterLink>
-      <span class="eyebrow">L2 Timeline</span>
-      <h1>{{ chain.title || chain.chain_id || '走势链' }}</h1>
-      <p>{{ chain.segment_count || nodes.length }} 个节点 · {{ chain.article_count || 0 }} 条新闻 · {{ qualityLabel(chain.chain_quality) }}</p>
+      <span class="eyebrow">L2 Related Threads</span>
+      <h1>{{ chain.title || chain.chain_id || '关联线索' }}</h1>
+      <p>{{ timelineCountLabel(data.totalNodeCount, '个节点') }} · {{ timelineCountLabel(data.articleCount, '条新闻') }} · {{ timelineQualityLabel(chain.chain_quality) }}</p>
+      <p class="sampling-notice">{{ samplingNotice }}</p>
+      <details class="metric-explanation">
+        <summary>查看关联指标与覆盖缺口的证据限制</summary>
+        <article v-for="item in metricExplanations" :key="item.metric_id">
+          <strong>{{ item.label }}：{{ item.valueLabel }}</strong>
+          <p>方法：{{ item.method_version || '未建立' }}；公式：{{ item.formula }}</p>
+          <p>证据定位：{{ item.evidence.locator || '不可用' }}；原因：{{ item.reason_code }}</p>
+          <ul>
+            <li v-for="input in item.inputs" :key="input.field">
+              <code>{{ input.field }}</code>：{{ input.state === 'provided_unverified' ? `已提供但未核验（${input.value}）` : '不可用' }}
+            </li>
+          </ul>
+        </article>
+      </details>
     </header>
 
-    <section v-if="loading" class="state-card">正在加载走势链...</section>
+    <section v-if="loading" class="state-card">正在加载关联线索...</section>
     <section v-else-if="error" class="state-card error">{{ error }}</section>
 
     <section v-else class="timeline-layout">
       <aside class="chain-panel">
         <article>
-          <span>Quality</span>
-          <strong>{{ qualityLabel(chain.chain_quality) }}</strong>
-          <small>{{ qualityPct(chain.quality_score) }}</small>
+          <span>关联质量</span>
+          <strong>未评估</strong>
+          <small>方法、输入身份或证据不可用</small>
         </article>
         <article>
-          <span>Range</span>
+          <span>时间范围</span>
           <strong>{{ formatRange(chain.start_date, chain.end_date) }}</strong>
           <small>{{ chain.family_group || chain.event_family || 'global' }}</small>
         </article>
@@ -31,10 +45,14 @@
             <div class="node-meta">
               <span>{{ formatRange(node.start_date, node.end_date) }}</span>
               <span>{{ angleLabel(node.story_angle) }}</span>
-              <span>{{ node.source_count || 0 }} 信源</span>
+              <span>{{ timelineCountLabel(node.source_count, '个信源') }}</span>
             </div>
             <h2>{{ node.display_title }}</h2>
             <p>{{ node.initiator || '未知主体' }} -> {{ node.target || '未知对象' }}</p>
+            <aside class="node-research-note" :class="`is-${nodeResearchNotes[index].state}`">
+              <strong>研究增量</strong>
+              <p>{{ nodeResearchNotes[index].message }}</p>
+            </aside>
             <div class="bias-bar">
               <span
                 v-for="bucket in biasBuckets(node)"
@@ -42,14 +60,15 @@
                 :style="{ width: `${Math.max(bucket.value, bucket.value > 0 ? 3 : 0)}%`, background: bucket.color }"
               />
             </div>
+            <small v-if="!biasBuckets(node).length">目录标签构成未知</small>
             <div class="node-actions">
-              <RouterLink :to="node.detail_url">打开 Story Page</RouterLink>
-              <small v-if="node.blindspot?.score">Blindspot {{ Math.round(node.blindspot.score) }}</small>
+              <RouterLink :to="node.detail_url">打开事件详情</RouterLink>
+              <small>覆盖缺口 {{ graphMetricPresentation('ground_news.blindspot_score', { value: node.blindspot?.score }).valueLabel }}</small>
             </div>
           </div>
           <div v-if="edges[index]" class="edge-note">
-            <span>{{ edgeLabel(edges[index].edge_type) }}</span>
-            <p>{{ edges[index].relation_reason || '相邻节点存在时间和主题连续性。' }}</p>
+            <span>{{ edgeTypeLabel(edges[index].edge_type) }}</span>
+            <p>{{ edges[index].relation_reason }}</p>
           </div>
         </article>
       </section>
@@ -60,7 +79,19 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { groundNewsApi } from '@/features/ground-news/index.js'
+import {
+  edgeTypeLabel,
+  groundNewsApi,
+  timelineCountLabel,
+  timelineErrorMessage,
+  timelineNodeResearchNote,
+  timelineQualityLabel,
+  timelineSamplingNotice,
+} from '@/features/ground-news/index.js'
+import {
+  graphMetricExplanation,
+  graphMetricPresentation,
+} from '@/governance/graphMetrics.js'
 
 const route = useRoute()
 const loading = ref(false)
@@ -71,6 +102,25 @@ const chainId = computed(() => String(route.params.chain_id || ''))
 const chain = computed(() => data.value.chain || {})
 const nodes = computed(() => data.value.nodes || [])
 const edges = computed(() => data.value.edges || [])
+const nodeResearchNotes = computed(() => nodes.value.map((node, index) => (
+  timelineNodeResearchNote(node, nodes.value[index - 1])
+)))
+const samplingNotice = computed(() => timelineSamplingNotice(data.value))
+const metricExplanations = computed(() => [
+  graphMetricExplanation('ground_news.timeline_quality', {
+    inputs: {
+      quality_score: chain.value.quality_score,
+      chain_quality: chain.value.chain_quality,
+    },
+  }),
+  graphMetricExplanation('ground_news.blindspot_score', {
+    inputs: {
+      source_count: nodes.value[0]?.source_count,
+      reviewed_known_source_count: nodes.value[0]?.blindspot?.reviewed_known_source_count,
+      unknown_source_count: nodes.value[0]?.blindspot?.unknown_source_count,
+    },
+  }),
+])
 
 watch(() => route.params.chain_id, () => {
   void load()
@@ -86,8 +136,9 @@ async function load() {
   error.value = ''
   try {
     data.value = await groundNewsApi.getTimeline(chainId.value)
-  } catch (err) {
-    error.value = err?.response?.data?.detail || err?.message || '加载失败'
+  } catch {
+    data.value = {}
+    error.value = timelineErrorMessage()
   } finally {
     loading.value = false
   }
@@ -103,9 +154,13 @@ const biasModel = [
 
 function biasBuckets(node) {
   const raw = node?.political_group_pct_reviewed_known_sources || {}
+  const values = Object.values(raw)
+  if (!values.length || values.some((value) => typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+    return []
+  }
   const rows = biasModel.map((bucket) => ({ ...bucket, value: Number(raw[bucket.key] || 0) }))
   const total = rows.reduce((sum, row) => sum + row.value, 0)
-  if (!total) return rows.map((row) => ({ ...row, value: row.key === 'unknown' ? 100 : 0 }))
+  if (!total) return []
   return rows.map((row) => ({ ...row, value: (row.value / total) * 100 }))
 }
 
@@ -116,25 +171,11 @@ function formatRange(start, end) {
   return left === right ? left : `${left} -> ${right}`
 }
 
-function qualityPct(value) {
-  if (value === null || value === undefined) return '未评分'
-  return `${Math.round(Number(value) * 100)}%`
-}
-
-function qualityLabel(value) {
-  const labels = { strong: '强关联', usable: '可用', weak: '弱关联' }
-  return labels[value] || String(value || '未评级')
-}
-
 function angleLabel(value) {
   const labels = { main_event: '核心事件', context_update: '背景进展', market_reaction: '市场反应', outcome_reaction: '后续反应', analysis_context: '分析解读' }
   return labels[value] || String(value || '切面').replaceAll('_', ' / ')
 }
 
-function edgeLabel(value) {
-  const labels = { continuation: '延续', continued: '延续', escalation: '升级', response: '回应', transition: '转折', context: '背景关联', same_thread: '同一线索' }
-  return labels[value] || String(value || '关联').replaceAll('_', ' / ')
-}
 </script>
 
 <style scoped>
@@ -257,6 +298,29 @@ function edgeLabel(value) {
   line-height: 1.08;
 }
 
+.node-research-note {
+  margin: 14px 0;
+  border-left: 4px solid #8b6a38;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(139, 106, 56, 0.08);
+}
+
+.node-research-note.is-possible_duplicate {
+  border-left-color: #b3261e;
+  background: rgba(179, 38, 30, 0.08);
+}
+
+.node-research-note strong {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.node-research-note p {
+  margin: 4px 0 0;
+  line-height: 1.55;
+}
+
 .node-meta,
 .node-actions {
   display: flex;
@@ -282,6 +346,10 @@ function edgeLabel(value) {
 }
 
 .node-actions a {
+  box-sizing: border-box;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
   padding: 9px 12px;
   background: var(--navy);
@@ -313,5 +381,13 @@ function edgeLabel(value) {
   .edge-note {
     grid-column: auto;
   }
+}
+
+.timeline-page .back-link {
+  box-sizing: border-box;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  touch-action: manipulation;
 }
 </style>

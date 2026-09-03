@@ -3,8 +3,9 @@
     <header class="source-hero">
       <RouterLink class="back-link" to="/data-service/ground-news">Ground News 首页</RouterLink>
       <span class="eyebrow">Source Profile</span>
-      <h1>{{ profile.source_name || profile.domain }}</h1>
-      <p>{{ profile.domain }} · {{ profile.country || '未知地区' }} · {{ sourceTypeLabel(profile.source_type) }}</p>
+      <h1>{{ sourceModel.sourceName }}</h1>
+      <p>{{ sourceModel.domain }} · {{ sourceModel.country }} · {{ sourceModel.labels.sourceType }}</p>
+      <p class="source-scope-note">本页展示来源目录元数据，不评价某篇报道的事实真伪；跨国家政治标签不可直接横向比较。</p>
     </header>
 
     <section v-if="loading" class="state-card">正在加载来源画像...</section>
@@ -14,21 +15,21 @@
       <section class="source-layout">
         <aside class="profile-panel">
           <article>
-            <span>Bias</span>
-            <strong>{{ biasLabel(profile.political_leaning) }}</strong>
-            <small>{{ profile.review_status || 'missing' }}</small>
+            <span>第三方政治目录标签</span>
+            <strong>{{ sourceModel.labels.politicalLeaning }}</strong>
+            <small>{{ sourceModel.labels.reviewStatus }}</small>
           </article>
           <article>
-            <span>Factuality</span>
-            <strong>{{ credibilityLabel(profile.credibility_tier) }}</strong>
-            <small>{{ profile.label_confidence || 'confidence unknown' }}</small>
+            <span>第三方目录评级</span>
+            <strong>{{ sourceModel.labels.credibility }}</strong>
+            <small>{{ sourceModel.labels.confidence }}</small>
           </article>
           <article>
-            <span>Ownership</span>
-            <strong>{{ ownershipLabel(profile.ownership_type) }}</strong>
-            <small>{{ profile.geo_alignment || 'geo unknown' }}</small>
+            <span>所有权记录</span>
+            <strong>{{ sourceModel.labels.ownership }}</strong>
+            <small>{{ sourceModel.labels.geoAlignment }}</small>
           </article>
-          <a v-if="profile.evidence_url" class="evidence-link" :href="profile.evidence_url" target="_blank" rel="noopener">
+          <a v-if="safeEvidenceUrl" class="evidence-link" :href="safeEvidenceUrl" target="_blank" rel="noopener noreferrer">
             查看评级证据
           </a>
         </aside>
@@ -36,15 +37,29 @@
         <section class="source-main">
           <article class="note-card">
             <div class="block-head">
-              <span>Methodology</span>
-              <small>{{ formatDate(profile.updated_at) }}</small>
+              <span>方法说明</span>
+              <small>{{ sourceModel.method.schemaVersion }} · {{ sourceModel.method.profileVersion }}</small>
             </div>
-            <p>{{ profile.evidence_note || '该来源还没有完整方法论说明，当前展示来自 media_source_profile 的结构化字段。' }}</p>
+            <strong>{{ sourceModel.method.status }}</strong>
+            <p>{{ sourceModel.method.limitation || '目录标签不代表独立事实准确率或来源可靠性结论。' }}</p>
+            <ul v-if="sourceModel.method.methods.length" class="method-list">
+              <li v-for="method in sourceModel.method.methods" :key="method.id">
+                <strong>{{ method.label }} · {{ method.version }}</strong>
+                <small>{{ method.scope }}</small>
+              </li>
+            </ul>
+            <p v-else>没有可验证的受控方法映射；相关评级保持未知。</p>
+            <small v-if="sourceModel.method.unknownMethodCount">
+              另有 {{ sourceModel.method.unknownMethodCount }} 个未知方法标记，未用于评级展示。
+            </small>
+            <ul v-if="sourceModel.method.notes.length" class="method-notes">
+              <li v-for="note in sourceModel.method.notes" :key="note">{{ note }}</li>
+            </ul>
           </article>
 
           <article class="story-block">
             <div class="block-head">
-              <span>参与过的 Story</span>
+              <span>收录事件</span>
               <small>{{ stories.length }}</small>
             </div>
             <div class="story-grid">
@@ -61,22 +76,28 @@
               <small>{{ recentArticles.length }}</small>
             </div>
             <div class="article-list">
-              <a v-for="item in recentArticles" :key="item.news_id" :href="item.url" target="_blank" rel="noopener">
-                <span>{{ formatDate(item.published_at) }}</span>
-                <strong>{{ item.title }}</strong>
-              </a>
+              <template v-for="item in recentArticles" :key="item.news_id">
+                <a v-if="item.safe_url" :href="item.safe_url" target="_blank" rel="noopener noreferrer">
+                  <span>{{ formatDate(item.published_at) }}</span>
+                  <strong>{{ item.title }}</strong>
+                </a>
+                <div v-else class="article-link-unavailable" aria-disabled="true" title="原文链接不可用">
+                  <span>{{ formatDate(item.published_at) }}</span>
+                  <strong>{{ item.title }}</strong>
+                </div>
+              </template>
             </div>
           </article>
 
           <article class="story-block">
             <div class="block-head">
-              <span>相似来源</span>
+              <span>同类目录来源</span>
               <small>{{ similarSources.length }}</small>
             </div>
             <div class="source-grid">
               <RouterLink v-for="source in similarSources" :key="source.domain" class="peer-card" :to="sourcePath(source.domain)">
-                <strong>{{ source.source_name || source.domain }}</strong>
-                <small>{{ biasLabel(source.political_leaning) }} · {{ credibilityLabel(source.credibility_tier) }}</small>
+                <strong>{{ source.sourceName }}</strong>
+                <small>{{ source.labels.politicalLeaning }} · {{ source.labels.credibility }}</small>
               </RouterLink>
             </div>
           </article>
@@ -89,7 +110,12 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { groundNewsApi } from '@/features/ground-news/index.js'
+import {
+  buildGroundNewsSourceProfileModel,
+  familyLabel,
+  groundNewsApi,
+} from '@/features/ground-news/index.js'
+import { safeExternalHttpUrl } from '@/utils/externalUrl.js'
 
 const route = useRoute()
 const loading = ref(false)
@@ -98,9 +124,22 @@ const data = ref({})
 
 const domain = computed(() => String(route.params.domain || ''))
 const profile = computed(() => data.value.profile || {})
+const sourceModel = computed(() => buildGroundNewsSourceProfileModel(profile.value))
+const safeEvidenceUrl = computed(() => safeExternalHttpUrl(sourceModel.value.evidenceUrl))
 const stories = computed(() => data.value.stories || [])
-const recentArticles = computed(() => data.value.recent_articles || [])
-const similarSources = computed(() => data.value.similar_sources || [])
+const recentArticles = computed(() => (
+  Array.isArray(data.value.recent_articles)
+    ? data.value.recent_articles.map((item) => ({
+        ...item,
+        safe_url: safeExternalHttpUrl(item.url),
+      }))
+    : []
+))
+const similarSources = computed(() => (
+  Array.isArray(data.value.similar_sources)
+    ? data.value.similar_sources.map((source) => buildGroundNewsSourceProfileModel(source))
+    : []
+))
 
 watch(() => route.params.domain, () => {
   void load()
@@ -135,45 +174,6 @@ function formatDate(value) {
   return value ? String(value).slice(0, 10) : '无日期'
 }
 
-function biasLabel(value) {
-  const labels = {
-    left: '左翼',
-    center_left: '偏左',
-    center: '中间',
-    center_right: '偏右',
-    right: '右翼',
-    state_aligned: '国家立场',
-    unknown: '未评级',
-  }
-  return labels[value] || String(value || '未评级').replaceAll('_', ' / ')
-}
-
-function credibilityLabel(value) {
-  const labels = { high: '高可信', medium: '中等可信', low: '低可信', unknown: '未知' }
-  return labels[value] || biasLabel(value)
-}
-
-function ownershipLabel(value) {
-  const labels = {
-    public: '公共机构',
-    private: '私营',
-    state: '国有',
-    government: '政府',
-    wire_service: '通讯社',
-    nonprofit: '非营利',
-    unknown: '未知',
-  }
-  return labels[value] || biasLabel(value)
-}
-
-function sourceTypeLabel(value) {
-  return String(value || 'unknown').replaceAll('_', ' / ')
-}
-
-function familyLabel(value) {
-  const labels = { diplomacy: '外交', military_security: '安全', economic_trade: '经贸', technology_industry: '科技', domestic_politics: '政治' }
-  return labels[value] || sourceTypeLabel(value)
-}
 </script>
 
 <style scoped>
@@ -226,6 +226,14 @@ function familyLabel(value) {
 
 .source-hero p {
   color: var(--muted);
+}
+
+.source-hero .source-scope-note {
+  max-width: 860px;
+  border-left: 3px solid #8b6a38;
+  padding-left: 12px;
+  color: #4c5963;
+  line-height: 1.6;
 }
 
 .source-layout {
@@ -293,7 +301,8 @@ function familyLabel(value) {
 
 .story-card,
 .peer-card,
-.article-list a {
+.article-list a,
+.article-link-unavailable {
   border: 1px solid rgba(16, 34, 52, 0.12);
   border-radius: 18px;
   padding: 12px;
@@ -302,6 +311,10 @@ function familyLabel(value) {
   display: grid;
   gap: 6px;
   text-decoration: none;
+}
+
+.article-link-unavailable {
+  opacity: 0.72;
 }
 
 .article-list {
@@ -323,5 +336,26 @@ function familyLabel(value) {
   .source-layout {
     grid-template-columns: 1fr;
   }
+}
+
+.source-page .back-link,
+.source-page .evidence-link,
+.source-page .story-card,
+.source-page .peer-card,
+.source-page .article-list a,
+.source-page .article-link-unavailable {
+  box-sizing: border-box;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.source-page .back-link,
+.source-page .evidence-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.source-page .evidence-link {
+  justify-content: center;
 }
 </style>

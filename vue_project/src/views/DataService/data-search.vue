@@ -9,7 +9,11 @@
     <div class="bg-grid" />
 
     <!-- 左侧固定边栏 -->
-    <div class="left-sidebar" data-tour="search-workfolders">
+    <div
+      class="left-sidebar"
+      :class="{ 'is-mobile-expanded': workspacePanelExpanded }"
+      data-tour="search-workfolders"
+    >
       <div class="sidebar-head">
         <div class="sidebar-title">新闻事件检索台</div>
         <div class="sidebar-subtitle">news 库 · L1/L2/L3 事件体系</div>
@@ -19,6 +23,17 @@
           <span>2026.06</span>
         </div>
       </div>
+      <button
+        type="button"
+        class="mobile-sidebar-toggle"
+        aria-controls="search-workspace-panel"
+        :aria-expanded="workspacePanelExpanded"
+        @click="workspacePanelExpanded = !workspacePanelExpanded"
+      >
+        <span>工作文件夹与收藏</span>
+        <strong>{{ workspacePanelExpanded ? '收起' : '展开' }}</strong>
+      </button>
+      <div id="search-workspace-panel" class="mobile-sidebar-panel">
       <div class="folder-toolbar">
         <div>
           <div class="folder-toolbar-title">工作文件夹</div>
@@ -34,14 +49,16 @@
           class="folder-card"
           :class="{ active: folder.name === themeName }"
           role="listitem"
-          @click="switchTheme(folder.name)"
         >
           <span class="folder-tab" aria-hidden="true" />
           <div class="folder-main">
             <span class="folder-mark" aria-hidden="true" />
             <div class="folder-copy">
               <div v-if="isEditingTheme && folder.name === themeName" class="folder-edit-row">
+                <label class="search-sr-only" for="search-folder-name">文件夹名称</label>
                 <input
+                  id="search-folder-name"
+                  name="folderName"
                   class="folder-edit-input"
                   v-model="themeNameDraft"
                   @click.stop
@@ -83,193 +100,292 @@
         <div class="sidebar-block-title">当前文件夹</div>
         <div v-if="favoriteCards.length === 0" class="favorite-empty">暂无收藏，点击新闻列表右侧星标即可加入。</div>
         <div v-else class="favorite-cards">
-          <router-link
+          <div
             v-for="card in favoriteCards.slice(0, 8)"
             :key="`fav-${card.id}`"
-            class="favorite-card"
-            :to="`/data-service/news/${card.id}`"
+            class="favorite-card-shell"
           >
-            <button class="favorite-card-close" @click.prevent.stop="removeFavoriteCard(card.id)" title="移除收藏">×</button>
-            <div class="favorite-card-title">{{ card.title || '无标题' }}</div>
-            <div class="favorite-card-meta">
-              <span>{{ card.source || '未知来源' }}</span>
-              <span>{{ formatDateTime(card.displayTime || card.pub_time || card.time) }}</span>
-            </div>
-          </router-link>
+            <router-link class="favorite-card" :to="`/data-service/news/${card.id}`">
+              <div class="favorite-card-title">{{ card.title || '无标题' }}</div>
+              <div class="favorite-card-meta">
+                <span>{{ card.source || '未知来源' }}</span>
+                <span>新闻发布日期：{{ formatDateTime(publishedTimeValue(card)) }}</span>
+              </div>
+            </router-link>
+            <button
+              type="button"
+              class="favorite-card-close"
+              @click="removeFavoriteCard(card.id)"
+              :aria-label="`从当前文件夹移除：${card.title || '无标题'}`"
+              title="移除收藏"
+            >
+              ×
+            </button>
+          </div>
         </div>
+      </div>
       </div>
     </div>
 
     <!-- 右侧可滚动主内容区 -->
     <div class="main-content">
-      <!-- 搜索条件区 -->
+      <!-- 智能搜索 -->
       <div class="search-condition" data-tour="search-form">
-        <h3>新闻与事件检索</h3>
-        <section class="situation-presets" aria-label="态势检索模板">
-          <div class="preset-copy">
-            <div class="preset-copy-kicker">
-              <span>态势模板</span>
-              <em>最长 8 秒</em>
-            </div>
-            <strong>按新闻、事件、走势与大事选择最短检索路径</strong>
+        <div class="search-heading-row">
+          <div>
+            <h1>{{ searchParams.searchType === 'news' ? '跨语言全文搜索' : '事件脉络检索' }}</h1>
+            <p>{{ searchParams.searchType === 'news' ? '用你熟悉的语言描述想找的事件、观点或影响' : '在已归并的事件、走势和大事中查找' }}</p>
           </div>
-          <div class="preset-list">
+          <div class="search-type-tabs" role="tablist" aria-label="搜索范围">
             <button
-              v-for="preset in situationPresets"
-              :key="preset.label"
+              v-for="t in searchTypes"
+              :key="t.value"
               type="button"
-              class="preset-btn"
-              :title="preset.hint"
-              @click="applySituationPreset(preset)"
-            >
-              <b>{{ preset.label }}</b>
-              <span><i>{{ preset.strategyLabel }}</i>{{ preset.typeLabel }} · {{ preset.timeLabel }}</span>
-            </button>
-          </div>
-        </section>
-        <div class="condition-group">
-          <div class="condition-item">
-            <span class="tag must-include">● 主关键词</span>
-            <input
-              type="text"
-              placeholder="输入主题，如：中国、芯片、南海"
-              v-model="searchParams.topic"
-              @keyup.enter="performSearch"
-            />
-          </div>
-          <div class="condition-item">
-            <span class="tag must-include">● 必须包含</span>
-            <input
-              type="text"
-              placeholder="进一步限定关键词"
-              v-model="searchParams.mustInclude"
-              @keyup.enter="performSearch"
-            />
-          </div>
-          <div class="condition-item">
-            <span class="tag any-include"> 任意包含</span>
-            <input
-              type="text"
-              placeholder="按Enter键对输入框进行赋值"
-              v-model="searchParams.anyInclude"
-              @keyup.enter="performSearch"
-            />
-          </div>
-          <div class="condition-item">
-            <span class="tag need-exclude">● 需要排除</span>
-            <input
-              type="text"
-              placeholder="按Enter键对输入框进行赋值"
-              v-model="searchParams.needExclude"
-              @keyup.enter="performSearch"
-            />
+              role="tab"
+              :class="{ active: searchParams.searchType === t.value }"
+              :aria-selected="searchParams.searchType === t.value"
+              @click="setSearchType(t.value)"
+            >{{ t.label }}</button>
           </div>
         </div>
-        <div class="action-btns">
-          <button class="reset-btn" @click="resetSearch">重置</button>
-          <button class="search-btn" @click="performSearch" :disabled="isLoading">
-            {{ isLoading ? '搜索中...' : '搜索' }}
+        <div class="smart-search-box">
+          <label class="search-sr-only" for="search-topic">搜索内容</label>
+          <input
+            id="search-topic"
+            name="topic"
+            type="search"
+            :placeholder="searchParams.searchType === 'news' ? '例如：日本央行加息对亚洲市场的影响' : '输入事件、参与方或地点'"
+            v-model="searchParams.topic"
+            autocomplete="off"
+            @keyup.enter="performSearch"
+          />
+          <button type="button" class="search-btn" @click="performSearch" :disabled="isLoading || !searchParams.topic.trim()">
+            {{ isLoading ? '搜索中' : '搜索' }}
           </button>
         </div>
-      </div>
-
-      <!-- 筛选条件区 -->
-      <div class="filter-section" data-tour="search-filters">
-        <div class="filter-item">
-          <span>发布时间</span>
+        <div class="search-method-note" v-if="searchParams.searchType === 'news'">
+          <strong>智能检索</strong>
+          <span>自动扩展多语言查询 · 检索标题、摘要与正文 · 按语义相关度排序</span>
+        </div>
+        <details class="advanced-search" data-tour="search-filters">
+          <summary>筛选条件</summary>
+          <div class="advanced-search-grid">
+            <div class="advanced-field advanced-field--wide">
+              <label>{{ timeFilterLabel }}</label>
+              <div class="time-options">
           <button
             v-for="timeRange in timeRanges"
             :key="timeRange.value"
+            type="button"
             :class="{ active: searchParams.publishTime === timeRange.value }"
+            :aria-pressed="searchParams.publishTime === timeRange.value"
+            aria-describedby="search-time-field-hint"
             @click="setPublishTime(timeRange.value)"
           >
             {{ timeRange.label }}
           </button>
+              </div>
+            </div>
+            <div class="advanced-field">
+              <label for="search-start-time">开始时间</label>
+          <label class="search-sr-only" for="search-start-time">{{ timeFilterLabel }}起始时间</label>
           <input
+            id="search-start-time"
+            name="startTime"
             type="datetime-local"
+            aria-describedby="search-time-field-hint"
             v-model="searchParams.startTime"
             @change="onTimeRangeChange"
           />
-          <span>至</span>
-          <input type="datetime-local" v-model="searchParams.endTime" @change="onTimeRangeChange" />
-        </div>
-        <div class="filter-item filter-item--row">
-          <span>命中位置</span>
-          <button
-            v-for="location in hitLocations"
-            :key="location.value"
-            :class="{ active: searchParams.hitLocation === location.value }"
-            @click="handleHitLocationChange(location.value)"
-          >
-            {{ location.label }}
-          </button>
-          <span class="filter-sep">检索模式</span>
-          <button
-            v-for="m in searchModes"
-            :key="m.value"
-            :class="{ active: searchParams.mode === m.value }"
-            @click="setSearchMode(m.value)"
-          >
-            {{ m.label }}
-          </button>
-          <span class="filter-sep">搜索类型</span>
-          <button
-            v-for="t in searchTypes"
-            :key="t.value"
-            :class="{ active: searchParams.searchType === t.value }"
-            @click="setSearchType(t.value)"
-          >
-            {{ t.label }}
-          </button>
-          <span class="filter-sep">排序</span>
-          <button
-            :class="{ active: searchParams.sortBy === 'similarity' || !searchParams.sortBy }"
-            @click="setSortBy('similarity')"
-          >相关度</button>
-          <button
-            :class="{ active: searchParams.sortBy === 'pub_time' }"
-            @click="setSortBy('pub_time')"
-          >时间</button>
-        </div>
-        <div class="filter-item filter-item--compact" data-tour="search-result-tools">
-          <span>数据源</span>
+            </div>
+            <div class="advanced-field">
+              <label for="search-end-time">结束时间</label>
+          <label class="search-sr-only" for="search-end-time">{{ timeFilterLabel }}结束时间</label>
           <input
+            id="search-end-time"
+            name="endTime"
+            type="datetime-local"
+            aria-describedby="search-time-field-hint"
+            v-model="searchParams.endTime"
+            @change="onTimeRangeChange"
+          />
+            </div>
+            <div v-if="searchParams.searchType === 'news'" class="advanced-field">
+              <label for="search-data-source">新闻来源</label>
+          <label class="search-sr-only" for="search-data-source">数据源</label>
+          <input
+            id="search-data-source"
+            name="dataSource"
             type="text"
             list="dataSourceList"
             v-model="searchParams.dataSource"
-            @change="performSearch"
-            placeholder="输入或选择网站"
-            style="min-width:140px;padding:6px 12px;border:1px solid rgba(148,163,184,0.2);border-radius:20px;font-size:13px;background:rgba(255,255,255,0.6);color:#334155;"
+            placeholder="全部来源"
           />
           <datalist id="dataSourceList">
             <option v-for="src in dataSources" :key="src" :value="src"></option>
           </datalist>
-          <span>语言</span>
-          <select v-model="searchParams.language" @change="performSearch">
+            </div>
+            <div v-if="searchParams.searchType === 'news'" class="advanced-field">
+              <label for="search-language">结果语言</label>
+          <label class="search-sr-only" for="search-language">语言</label>
+          <select
+            id="search-language"
+            name="language"
+            v-model="searchParams.language"
+          >
             <option value="">全部</option>
             <option v-for="lang in languageOptions" :key="lang.id" :value="String(lang.id)">
               {{ lang.name }}
             </option>
           </select>
-          <span class="analysis-surface">{{ activeSearchSurfaceLabel }}</span>
-          <span class="data-total">{{ isSearchMode ? '搜索结果' : '数据总量' }}：{{ totalItems }} 条</span>
-          <button class="assistant-btn" @click="sendSearchToAssistant">数据助手研判</button>
-          <button class="export-btn" @click="exportData">导出</button>
-        </div>
+            </div>
+          </div>
+          <div class="advanced-actions">
+            <button type="button" class="reset-btn" @click="resetSearch">清除条件</button>
+            <button type="button" class="apply-filter-btn" @click="performSearch" :disabled="isLoading">应用筛选</button>
+          </div>
+        </details>
       </div>
+
+      <div class="result-toolbar" data-tour="search-result-tools">
+        <span class="analysis-surface">{{ activeSearchSurfaceLabel }}</span>
+        <span class="data-total">{{ isSearchMode ? '搜索结果' : '数据总量' }}：{{ totalItems }} 条</span>
+        <span class="toolbar-spacer" />
+        <button type="button" class="assistant-btn" @click="sendSearchToAssistant">数据助手研判</button>
+        <button type="button" class="export-btn" @click="exportData">导出</button>
+        <p class="critical-action-status" role="status" aria-live="polite" aria-atomic="true">{{ criticalActionStatus }}</p>
+      </div>
+
+      <details v-if="queryExplain" class="query-explain">
+        <summary>本次查询解释</summary>
+        <div class="query-explain-grid">
+          <div>
+            <strong>实际解析</strong>
+            <code>{{ queryExplain.normalized_terms.join(' · ') || '无主关键词' }}</code>
+          </div>
+          <div>
+            <strong>实际检索词</strong>
+            <code>{{ queryExplain.expanded_terms.join(' · ') || '无主关键词扩展' }}</code>
+          </div>
+          <div>
+            <strong>Boolean AST（{{ queryExplain.query_language }}）</strong>
+            <pre class="query-ast-value">{{ queryAstText(queryExplain.query_ast) }}</pre>
+          </div>
+          <div>
+            <strong>实际执行表达式</strong>
+            <code>{{ queryExplain.execution_expression || '无主关键词表达式' }}</code>
+          </div>
+          <div>
+            <strong>实际模式</strong>
+            <span>{{ queryExplain.mode_semantics }}</span>
+          </div>
+          <div>
+            <strong>匹配字段</strong>
+            <span>{{ queryExplain.effective_search_fields.join('、') }}。{{ queryExplain.hit_location_note }}</span>
+          </div>
+          <div>
+            <strong>时间字段</strong>
+            <span>{{ queryExplain.time.label }} · {{ queryExplain.time.predicate }}</span>
+          </div>
+          <div v-if="queryExplain.applied_filters.length">
+            <strong>已应用筛选</strong>
+            <span>{{ queryExplain.applied_filters.map(queryFilterText).join('；') }}</span>
+          </div>
+          <div>
+            <strong>解析安全边界</strong>
+            <span>{{ queryLimitText(queryExplain.limits) }}</span>
+          </div>
+        </div>
+        <div v-if="queryExplain.entity_expansions.length" class="query-entity-list">
+          <article
+            v-for="entity in queryExplain.entity_expansions"
+            :key="`${entity.query_field}:${entity.entity_id}`"
+          >
+            <strong>{{ entity.canonical_names['zh-Hans'] || entity.canonical_names.en }}</strong>
+            <code>{{ entity.entity_id }}</code>
+            <span>条件：{{ queryFieldLabel(entity.query_field) }}</span>
+            <span>命中别名：{{ entity.matched_alias }}</span>
+            <span v-if="entity.matched_alias_status !== 'active'">命中别名状态：需结合上下文复核</span>
+            <span>实际展开：{{ entity.expanded_aliases.join('、') }}</span>
+            <span>复核状态：{{ entity.review_status === 'approved' ? '已记录人工复核' : '待人工复核' }}</span>
+            <span>实体有效期：{{ entity.valid_from || '未知' }} — {{ entity.valid_to || '未知' }}</span>
+            <span v-if="entity.reviewed_at">复核记录：{{ entity.reviewed_at }} · {{ entity.reviewed_by }}</span>
+            <span v-if="entity.review_note">{{ entity.review_note }}</span>
+          </article>
+        </div>
+        <ol class="query-stage-list" aria-label="查询阶段">
+          <li v-for="stage in queryExplain.stages" :key="stage.stage">
+            <strong>{{ queryStageLabel(stage.stage) }}</strong>
+            <span v-if="stage.matched_count != null">
+              {{ stage.matched_count }} · {{ queryCountSemanticsLabel(stage.count_semantics) }}
+            </span>
+            <span v-else>{{ stage.status === 'not_run' ? '未执行' : '未提供计数' }}</span>
+            <small>{{ stage.detail }}</small>
+          </li>
+        </ol>
+        <div v-if="queryExplain.relaxation_suggestions.length" class="query-suggestions">
+          <strong>{{ totalItems === 0 ? '零结果放宽建议' : '结果拆分建议' }}</strong>
+          <ul>
+            <li v-for="suggestion in queryExplain.relaxation_suggestions" :key="suggestion">{{ suggestion }}</li>
+          </ul>
+        </div>
+        <p class="query-explain-footnote">
+          别名目录 {{ queryExplain.alias_catalog_version }}；自动放宽：{{ queryExplain.automatic_relaxation ? '已执行' : '未执行' }}。
+          实体种子不代表完整实体识别，也不声称 95% 准确率；采集时间和更新时间当前不可筛选。
+        </p>
+      </details>
+
+      <details v-if="queryReceipt" class="query-receipt">
+        <summary>本次查询执行收据</summary>
+        <div class="query-receipt-grid">
+          <div>
+            <strong>收据标识 / 方法</strong>
+            <code>{{ queryReceipt.receipt_id }}</code>
+            <span>{{ queryReceipt.schema_version }} · {{ queryReceipt.method_version }}</span>
+          </div>
+          <div>
+            <strong>规范化查询契约</strong>
+            <code>{{ queryReceipt.normalized_contract_sha256 }}</code>
+            <span>目录 {{ queryReceipt.entity_catalog_version }} · {{ queryReceipt.entity_catalog_review_status === 'approved' ? '已复核' : '待复核' }}</span>
+          </div>
+          <div>
+            <strong>有序返回 ID</strong>
+            <code>{{ queryReceipt.ordered_returned_ids_sha256 }}</code>
+            <span>{{ queryReceipt.result_id_namespace }} · 第 {{ queryReceipt.page }} 页 · {{ queryReceipt.ordered_returned_ids.length }}/{{ queryReceipt.total }} 条</span>
+          </div>
+          <div>
+            <strong>时间与实际覆盖</strong>
+            <span>{{ queryReceipt.time_field.requested }} → {{ queryReceipt.time_field.applied }}</span>
+            <span>
+              {{ queryReceipt.result_coverage.status }} ·
+              {{ queryReceipt.result_coverage.coverage_start || '起点未知' }} —
+              {{ queryReceipt.result_coverage.coverage_end || '终点未知' }} ·
+              cutoff {{ queryReceipt.result_coverage.cutoff || '未知' }}
+            </span>
+          </div>
+          <div>
+            <strong>收据完整性</strong>
+            <code>{{ queryReceipt.receipt_sha256 }}</code>
+            <span>已应用筛选 {{ queryReceipt.applied_filters.length }} 项；正文与排序输入未写入收据。</span>
+          </div>
+        </div>
+        <p class="query-receipt-note">
+          这是执行收据，不是冻结数据快照。它证明规范化查询契约与本页有序结果 ID；不冻结正文、底层语料或未来排序。
+        </p>
+      </details>
 
       <!-- 搜索结果区 -->
       <div class="search-results">
         <!-- 加载状态 -->
         <div v-if="isLoading" class="loading-indicator">
           <div class="spinner"></div>
-          <span>正在检索，超过 8 秒将自动停止</span>
+          <span>正在执行跨语言召回与语义排序</span>
         </div>
 
         <!-- 错误状态 -->
         <div v-else-if="searchError" class="error-message">
           <span>{{ searchError }}</span>
-          <button @click="retryLastDataRequest" class="retry-btn">重试</button>
+          <button type="button" class="retry-btn" @click="retryLastDataRequest">重试</button>
         </div>
 
         <!-- cluster 分层结果：story (L2) → cluster (L1) → news -->
@@ -354,7 +470,7 @@
                     <router-link :to="`/data-service/news/${n.id}`" class="cluster-news-link">
                       {{ n.title }}
                     </router-link>
-                    <span class="cluster-news-time">{{ formatDateTime(n.pub_time) }}</span>
+                    <span class="cluster-news-time">新闻发布日期：{{ formatDateTime(publishedTimeValue(n)) }}</span>
                   </li>
                 </ul>
               </details>
@@ -418,7 +534,7 @@
                 <router-link :to="`/data-service/news/${n.id}`" class="cluster-news-link">
                   {{ n.title }}
                 </router-link>
-                <span class="cluster-news-time">{{ formatDateTime(n.pub_time) }}</span>
+                <span class="cluster-news-time">新闻发布日期：{{ formatDateTime(publishedTimeValue(n)) }}</span>
               </li>
             </ul>
           </details>
@@ -433,11 +549,16 @@
             <strong class="l1-header-title">L1 小事件检索结果</strong>
             <span class="l1-header-count">共 {{ totalItems }} 条</span>
           </div>
-          <div v-for="item in microStoryItems" :key="'l1-'+item.id" class="l1-card" @click="toggleL1Expand(item)">
-            <div class="l1-card-header">
+          <div v-for="item in microStoryItems" :key="'l1-'+item.id" class="l1-card">
+            <button
+              type="button"
+              class="l1-card-header"
+              :aria-expanded="!!expandedL1[item.id]"
+              @click="toggleL1Expand(item)"
+            >
               <span class="l1-expand-icon">{{ expandedL1[item.id] ? '▼' : '▶' }}</span>
               <div class="l1-card-title">{{ item.title }}</div>
-            </div>
+            </button>
             <div class="l1-card-meta">
               <span v-if="item.event_type" class="l1-tag">{{ item.event_type }}</span>
               <span v-if="item.initiator" class="l1-actor">发起方: {{ item.initiator }}</span>
@@ -457,7 +578,7 @@
                 <router-link :to="`/data-service/news/${news.id}`" class="l1-news-link">
                   {{ news.title }}
                 </router-link>
-                <span class="l1-news-time">{{ formatDateTime(news.pub_time) }}</span>
+                <span class="l1-news-time">新闻发布日期：{{ formatDateTime(publishedTimeValue(news)) }}</span>
               </div>
             </div>
             <div v-else-if="expandedL1[item.id]" class="l1-no-news">暂无相关新闻</div>
@@ -512,15 +633,26 @@
               <span v-if="item.initiator" class="l2-actor">发起方: {{ item.initiator }}</span>
               <span v-if="item.target" class="l2-actor">目标: {{ item.target }}</span>
               <span v-if="item.start_date || item.end_date" class="l2-actor">
-                {{ item.start_date || '—' }} 至 {{ item.end_date || '—' }}
+                事件时间：{{ item.start_date || '—' }} 至 {{ item.end_date || '—' }}
               </span>
             </div>
             <div class="l2-card-stats">
               <span>文章数: {{ item.article_count }}</span>
               <span>{{ item.level === 'l3' || searchParams.searchType === 'l3' ? 'L2链数' : 'L1片段数' }}: {{ item.story_count }}</span>
-              <span v-if="item.quality_score !== null && item.quality_score !== undefined">
-                质量分: {{ Number(item.quality_score).toFixed(2) }}
-              </span>
+              <span>链质量分: {{ graphMetricPresentation('story_graph.quality_score', { value: item.quality_score }).valueLabel }}</span>
+              <details class="hierarchy-metric-disclosure">
+                <summary>展开链质量公式、输入和证据</summary>
+                <template v-for="explanation in [hierarchyQualityExplanation(item)]" :key="`${item.id}-${explanation.metric_id}`">
+                  <p>方法：{{ explanation.method_version || '未建立' }}</p>
+                  <p>公式：{{ explanation.formula }}</p>
+                  <p>证据定位：{{ explanation.evidence.locator || '不可用' }}；{{ explanation.reason_code }}</p>
+                  <ul>
+                    <li v-for="input in explanation.inputs" :key="input.field">
+                      <code>{{ input.field }}</code>：{{ input.state === 'provided_unverified' ? `已提供但未核验（${input.value}）` : '不可用' }}
+                    </li>
+                  </ul>
+                </template>
+              </details>
             </div>
             <div v-if="l2LoadingChildren[item.id]" class="l2-children-loading">加载中...</div>
             <div v-if="expandedL2[item.id] && l2Children[item.id]" class="l2-children">
@@ -537,7 +669,7 @@
                     <p class="desc">{{ child.displayDesc }}</p>
                     <div class="result-meta">
                       <span v-if="child.source" class="source">●{{ child.source }}</span>
-                      <span v-if="child.displayTime" class="time">{{ formatDateTime(child.displayTime) }}</span>
+                      <span class="time">新闻发布日期：{{ formatDateTime(child.displayTime) }}</span>
                       <span v-if="child.location" class="location">{{ formatLocation(child.location) }}</span>
                       <span v-if="child.cluster_title" class="cluster-ref">{{ child.cluster_title }}</span>
                     </div>
@@ -549,7 +681,7 @@
                     </div>
                     <div class="actions-right">
                       <router-link :to="`/data-service/news/${child.id}`" class="action-btn">查看详情</router-link>
-                      <a :href="child.displayUrl" target="_blank" rel="noopener noreferrer" class="action-btn">查看原文</a>
+                      <a v-if="child.displayUrl" :href="child.displayUrl" target="_blank" rel="noopener noreferrer" class="action-btn">查看原文</a>
                       <button
                         type="button"
                         class="action-btn star-btn"
@@ -575,7 +707,7 @@
                   <span v-if="child.initiator" class="l2-actor">{{ child.initiator }}</span>
                   <span v-if="child.target" class="l2-actor">{{ child.target }}</span>
                   <span v-if="child.start_date || child.end_date" class="l2-actor">
-                    {{ child.start_date || '—' }} 至 {{ child.end_date || '—' }}
+                    事件时间：{{ child.start_date || '—' }} 至 {{ child.end_date || '—' }}
                   </span>
                   <span v-if="child.source" class="l2-actor">{{ child.source }}</span>
                   <span v-if="childArticleCount(child)" class="l2-child-article-count">文章 {{ childArticleCount(child) }}</span>
@@ -601,7 +733,7 @@
                         <p class="desc">{{ grandchild.displayDesc }}</p>
                         <div class="result-meta">
                           <span v-if="grandchild.source" class="source">●{{ grandchild.source }}</span>
-                          <span v-if="grandchild.displayTime" class="time">{{ formatDateTime(grandchild.displayTime) }}</span>
+                          <span class="time">新闻发布日期：{{ formatDateTime(grandchild.displayTime) }}</span>
                           <span v-if="grandchild.location" class="location">{{ formatLocation(grandchild.location) }}</span>
                           <span v-if="grandchild.cluster_title" class="cluster-ref">{{ grandchild.cluster_title }}</span>
                         </div>
@@ -613,7 +745,7 @@
                         </div>
                         <div class="actions-right">
                           <router-link :to="`/data-service/news/${grandchild.id}`" class="action-btn">查看详情</router-link>
-                          <a :href="grandchild.displayUrl" target="_blank" rel="noopener noreferrer" class="action-btn">查看原文</a>
+                          <a v-if="grandchild.displayUrl" :href="grandchild.displayUrl" target="_blank" rel="noopener noreferrer" class="action-btn">查看原文</a>
                           <button
                             type="button"
                             class="action-btn star-btn"
@@ -640,7 +772,7 @@
                     <div class="l2-child-meta">
                       <span class="l1-tag">{{ hierarchyLevelLabel(grandchild) }}</span>
                       <span v-if="grandchild.source" class="l2-actor">{{ grandchild.source }}</span>
-                      <span v-if="grandchild.pub_time" class="l2-actor">{{ formatDateTime(grandchild.pub_time) }}</span>
+                      <span v-if="isHierarchyNews(grandchild)" class="l2-actor">新闻发布日期：{{ formatDateTime(publishedTimeValue(grandchild)) }}</span>
                       <span v-if="childArticleCount(grandchild)" class="l2-child-article-count">文章 {{ childArticleCount(grandchild) }}</span>
                     </div>
                     </template>
@@ -662,7 +794,7 @@
                           <p class="desc">{{ news.displayDesc }}</p>
                           <div class="result-meta">
                             <span v-if="news.source" class="source">●{{ news.source }}</span>
-                            <span v-if="news.displayTime" class="time">{{ formatDateTime(news.displayTime) }}</span>
+                            <span class="time">新闻发布日期：{{ formatDateTime(news.displayTime) }}</span>
                             <span v-if="news.location" class="location">{{ formatLocation(news.location) }}</span>
                             <span v-if="news.cluster_title" class="cluster-ref">{{ news.cluster_title }}</span>
                           </div>
@@ -674,7 +806,7 @@
                           </div>
                           <div class="actions-right">
                             <router-link :to="`/data-service/news/${news.id}`" class="action-btn">查看详情</router-link>
-                            <a :href="news.displayUrl" target="_blank" rel="noopener noreferrer" class="action-btn">查看原文</a>
+                            <a v-if="news.displayUrl" :href="news.displayUrl" target="_blank" rel="noopener noreferrer" class="action-btn">查看原文</a>
                             <button
                               type="button"
                               class="action-btn star-btn"
@@ -713,13 +845,35 @@
             <span v-if="item.isFirstRelease" class="first-release">首发</span>
 
             <div class="result-content">
-              <h4 class="title">{{ item.title }}</h4>
-              <p class="desc">{{ item.displayDesc }}</p>
+              <h4 class="title">
+                <template
+                  v-for="(segment, index) in buildHighlightedSegments(item.title, item.searchHit, 'title')"
+                  :key="`title-${index}`"
+                >
+                  <mark v-if="segment.matched" class="search-hit-mark">{{ segment.text }}</mark>
+                  <span v-else>{{ segment.text }}</span>
+                </template>
+              </h4>
+              <p class="desc">
+                <template
+                  v-for="(segment, index) in buildHighlightedSegments(item.displayDesc, item.searchHit, 'abstract')"
+                  :key="`abstract-${index}`"
+                >
+                  <mark v-if="segment.matched" class="search-hit-mark">{{ segment.text }}</mark>
+                  <span v-else>{{ segment.text }}</span>
+                </template>
+              </p>
+              <p
+                v-if="item.searchHit?.status !== 'unavailable'"
+                class="search-hit-boundary"
+              >
+                仅标记返回页显示文本中的正向原样词项；不代表相关性分数、别名命中或正文其他位置。
+              </p>
 
               <div class="result-meta">
                 <span v-if="item.source" class="source">●{{ item.source }}</span>
-                <span v-if="item.displayTime" class="time">
-                  {{ formatDateTime(item.displayTime) }}
+                <span class="time">
+                  新闻发布日期：{{ formatDateTime(item.displayTime) }}
                 </span>
                 <span v-if="item.location" class="location">{{
                   formatLocation(item.location)
@@ -740,7 +894,7 @@
 
               <div class="actions-right">
                 <router-link :to="`/data-service/news/${item.id}`" class="action-btn">查看详情</router-link>
-                <a :href="item.displayUrl" target="_blank" rel="noopener noreferrer" class="action-btn">查看原文</a>
+                <a v-if="item.displayUrl" :href="item.displayUrl" target="_blank" rel="noopener noreferrer" class="action-btn">查看原文</a>
                 <button
                   type="button"
                   class="action-btn star-btn"
@@ -760,27 +914,39 @@
       <div class="pagination">
         <div class="pagination-info">
           <span>共{{ totalItems }}条</span>
-          <select v-model="pageSize" @change="handlePageSizeChange">
+          <label class="search-sr-only" for="search-page-size">每页结果数量</label>
+          <select id="search-page-size" name="pageSize" v-model="pageSize" @change="handlePageSizeChange">
             <option value="10">10条/页</option>
             <option value="20">20条/页</option>
             <option value="50">50条/页</option>
           </select>
         </div>
         <div class="pagination-controls">
-          <button class="page-btn" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">
+          <button
+            type="button"
+            class="page-btn"
+            aria-label="上一页"
+            :disabled="currentPage === 1"
+            @click="goToPage(currentPage - 1)"
+          >
             &lt;
           </button>
           <button
             v-for="page in visiblePages"
             :key="page"
+            type="button"
             class="page-btn"
             :class="{ active: page === currentPage }"
+            :aria-label="`第 ${page} 页`"
+            :aria-current="page === currentPage ? 'page' : undefined"
             @click="goToPage(page)"
           >
             {{ page }}
           </button>
           <button
+            type="button"
             class="page-btn"
+            aria-label="下一页"
             :disabled="currentPage === totalPages"
             @click="goToPage(currentPage + 1)"
           >
@@ -789,7 +955,10 @@
         </div>
         <div class="pagination-jump">
           <span>前往</span>
+          <label class="search-sr-only" for="search-jump-page">跳转到页码</label>
           <input
+            id="search-jump-page"
+            name="jumpPage"
             type="number"
             v-model="jumpPage"
             :min="1"
@@ -862,6 +1031,11 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { AssistantDrawer } from '@/features/assistant/index.js'
 import {
+  graphMetricExplanation,
+  graphMetricPresentation,
+} from '@/governance/graphMetrics.js'
+import { safeExternalHttpUrl } from '@/utils/externalUrl.js'
+import {
   DEFAULT_SEARCH_FOLDER_NAME as DEFAULT_FOLDER_NAME,
   SEARCH_DATA_OPERATION_KINDS,
   SEARCH_HIT_LOCATIONS as hitLocations,
@@ -870,6 +1044,8 @@ import {
   SEARCH_TIME_RANGES as timeRanges,
   SEARCH_TYPES as searchTypes,
   activeSearchSurfaceLabel as formatActiveSearchSurfaceLabel,
+  applySearchSituationPreset,
+  buildHighlightedSegments,
   buildSearchHistoryKeyword,
   buildSearchRequestDto,
   buildVisiblePages,
@@ -884,13 +1060,18 @@ import {
   displaySearchFolderName as displayFolderName,
   isSearchAbortError,
   mergeFavoriteNewsIds,
+  normalizeSearchParamsForType,
   normalizeDisplayNewsRows,
   normalizeNewsListResponse,
+  normalizeNewsTimeSemantics,
   normalizeSearchFolderName as normalizeFolderName,
   normalizeSearchResponse,
   renameSearchThemeList,
+  resolveLanguageDisplay,
   resolveJumpPage,
   searchApi,
+  searchModeDisclosure,
+  searchSortSemantics,
 } from '@/features/search/index.js'
 import {
   upsertReportFavorite,
@@ -905,12 +1086,49 @@ import {
 } from '@/utils/reportFavorites'
 
 const route = useRoute()
+const workspacePanelExpanded = ref(false)
+const filtersExpanded = ref(false)
 const ASSISTANT_AUTORUN_CONTEXT_KEY = 'data_assistant_autorun_context_v1'
+const PENDING_ASSISTANT_OPEN_KEY = 'data_search_pending_assistant_open_v1'
 const assistantDrawerOpen = ref(false)
 const assistantDrawerKey = ref(0)
 const lastAssistantSearchKey = ref('')
 const lastAssistantSearchAt = ref(0)
+const criticalActionStatus = ref('')
 let assistantPageActionChain = Promise.resolve()
+
+function hasStoredAccessToken() {
+  try {
+    return Boolean(localStorage.getItem('access_token'))
+  } catch {
+    return false
+  }
+}
+
+function readAssistantSessionValue(key) {
+  try {
+    return sessionStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeAssistantSessionValue(key, value) {
+  try {
+    sessionStorage.setItem(key, value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function removeAssistantSessionValue(key) {
+  try {
+    sessionStorage.removeItem(key)
+  } catch {
+    // Storage denial is surfaced when a context write is attempted.
+  }
+}
 
 // 引入图标以避免报错 (如果在 main.js 注册了可删除)
 // 已移除未使用的图标导入
@@ -922,6 +1140,8 @@ const searchParams = reactive(createSearchParams())
 const isLoading = ref(false)
 const searchError = ref('')
 const searchResults = ref([])
+const queryExplain = ref(null)
+const queryReceipt = ref(null)
 const newsList = ref([])
 const isSearchMode = ref(false) // 核心状态：是否处于搜索结果展示模式
 const favoriteNewsIds = ref([])
@@ -941,6 +1161,16 @@ const clusterTree = ref([])
 const eventCorefClusters = ref([])
 const microStoryItems = ref([])
 const macroEventItems = ref([])
+
+function hierarchyQualityExplanation(item) {
+  return graphMetricExplanation('story_graph.quality_score', {
+    inputs: {
+      quality_score: item?.quality_score,
+      chain_quality: item?.chain_quality,
+      importance_score: item?.importance_score,
+    },
+  })
+}
 
 // L1/L2 展开状态
 const expandedL1 = ref({})   // { [id]: true/false }
@@ -1062,9 +1292,9 @@ function buildMarkdownStory(story) {
     for (const n of cluster.news || []) {
       const wiki = obsidianSafeWikiTitle(n.title)
       const url = n.request_url || ''
-      const time = n.pub_time || ''
+      const time = publishedTimeValue(n) || 'unknown'
       lines.push(
-        `- [[${wiki}]] · \`${time}\` · id \`${n.id}\`${url ? ` · [原文](${url})` : ''}`,
+        `- [[${wiki}]] · 新闻发布日期 \`${time}\` · id \`${n.id}\`${url ? ` · [原文](${url})` : ''}`,
       )
     }
     lines.push('')
@@ -1101,9 +1331,9 @@ function buildMarkdownCluster(cluster) {
   for (const n of cluster.news || []) {
     const wiki = obsidianSafeWikiTitle(n.title)
     const url = n.request_url || ''
-    const time = n.pub_time || ''
+    const time = publishedTimeValue(n) || 'unknown'
     lines.push(
-      `- [[${wiki}]] · \`${time}\` · id \`${n.id}\`${url ? ` · [原文](${url})` : ''}`,
+      `- [[${wiki}]] · 新闻发布日期 \`${time}\` · id \`${n.id}\`${url ? ` · [原文](${url})` : ''}`,
     )
   }
   lines.push('')
@@ -1141,9 +1371,9 @@ function buildMarkdownL1Event(ec) {
   for (const n of ec.articles || []) {
     const wiki = obsidianSafeWikiTitle(n.title)
     const url = n.request_url || ''
-    const time = n.pub_time || ''
+    const time = publishedTimeValue(n) || 'unknown'
     lines.push(
-      `- [[${wiki}]] · \`${time}\` · id \`${n.id}\`${url ? ` · [原文](${url})` : ''}`,
+      `- [[${wiki}]] · 新闻发布日期 \`${time}\` · id \`${n.id}\`${url ? ` · [原文](${url})` : ''}`,
     )
   }
   lines.push('')
@@ -1222,6 +1452,79 @@ const filteredNewsList = ref([])
 const activeSearchSurfaceLabel = computed(() => {
   return formatActiveSearchSurfaceLabel(searchParams, searchTypes)
 })
+const searchSortLabel = computed(() => searchSortSemantics(searchParams))
+
+const timeFilterLabel = computed(() => (
+  searchParams.searchType === 'news' ? '新闻发布日期' : '事件发生时间'
+))
+
+const timeFilterHint = computed(() => (
+  searchParams.searchType === 'news'
+    ? '筛选 public.news.published_at；不筛选事件发生、采集或更新时间。'
+    : '筛选事件起止区间与所选范围是否重叠；不筛选新闻发布、采集或更新时间。'
+))
+
+function queryStageLabel(stage) {
+  return {
+    parse: '查询解析',
+    entity_resolution: '实体解析',
+    retrieval: '检索结果',
+    relaxation: '自动放宽',
+  }[stage] || stage
+}
+
+function queryCountSemanticsLabel(value) {
+  return {
+    parsed_term_count: '实际解析词数',
+    resolved_entity_count: '稳定实体数',
+    api_response_total: 'API 返回总数',
+  }[value] || value || '计数语义未标注'
+}
+
+function queryFilterText(filter) {
+  const label = {
+    must_include: '必须包含',
+    any_include: '任意包含',
+    need_exclude: '需要排除',
+    relative_time: `${timeFilterLabel.value}相对范围`,
+    start_time: `${timeFilterLabel.value}起点`,
+    end_time: `${timeFilterLabel.value}终点`,
+    published_at: '新闻发布日期排序',
+    data_source: '数据源',
+    language: '语言',
+  }[filter?.field] || filter?.field || '筛选'
+  return `${label}：${filter?.value ?? '—'}`
+}
+
+function queryAstText(value) {
+  try {
+    return JSON.stringify(value || { type: 'unavailable' }, null, 2).slice(0, 4000)
+  } catch {
+    return '{ "type": "unavailable" }'
+  }
+}
+
+function queryLimitText(limits) {
+  const value = limits || {}
+  return [
+    `字符 ${value.observed_query_chars ?? 0}/${value.max_query_chars ?? '—'}`,
+    `词元 ${value.observed_tokens ?? 0}/${value.max_tokens ?? '—'}`,
+    `AST ${value.observed_ast_nodes ?? 0}/${value.max_ast_nodes ?? '—'}`,
+    `条件 ${value.observed_terms ?? 0}/${value.max_terms ?? '—'}`,
+    `括号深度 ${value.observed_nesting_depth ?? 0}/${value.max_nesting_depth ?? '—'}`,
+    `数据库预算 ${value.statement_timeout_seconds ?? '—'} 秒`,
+    `每个正向标题条件候选上限 ${value.max_title_candidates_per_positive_leaf ?? '—'}`,
+  ].join('；')
+}
+
+function queryFieldLabel(value) {
+  return {
+    primary_query: '主关键词',
+    must_include: '必须包含',
+    any_include: '任意包含',
+    need_exclude: '需要排除',
+  }[value] || value || '未标注条件'
+}
 
 const searchAssistantSkill = computed(() => ({
   page: '数据搜索',
@@ -1256,6 +1559,7 @@ const dataSources = ref([])
 const languages = ref([])
 const languageOptions = ref([])
 const sites = ref(['新闻网站', '博客', '社交媒体', '论坛'])
+const indexedSearchAvailable = ref(false)
 
 // 分页相关状态
 const currentPage = ref(1)
@@ -1281,15 +1585,7 @@ const recordUserSearchHistory = async (params = searchParams) => {
 }
 
 const resolveLanguageName = (item) => {
-  if (!item) return ''
-  const raw = item.language_id ?? item.languageId
-  if (raw === undefined || raw === null || raw === '') return ''
-  const rawText = String(raw)
-  const hitById = languageOptions.value.find((x) => String(x.id) === rawText)
-  if (hitById?.name) return hitById.name
-  const hitByName = languageOptions.value.find((x) => String(x.name) === rawText)
-  if (hitByName?.name) return hitByName.name
-  return item.location || ''
+  return resolveLanguageDisplay(item, languageOptions.value)
 }
 
 const syncFavoriteIdsFromList = (list) => {
@@ -1310,6 +1606,8 @@ const filterFirstRelease = () => {
 const prepareDataOperation = (operation) => {
   isLoading.value = true
   searchError.value = ''
+  queryExplain.value = null
+  queryReceipt.value = null
   if (operation.kind === SEARCH_DATA_OPERATION_KINDS.LIST) {
     isSearchMode.value = false
     clusterTree.value = []
@@ -1352,6 +1650,8 @@ const settleDataOperation = (outcome) => {
     microStoryItems.value = normalized.microStoryItems
     macroEventItems.value = normalized.macroEventItems
     searchResults.value = normalized.searchResults
+    queryExplain.value = normalized.queryExplain
+    queryReceipt.value = normalized.queryReceipt
     if (operation.searchType === 'news') syncFavoriteIdsFromList(searchResults.value)
     totalItems.value = normalized.total
     currentPage.value = normalized.page
@@ -1423,6 +1723,8 @@ const resetSearch = async () => {
   eventCorefClusters.value = []
   microStoryItems.value = []
   macroEventItems.value = []
+  queryExplain.value = null
+  queryReceipt.value = null
   searchError.value = ''
   currentPage.value = 1
   pageSize.value = 10
@@ -1437,11 +1739,26 @@ const resetSearch = async () => {
 // ================== 搜索逻辑 ==================
 
 const performSearch = async () => {
-  const requestParams = { ...searchParams }
+  const requestParams = normalizeSearchParamsForType(searchParams)
+  Object.assign(searchParams, requestParams)
   const searchType = requestParams.searchType
   const params = buildSearchRequestDto(requestParams, themeName.value)
   const operation = createSearchQueryOperation({ params, requestParams, searchType })
   await executeDataOperation(operation)
+}
+
+const preflightSearch = async () => {
+  const requestParams = normalizeSearchParamsForType(searchParams)
+  const params = buildSearchRequestDto(requestParams, themeName.value)
+  try {
+    const result = await searchApi.preflight(params, { signal: auxiliaryRequestController.signal })
+    const fieldCount = Object.keys(result.fields || {}).length
+    ElMessage.success(`查询条件有效：${result.mode} 模式，${fieldCount} 个查询字段已解析`)
+  } catch (error) {
+    if (!isSearchAbortError(error, auxiliaryRequestController.signal)) {
+      ElMessage.error(error.message || '查询条件检查失败')
+    }
+  }
 }
 
 const retryLastDataRequest = async () => {
@@ -1455,41 +1772,31 @@ const retryLastDataRequest = async () => {
 // ================== 事件处理 ==================
 
 const handleHitLocationChange = (val) => {
+  if (searchParams.searchType !== 'news') return
   searchParams.hitLocation = val
   performSearch()
 }
 
 const setSortBy = (val) => {
+  if (searchParams.searchType !== 'news') return
   searchParams.sortBy = val
   performSearch()
 }
 
 const setSearchMode = (mode) => {
-  searchParams.mode = mode
+  if (isSearchModeDisabled(mode)) return
+  Object.assign(searchParams, normalizeSearchParamsForType({ ...searchParams, mode }))
   performSearch()
 }
 
 const setSearchType = (type) => {
-  searchParams.searchType = type
-  searchParams.page = 1
-  performSearch()
+  const mode = type === 'news' ? 'smart' : 'exact'
+  Object.assign(searchParams, normalizeSearchParamsForType({ ...searchParams, mode, page: 1 }, type))
+  if (searchParams.topic.trim()) performSearch()
 }
 
 const applySituationPreset = (preset) => {
-  searchParams.topic = preset.topic
-  searchParams.mustInclude = preset.mustInclude || ''
-  searchParams.anyInclude = preset.anyInclude || ''
-  searchParams.needExclude = ''
-  searchParams.publishTime = preset.time
-  searchParams.startTime = ''
-  searchParams.endTime = ''
-  searchParams.hitLocation = '全文'
-  searchParams.mode = preset.mode || 'exact'
-  searchParams.searchType = preset.type
-  searchParams.sortBy = 'pub_time'
-  searchParams.sortOrder = 'desc'
-  searchParams.page = 1
-  searchParams.pageSize = pageSize.value
+  applySearchSituationPreset(searchParams, preset, pageSize.value)
   currentPage.value = 1
   jumpPage.value = 1
   performSearch()
@@ -1548,22 +1855,26 @@ const toggleL1Expand = async (item) => {
 
 const normalizeHierarchyChildren = (items, childLevel) => (
   Array.isArray(items)
-    ? items.map((child) => ({
-        ...child,
-        id: String(child.id),
-        level: child.level || childLevel || 'news',
-        displayDesc: child.displayDesc || child.abstract || child.desc || '—',
-        displayTime: child.displayTime || child.pub_time || child.time,
-        displayUrl: child.displayUrl || child.request_url || child.requestUrl || '#',
-        is_favorited: !!child.is_favorited,
-        is_warned: !!child.is_warned,
-      }))
+    ? items.map((child) => {
+        const timeSemantics = normalizeNewsTimeSemantics(child)
+        return {
+          ...child,
+          id: String(child.id),
+          level: child.level || childLevel || 'news',
+          displayDesc: child.displayDesc || child.abstract || child.desc || '—',
+          displayTime: timeSemantics.publishedAt || undefined,
+          timeSemantics,
+          displayUrl: safeExternalHttpUrl(child.displayUrl || child.request_url || child.requestUrl),
+          is_favorited: !!child.is_favorited,
+          is_warned: !!child.is_warned,
+        }
+      })
     : []
 )
 
 const isHierarchyNews = (item) => {
   const level = String(item?.level || '').toLowerCase()
-  return level === 'news' || (!level && item?.pub_time)
+  return level === 'news'
 }
 
 const hierarchyLevelLabel = (item) => {
@@ -1620,6 +1931,12 @@ const formatDateTime = (dateTime) => {
   }
 }
 
+const publishedTimeValue = (item) => (
+  item?.timeSemantics?.schemaVersion === 'search-result-time-semantics-v1'
+    ? item.timeSemantics.publishedAt
+    : normalizeNewsTimeSemantics(item).publishedAt
+)
+
 const formatFolderDate = (dateTime) => {
   const text = formatDateTime(dateTime)
   if (!text || text === '—') return '暂无更新'
@@ -1638,7 +1955,7 @@ const folderCards = computed(() => {
       displayName: displayFolderName(name),
       count: list.length,
       latestTitle: latest?.title || '',
-      latestLabel: latest ? formatFolderDate(latest.displayTime || latest.pub_time || latest.time) : '暂无收藏',
+      latestLabel: latest ? formatFolderDate(publishedTimeValue(latest)) : '暂无收藏',
     }
   })
 })
@@ -1709,13 +2026,18 @@ function csvCell(value) {
 }
 
 function exportRow(item) {
+  const timeSemantics = normalizeNewsTimeSemantics(item)
   return {
     id: item.id ?? item.news_id ?? '',
     title: item.title || item.display_title || '',
     abstract: item.abstract || item.summary || '',
     source: item.source || item.source_name || item.domain || '',
     language: item.language || item.lang || '',
-    pub_time: item.pub_time || item.published_at || item.time || '',
+    published_at: timeSemantics.publishedAt || '',
+    event_time_start: timeSemantics.eventTimeStart || '',
+    event_time_end: timeSemantics.eventTimeEnd || '',
+    collected_at: timeSemantics.collectedAt || '',
+    updated_at: timeSemantics.updatedAt || '',
     url: item.request_url || item.url || item.link || '',
   }
 }
@@ -1729,24 +2051,44 @@ function downloadTextFile(filename, content, mime = 'text/plain;charset=utf-8') 
   document.body.appendChild(a)
   a.click()
   a.remove()
-  URL.revokeObjectURL(url)
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 const exportData = () => {
   const selectedItems = filteredNewsList.value.filter((item) => item.selected)
   if (selectedItems.length === 0) {
+    criticalActionStatus.value = '导出未开始：请先选择至少一条数据。'
     ElMessage.warning('请先选择要导出的数据')
     return
   }
-  const headers = ['id', 'title', 'abstract', 'source', 'language', 'pub_time', 'url']
-  const rows = selectedItems.map(exportRow)
-  const csv = [
-    headers.join(','),
-    ...rows.map((row) => headers.map((key) => csvCell(row[key])).join(',')),
-  ].join('\n')
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  downloadTextFile(`globemind-news-export-${stamp}.csv`, `\ufeff${csv}`, 'text/csv;charset=utf-8')
-  ElMessage.success(`已导出 ${selectedItems.length} 条数据`)
+  try {
+    const headers = [
+      'id',
+      'title',
+      'abstract',
+      'source',
+      'language',
+      'published_at',
+      'event_time_start',
+      'event_time_end',
+      'collected_at',
+      'updated_at',
+      'url',
+    ]
+    const rows = selectedItems.map(exportRow)
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) => headers.map((key) => csvCell(row[key])).join(',')),
+    ].join('\n')
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    downloadTextFile(`globemind-news-export-${stamp}.csv`, `\ufeff${csv}`, 'text/csv;charset=utf-8')
+    criticalActionStatus.value = `导出成功：已生成 ${selectedItems.length} 条数据的 CSV 文件。`
+    ElMessage.success(`已导出 ${selectedItems.length} 条数据`)
+  } catch (error) {
+    console.error('导出失败:', error)
+    criticalActionStatus.value = '导出失败：浏览器未能生成下载文件，请重试或检查下载权限。'
+    ElMessage.error('导出失败，请重试或检查浏览器下载权限')
+  }
 }
 
 function compactAssistantText(value, max = 220) {
@@ -1760,7 +2102,10 @@ function searchAssistantMaterial(item, index) {
   return [
     `${index + 1}. ${compactAssistantText(row.title || `新闻 ${row.id}`, 180)}`,
     row.source ? `来源：${row.source}` : '',
-    row.pub_time ? `时间：${row.pub_time}` : '',
+    `新闻发布日期：${row.published_at || 'unknown'}`,
+    `事件时间：${[row.event_time_start, row.event_time_end].filter(Boolean).join(' 至 ') || 'unknown'}`,
+    `采集时间：${row.collected_at || 'unknown'}`,
+    `更新时间：${row.updated_at || 'unknown'}`,
     row.id ? `ID：${row.id}` : '',
     row.abstract ? `摘要：${compactAssistantText(row.abstract, 260)}` : '',
     row.url ? `URL：${row.url}` : '',
@@ -1776,13 +2121,13 @@ function buildSearchAssistantContext() {
     `必须包含：${searchParams.mustInclude || '无'}`,
     `任意包含：${searchParams.anyInclude || '无'}`,
     `需要排除：${searchParams.needExclude || '无'}`,
-    `发布时间：${searchParams.publishTime || '不限'}${searchParams.startTime || searchParams.endTime ? `（${searchParams.startTime || '起'} 至 ${searchParams.endTime || '止'}）` : ''}`,
+    `${timeFilterLabel.value}：${searchParams.publishTime || '不限'}${searchParams.startTime || searchParams.endTime ? `（${searchParams.startTime || '起'} 至 ${searchParams.endTime || '止'}）` : ''}`,
     `命中位置：${searchParams.hitLocation || '全文'}`,
     `检索模式：${searchParams.mode || 'exact'}`,
     `搜索类型：${searchParams.searchType || 'news'}`,
     `数据源：${searchParams.dataSource || '全部'}`,
     `语言：${searchParams.language || '全部'}`,
-    `排序：${searchParams.sortBy || 'similarity'}`,
+    `排序：${searchSortLabel.value}`,
     `当前文件夹：${displayFolderName(themeName.value)}，收藏 ${favoriteCards.value.length} 条`,
     `当前结果：${totalItems.value} 条；发送素材：${materials.length} 条${selectedItems.length ? '（用户勾选）' : '（当前页前列）'}`,
   ]
@@ -1897,15 +2242,29 @@ async function runAssistantPageAction(action) {
 }
 
 function sendSearchToAssistant() {
-  if (!localStorage.getItem('access_token')) {
-    ElMessage.warning('请先登录后使用数据助手研判')
+  const context = buildSearchAssistantContext()
+  if (!writeAssistantSessionValue(ASSISTANT_AUTORUN_CONTEXT_KEY, JSON.stringify(context))) {
+    criticalActionStatus.value = '数据助手未打开：浏览器阻止了会话存储，无法安全保留当前研判上下文。'
+    ElMessage.error('无法保留研判上下文，请允许站点会话存储后重试')
+    return
+  }
+  if (!hasStoredAccessToken()) {
+    if (!writeAssistantSessionValue(PENDING_ASSISTANT_OPEN_KEY, '1')) {
+      criticalActionStatus.value = '研判上下文已保留，但无法标记登录后自动恢复；请允许会话存储后重试。'
+      ElMessage.error('无法设置登录后自动恢复，请允许站点会话存储后重试')
+      return
+    }
+    criticalActionStatus.value = '研判上下文已保留；登录成功后会在当前搜索页继续打开数据助手。'
+    ElMessage.warning('请先登录；当前检索与勾选素材已保留')
+    window.dispatchEvent(new CustomEvent('showLoginModal'))
     return
   }
   lastAssistantSearchKey.value = ''
   lastAssistantSearchAt.value = 0
-  sessionStorage.setItem(ASSISTANT_AUTORUN_CONTEXT_KEY, JSON.stringify(buildSearchAssistantContext()))
+  removeAssistantSessionValue(PENDING_ASSISTANT_OPEN_KEY)
   assistantDrawerKey.value += 1
   assistantDrawerOpen.value = true
+  criticalActionStatus.value = '数据助手已打开，并已载入当前检索上下文。'
 }
 
 const loadFilterOptions = async () => {
@@ -1936,6 +2295,35 @@ const loadFilterOptions = async () => {
   } catch (statsError) {
     if (!isSearchAbortError(statsError, signal)) {
       console.error('加载语言选项失败:', statsError)
+    }
+  }
+}
+
+const isIndexedSearchMode = (mode) => ['semantic', 'hybrid'].includes(mode)
+
+const isSearchModeDisabled = (mode) => {
+  if (isIndexedSearchMode(mode) && !indexedSearchAvailable.value) return true
+  return searchParams.searchType !== 'news' && isIndexedSearchMode(mode)
+}
+
+const searchModeDisabledReason = (mode) => {
+  if (isIndexedSearchMode(mode) && !indexedSearchAvailable.value) {
+    return '语义与混合检索尚未通过索引就绪验证'
+  }
+  if (searchParams.searchType !== 'news' && isIndexedSearchMode(mode)) {
+    return '语义与混合检索仅支持新闻搜索'
+  }
+  return ''
+}
+
+const loadSearchCapabilities = async () => {
+  const signal = auxiliaryRequestController.signal
+  try {
+    const capabilities = await searchApi.getCapabilities({ signal })
+    indexedSearchAvailable.value = capabilities?.semantic === true && capabilities?.hybrid === true
+  } catch (error) {
+    if (!isSearchAbortError(error, signal)) {
+      console.warn('加载索引搜索能力失败，语义和混合模式保持关闭:', error)
     }
   }
 }
@@ -2020,6 +2408,7 @@ const toggleFavorite = async (newsId) => {
   try {
     const normalizedId = Number(newsId)
     const topic = normalizeFolderName(themeName.value)
+    const signedIn = hasStoredAccessToken()
     const wasFavorited = favoriteNewsIds.value.includes(normalizedId)
     const nowFavorited = !wasFavorited
 
@@ -2036,12 +2425,11 @@ const toggleFavorite = async (newsId) => {
             abstract: item.abstract,
             desc: item.desc,
             source: item.source,
-            pub_time: item.pub_time || item.time || item.displayTime,
-            time: item.time,
+            time_semantics: item.time_semantics,
+            timeSemantics: normalizeNewsTimeSemantics(item),
             location: item.location,
             request_url: item.request_url || item.requestUrl || item.displayUrl,
             displayDesc: item.displayDesc,
-            displayTime: item.displayTime,
             displayUrl: item.displayUrl,
             language: resolveLanguageName(item),
           },
@@ -2049,15 +2437,25 @@ const toggleFavorite = async (newsId) => {
         )
       }
       loadFavoriteCards()
-      ElMessage.success(`已收藏到「${topic}」`)
+      if (signedIn) {
+        criticalActionStatus.value = `已在本地收藏到「${topic}」；正在同步账户状态。`
+        ElMessage.info(`已收藏到「${topic}」，正在同步`)
+      } else {
+        criticalActionStatus.value = `已临时收藏到「${topic}」；内容仅保存在此浏览器，登录后才可跨设备同步。`
+        ElMessage.info(`已临时收藏到「${topic}」（仅此浏览器）`)
+      }
     } else {
       favoriteNewsIds.value = favoriteNewsIds.value.filter((id) => id !== normalizedId)
       removeReportFavorite(normalizedId, topic)
       loadFavoriteCards()
-      ElMessage.success(`已从「${topic}」移除`)
+      criticalActionStatus.value = signedIn
+        ? `已从「${topic}」移除；正在同步账户状态。`
+        : `已从本浏览器的临时收藏「${topic}」移除。`
+      if (signedIn) ElMessage.info(`已从「${topic}」移除，正在同步`)
+      else ElMessage.success(`已从「${topic}」移除`)
     }
 
-    if (localStorage.getItem('access_token')) {
+    if (signedIn) {
       try {
         await searchApi.toggleFavorite(
           {
@@ -2067,14 +2465,19 @@ const toggleFavorite = async (newsId) => {
           },
           { signal: auxiliaryRequestController.signal },
         )
+        criticalActionStatus.value = nowFavorited
+          ? `收藏成功：已同步到账号文件夹「${topic}」。`
+          : `移除成功：账号文件夹「${topic}」已同步。`
       } catch (syncError) {
         if (!isSearchAbortError(syncError, auxiliaryRequestController.signal)) {
+          criticalActionStatus.value = '本地收藏已更新，但账号同步失败；请检查网络或重新登录后重试。'
           ElMessage.warning(syncError.message || '收藏同步请求失败，请检查网络或重新登录')
         }
       }
     }
   } catch (e) {
     console.error('收藏操作失败:', e)
+    criticalActionStatus.value = '收藏操作失败：本地状态未能可靠更新，请稍后重试。'
     ElMessage.error('收藏操作失败，请稍后重试')
   }
 }
@@ -2094,10 +2497,19 @@ const removeFavoriteCard = async (newsId) => {
   const normalizedId = Number(newsId)
   if (!Number.isFinite(normalizedId)) return
   const topic = normalizeFolderName(themeName.value)
-  favoriteNewsIds.value = favoriteNewsIds.value.filter((id) => id !== normalizedId)
-  removeReportFavorite(normalizedId, topic)
-  loadFavoriteCards()
-  if (localStorage.getItem('access_token')) {
+  try {
+    favoriteNewsIds.value = favoriteNewsIds.value.filter((id) => id !== normalizedId)
+    removeReportFavorite(normalizedId, topic)
+    loadFavoriteCards()
+  } catch (error) {
+    console.error('移除本地收藏失败:', error)
+    criticalActionStatus.value = '移除失败：本浏览器的收藏状态未能可靠更新，请稍后重试。'
+    ElMessage.error('移除收藏失败，请稍后重试')
+    return
+  }
+  if (hasStoredAccessToken()) {
+    criticalActionStatus.value = `已从本地文件夹「${topic}」移除；正在同步账户状态。`
+    ElMessage.info(`已从「${topic}」移除，正在同步`)
     try {
       await searchApi.removeFavorite(
         {
@@ -2107,9 +2519,16 @@ const removeFavoriteCard = async (newsId) => {
         },
         { signal: auxiliaryRequestController.signal },
       )
-    } catch {
-      // Local removal remains authoritative when server sync is unavailable.
+      criticalActionStatus.value = `移除成功：账号文件夹「${topic}」已同步。`
+    } catch (error) {
+      if (isSearchAbortError(error, auxiliaryRequestController.signal)) return
+      console.error('移除收藏同步失败:', error)
+      criticalActionStatus.value = '已从本浏览器移除，但账号同步失败；请检查网络后重试。'
+      ElMessage.warning('本地已移除，但账号同步失败，请检查网络后重试')
     }
+  } else {
+    criticalActionStatus.value = `已从本浏览器的临时收藏「${topic}」移除。`
+    ElMessage.success(`已从临时收藏「${topic}」移除`)
   }
 }
 
@@ -2260,6 +2679,12 @@ const visiblePages = computed(() => {
 const handleLoginSuccess = () => {
   loadFavorites()
   loadFavoriteCards()
+  if (readAssistantSessionValue(PENDING_ASSISTANT_OPEN_KEY) === '1') {
+    removeAssistantSessionValue(PENDING_ASSISTANT_OPEN_KEY)
+    assistantDrawerKey.value += 1
+    assistantDrawerOpen.value = true
+    criticalActionStatus.value = '登录成功：已恢复登录前保留的检索上下文并打开数据助手。'
+  }
 }
 
 const handleReportFavoritesUpdated = () => {
@@ -2272,6 +2697,7 @@ onMounted(async () => {
   loadThemeListFromStorage()
   jumpPage.value = currentPage.value
   const filterOptionsPromise = loadFilterOptions()
+  const searchCapabilitiesPromise = loadSearchCapabilities()
   const topicFromRoute = route.query.topic || route.query.q
   const topicStr = topicFromRoute != null ? String(topicFromRoute).trim() : ''
   let mainDataPromise
@@ -2281,9 +2707,15 @@ onMounted(async () => {
   } else {
     mainDataPromise = loadPageData(1)
   }
-  await Promise.allSettled([filterOptionsPromise, mainDataPromise])
+  await Promise.allSettled([filterOptionsPromise, searchCapabilitiesPromise, mainDataPromise])
   void loadFavorites()
   isInitialized.value = true
+  if (hasStoredAccessToken() && readAssistantSessionValue(PENDING_ASSISTANT_OPEN_KEY) === '1') {
+    removeAssistantSessionValue(PENDING_ASSISTANT_OPEN_KEY)
+    assistantDrawerKey.value += 1
+    assistantDrawerOpen.value = true
+    criticalActionStatus.value = '已恢复登录前保留的检索上下文并打开数据助手。'
+  }
   // 监听登录成功事件
   window.addEventListener('loginSuccess', handleLoginSuccess)
   window.addEventListener('reportFavoritesUpdated', handleReportFavoritesUpdated)

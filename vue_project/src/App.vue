@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppNav from './components/appNav.vue'
 import NewUserGuide from './components/NewUserGuide.vue'
@@ -9,7 +9,9 @@ import { createOperationsHeartbeat } from './features/operations/index.js'
 import { routePreloaders } from './router/routePreloaders.js'
 
 const route = useRoute()
+const routeContent = ref(null)
 const isFinancialTerminal = computed(() => route.path === '/financial-terminal')
+const showFreshnessNotice = computed(() => route.path !== '/data-assistant')
 const operationsHeartbeat = createOperationsHeartbeat({
   getPath: () => route.path || '/',
 })
@@ -31,22 +33,31 @@ onUnmounted(() => {
   operationsHeartbeat.stop()
 })
 
-watch(() => route.path, () => {
+watch(() => route.path, async () => {
   operationsHeartbeat.notifyRouteChange()
+  await nextTick()
+  const container = routeContent.value
+  const target = container?.querySelector('h1') || container
+  if (!target) return
+  if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1')
+  target.focus({ preventScroll: true })
 })
 </script>
 
 <template>
   <div class="app-shell" :class="{ 'app--financial-terminal': isFinancialTerminal }">
+    <a class="skip-to-content" href="#main-content">跳到主要内容</a>
     <appNav :route-preloaders="routePreloaders" />
     <NewUserGuide />
-    <DataFreshnessNotice />
+    <DataFreshnessNotice v-if="showFreshnessNotice" />
     <GuestAccessBanner />
-    <router-view v-slot="{ Component, route }">
-      <keep-alive :include="['appHome']">
-        <component :is="Component" :key="route.fullPath" />
-      </keep-alive>
-    </router-view>
+    <div id="main-content" ref="routeContent" class="route-content" tabindex="-1">
+      <router-view v-slot="{ Component, route }">
+        <keep-alive :include="['appHome']">
+          <component :is="Component" :key="route.fullPath" />
+        </keep-alive>
+      </router-view>
+    </div>
   </div>
 </template>
 
@@ -60,6 +71,33 @@ watch(() => route.path, () => {
 
 .app-shell.app--financial-terminal {
   background-color: #0b0e11;
+}
+
+.skip-to-content {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100000;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fff;
+  color: #0b4f87;
+  font-weight: 800;
+  transform: translateY(calc(-100% - 16px));
+}
+
+.skip-to-content:focus-visible {
+  outline: 3px solid #0b6ea8;
+  outline-offset: 2px;
+  transform: none;
+}
+
+.route-content:focus {
+  outline: none;
+}
+
+.route-content :deep(h1[tabindex='-1']:focus) {
+  outline: none;
 }
 
 .main-content {
@@ -87,21 +125,11 @@ body {
   background-color: #f6f8ff;
 }
 
-.freshness-notice ~ .home {
-  padding-top: 150px;
+.freshness-notice ~ .route-content .home {
+  padding-top: 0;
 }
 
-@media (max-width: 760px) {
-  .freshness-notice + .guest-access {
-    margin-top: 150px;
-  }
-
-  .freshness-notice ~ .home {
-    padding-top: 154px;
-  }
-
-  .freshness-notice + .guest-access + .home {
-    padding-top: 16px;
-  }
+.freshness-notice ~ .route-content .intel-page {
+  --nav-offset: 0px;
 }
 </style>

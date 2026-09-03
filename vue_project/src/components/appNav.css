@@ -55,6 +55,8 @@
   justify-content: flex-start;
   cursor: pointer;
   z-index: 101;
+  border-radius: 8px;
+  text-decoration: none;
 }
 
 .logo-corner .logo-img {
@@ -607,6 +609,9 @@
   padding: 0;
   transition: color 0.2s ease;
   text-decoration: none;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
 }
 
 @media (min-width: 1201px) {
@@ -696,7 +701,13 @@
   font-weight: 500;
   color: #475569;
   /* 确保点击区域足够大 */
-  min-height: 20px;
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
   /* 防止文本选择 */
   user-select: none;
 }
@@ -855,16 +866,79 @@
   }
 }
 
+/* Keep the desktop navigation readable when the global type scale is enlarged. */
+@media (min-width: 1161px) {
+  html[data-gm-font-size='2'] .nav-center,
+  html[data-gm-font-size='3'] .nav-center {
+    gap: 8px;
+  }
+
+  html[data-gm-font-size='2'] .middle,
+  html[data-gm-font-size='3'] .middle {
+    padding-inline: 14px;
+  }
+
+  html[data-gm-font-size='2'] .nav-list,
+  html[data-gm-font-size='3'] .nav-list {
+    gap: 14px;
+    padding-inline: 6px;
+  }
+
+  html[data-gm-font-size='2'] .about-us-link,
+  html[data-gm-font-size='3'] .about-us-link {
+    padding-inline: 12px;
+  }
+
+  html[data-gm-font-size='2'] .header-search,
+  html[data-gm-font-size='3'] .header-search {
+    flex: 0 0 clamp(42px, calc(100vw - 1274px), 166px);
+    min-width: clamp(42px, calc(100vw - 1274px), 166px);
+    max-width: clamp(42px, calc(100vw - 1274px), 166px);
+  }
+
+  html[data-gm-font-size='2'] .header-actions,
+  html[data-gm-font-size='3'] .header-actions {
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1161px) and (max-width: 1320px) {
+  html[data-gm-font-size='2'] .header-search,
+  html[data-gm-font-size='3'] .header-search {
+    justify-content: center;
+    padding: 0 4px;
+  }
+
+  html[data-gm-font-size='2'] .header-search__input,
+  html[data-gm-font-size='3'] .header-search__input {
+    display: none;
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1160px) {
+  html[data-gm-font-size='2'] .mobile-hamburger,
+  html[data-gm-font-size='3'] .mobile-hamburger {
+    display: flex;
+  }
+
+  html[data-gm-font-size='2'] .nav-center,
+  html[data-gm-font-size='2'] .header-actions--right,
+  html[data-gm-font-size='3'] .nav-center,
+  html[data-gm-font-size='3'] .header-actions--right {
+    display: none !important;
+  }
+}
+
 /* ============================================================
    Mobile hamburger button
    ============================================================ */
 .mobile-hamburger {
   display: none;
   position: fixed;
-  top: 6px;
-  right: 12px;
-  width: 44px;
-  height: 44px;
+  top: 14px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -960,8 +1034,8 @@
 }
 
 .mobile-drawer-close {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1017,10 +1091,7 @@
 /* Mobile nav items */
 .mobile-nav {
   flex: 1;
-  min-height: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   padding: 8px 16px;
   display: flex;
   flex-direction: column;
@@ -1035,23 +1106,24 @@
 }
 
 .mobile-nav-item-row {
-  width: 100%;
-  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 14px;
   cursor: pointer;
-  border: 0;
   border-radius: 12px;
-  background: transparent;
   color: #334155;
-  font: inherit;
   font-size: 15px;
   font-weight: 600;
-  text-align: left;
   text-decoration: none;
   transition: background 0.2s ease, color 0.2s ease;
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .mobile-nav-item-row:hover,
@@ -1060,46 +1132,26 @@
   color: #1e293b;
 }
 
-.mobile-nav > a.mobile-nav-item,
-.mobile-nav > button.mobile-nav-item {
-  flex: 0 0 auto;
-  min-height: 48px;
+.mobile-nav-item a {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
   padding: 14px 14px;
-  border: 0;
   color: #334155;
-  background: transparent;
-  font: inherit;
   font-size: 15px;
   font-weight: 600;
-  text-align: left;
   text-decoration: none;
   border-radius: 12px;
   transition: background 0.2s ease, color 0.2s ease;
 }
 
-.mobile-nav > a.mobile-nav-item:hover,
-.mobile-nav > button.mobile-nav-item:hover {
+.mobile-nav-item a:hover {
   background: rgba(59, 130, 246, 0.06);
   color: #1e293b;
 }
 
-.mobile-nav > a.mobile-nav-item.router-link-active {
+.mobile-nav-item a.router-link-active {
   color: #2563eb;
   background: rgba(59, 130, 246, 0.08);
-}
-
-.mobile-nav-item--has-children {
-  flex: 0 0 auto;
-  border: 1px solid transparent;
-}
-
-.mobile-nav-item--has-children:has(.mobile-submenu) {
-  border-color: rgba(59, 130, 246, 0.14);
-  background: rgba(239, 246, 255, 0.72);
 }
 
 .mobile-nav-arrow {
@@ -1116,16 +1168,13 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 0 8px 8px;
-  padding: 6px 0 0 8px;
-  border-top: 1px solid rgba(59, 130, 246, 0.12);
+  padding: 0 0 4px 16px;
 }
 
 .mobile-submenu-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 44px;
   padding: 12px 14px;
   border-radius: 10px;
   cursor: pointer;
@@ -1133,6 +1182,13 @@
   font-size: 14px;
   font-weight: 500;
   transition: background 0.2s ease, color 0.2s ease;
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .mobile-submenu-item:hover {
@@ -1179,10 +1235,27 @@
   font-size: 15px;
   font-weight: 600;
   transition: background 0.2s ease;
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .mobile-user-info:hover {
   background: rgba(59, 130, 246, 0.06);
+}
+
+.logo-corner:focus-visible,
+.dropdown-trigger:focus-visible,
+.dropdown-item-content:focus-visible,
+.mobile-nav-item-row:focus-visible,
+.mobile-submenu-item:focus-visible,
+.mobile-user-info:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
 }
 
 /* ============================================================
@@ -1256,10 +1329,10 @@
   }
 
   .mobile-hamburger {
-    top: 6px;
+    top: 10px;
     right: 12px;
-    width: 44px;
-    height: 44px;
+    width: 34px;
+    height: 34px;
     gap: 4px;
   }
 

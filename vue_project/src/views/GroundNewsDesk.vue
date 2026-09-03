@@ -24,22 +24,41 @@
     <main class="desk-grid">
       <aside class="library-rail">
         <section class="search-card" data-tour="ground-desk-filters">
-          <label>检索故事卡</label>
+          <label for="ground-news-story-search">检索故事卡</label>
           <div class="search-row">
             <input
+              id="ground-news-story-search"
               v-model.trim="searchInput"
+              type="search"
               placeholder="美国-伊朗、关税、北约..."
               @keydown.enter="loadCards"
             />
-            <button :disabled="loadingCards" @click="loadCards">
+            <button type="button" :disabled="loadingCards" @click="loadCards">
               {{ loadingCards ? '加载中' : '搜索' }}
             </button>
           </div>
+          <button
+            type="button"
+            class="mobile-desk-filter-toggle"
+            aria-controls="ground-news-desk-filter-controls"
+            :aria-expanded="mobileFiltersExpanded"
+            @click="mobileFiltersExpanded = !mobileFiltersExpanded"
+          >
+            <span>筛选条件</span>
+            <strong>{{ mobileFiltersExpanded ? '收起' : '展开' }}</strong>
+          </button>
+          <div
+            id="ground-news-desk-filter-controls"
+            class="desk-filter-controls"
+            :class="{ 'is-mobile-expanded': mobileFiltersExpanded }"
+          >
           <div class="filter-pills">
             <button
               v-for="item in familyFilters"
               :key="item.value"
+              type="button"
               :class="{ active: familyFilter === item.value }"
+              :aria-pressed="familyFilter === item.value"
               @click="setFamilyFilter(item.value)"
             >
               {{ item.label }}
@@ -51,7 +70,9 @@
               <button
                 v-for="item in sortOptions"
                 :key="item.value"
+                type="button"
                 :class="{ active: sortFilter === item.value }"
+                :aria-pressed="sortFilter === item.value"
                 @click="setDeskFilter('sort', item.value)"
               >
                 {{ item.label }}
@@ -62,7 +83,9 @@
               <button
                 v-for="item in dateRangeOptions"
                 :key="item.value"
+                type="button"
                 :class="{ active: dateDaysFilter === item.value }"
+                :aria-pressed="dateDaysFilter === item.value"
                 @click="setDeskFilter('date', item.value)"
               >
                 {{ item.label }}
@@ -73,7 +96,9 @@
               <button
                 v-for="item in minArticleOptions"
                 :key="item.value"
+                type="button"
                 :class="{ active: minArticlesFilter === item.value }"
+                :aria-pressed="minArticlesFilter === item.value"
                 @click="setDeskFilter('articles', item.value)"
               >
                 {{ item.label }}
@@ -84,7 +109,9 @@
               <button
                 v-for="item in minSourceOptions"
                 :key="item.value"
+                type="button"
                 :class="{ active: minSourcesFilter === item.value }"
+                :aria-pressed="minSourcesFilter === item.value"
                 @click="setDeskFilter('sources', item.value)"
               >
                 {{ item.label }}
@@ -95,12 +122,15 @@
               <button
                 v-for="item in qualityOptions"
                 :key="item.value"
+                type="button"
                 :class="{ active: qualityFilter === item.value }"
+                :aria-pressed="qualityFilter === item.value"
                 @click="setDeskFilter('quality', item.value)"
               >
                 {{ item.label }}
               </button>
             </div>
+          </div>
           </div>
         </section>
 
@@ -108,17 +138,22 @@
           <button
             v-for="story in stories"
             :key="story.cluster_id"
+            type="button"
             class="story-list-card"
-            :class="{ active: story.cluster_id === selectedClusterId }"
+            :class="{
+              active: story.cluster_id === selectedClusterId,
+              'has-cover': Boolean(coverImageUrl(story)),
+            }"
+            :aria-pressed="story.cluster_id === selectedClusterId"
             @click="selectStory(story.cluster_id)"
           >
-            <StoryCover :story="story" size="list" />
+            <StoryCover v-if="coverImageUrl(story)" :story="story" size="list" />
             <div class="story-list-card__top">
               <span>{{ familyLabel(story.event_family) }}</span>
               <strong>{{ story.article_count }}</strong>
             </div>
             <h3>{{ story.canonical_title || story.l1_title || story.cluster_id }}</h3>
-            <div class="mini-spectrum" aria-label="立场光谱">
+            <div class="mini-spectrum" aria-label="第三方来源目录分组构成">
               <span
                 v-for="bucket in listBiasBuckets(story)"
                 :key="`${story.cluster_id}-${bucket.key}`"
@@ -142,7 +177,7 @@
             <span class="eyebrow">正在构建信源档案</span>
             <h2>{{ activeStory.canonical_title || activeStory.l1_title || activeStory.title }}</h2>
             <p>
-              正在加载信源光谱、叙事切面、关联 L2 走势链和代表性标题证据。
+              正在加载来源目录、报道切面、关联线索和代表性标题证据。
             </p>
             <div class="dossier-preview__facts">
               <span>{{ activeStory.article_count || 0 }} 条新闻</span>
@@ -154,8 +189,12 @@
         <div v-else-if="!selectedStory" class="empty-state">请选择一张故事卡。</div>
 
         <template v-else>
-          <article class="lead-story-card" data-tour="ground-desk-analysis">
-            <div class="story-hero-cover">
+          <article
+            class="lead-story-card"
+            :class="{ 'has-hero-cover': Boolean(coverImageUrl(selectedStory)) }"
+            data-tour="ground-desk-analysis"
+          >
+            <div v-if="coverImageUrl(selectedStory)" class="story-hero-cover">
               <StoryCover :story="selectedStory" size="hero" />
             </div>
             <div class="lead-story-copy">
@@ -184,7 +223,7 @@
                 </div>
                 <div>
                   <strong>{{ relatedChains.length }}</strong>
-	                  <span>关联 L2 链</span>
+	                  <span>关联线索</span>
 	                </div>
 	              </div>
 	              <div class="lead-story-actions">
@@ -195,7 +234,7 @@
 	            </div>
 	          </article>
 
-          <section class="dossier-board" aria-label="事件脉络与价值判断">
+          <section class="dossier-board" aria-label="事件脉络与研究检查">
             <article class="dossier-panel dossier-panel--context">
               <div class="section-heading">
                 <span>事件脉络</span>
@@ -213,13 +252,24 @@
 
             <article class="dossier-panel dossier-panel--value">
               <div class="section-heading">
-                <span>价值判断</span>
+                <span>研究检查</span>
                 <small>{{ eventValueLevel.label }}</small>
               </div>
               <div class="value-score" :class="`tone-${eventValueLevel.tone}`">
                 <strong>{{ eventValueLevel.score }}</strong>
                 <span>{{ eventValueLevel.reason }}</span>
               </div>
+              <details class="metric-explanation">
+                <summary>查看未评级原因和现有输入</summary>
+                <p>方法：{{ eventValueExplanation.method_version || '未建立' }}</p>
+                <p>公式：{{ eventValueExplanation.formula }}</p>
+                <p>证据定位：{{ eventValueExplanation.evidence.locator || '不可用' }}；{{ eventValueExplanation.reason_code }}</p>
+                <ul>
+                  <li v-for="input in eventValueExplanation.inputs" :key="input.field">
+                    <code>{{ input.field }}</code>：{{ input.state === 'provided_unverified' ? `已提供但未核验（${input.value}）` : '不可用' }}
+                  </li>
+                </ul>
+              </details>
               <div class="value-grid">
                 <div v-for="item in valueSignals" :key="item.label">
                   <small>{{ item.label }}</small>
@@ -255,27 +305,35 @@
             </article>
             <article class="comparison-differences">
               <div class="section-heading">
-                <span>左右报道差异</span>
+                <span>目录分组标题样本</span>
                 <small>{{ activeSourceRows.length }} 条样本</small>
               </div>
+              <p class="section-disclaimer">这里只列出不同第三方目录分组的标题样本，不等同于叙事立场差异。</p>
               <p v-for="line in comparison.difference_summary || []" :key="line">{{ line }}</p>
             </article>
-            <article class="comparison-blindspot" :class="`level-${blindspotDetail.level || 'low'}`">
+            <article class="comparison-blindspot level-unknown">
               <div class="section-heading">
-                <span>Blindspot</span>
-                <small>{{ blindspotLevelLabel(blindspotDetail.level) }}</small>
+                <span>覆盖缺口检查</span>
+                <small>尚未评估</small>
               </div>
-              <strong>{{ Math.round(blindspotDetail.score || 0) }}</strong>
-              <p v-for="reason in (blindspotDetail.reasons || []).slice(0, 3)" :key="reason">{{ reason }}</p>
+              <strong>{{ blindspotMetric.valueLabel }}</strong>
+              <p>请从在地来源、语言、第一手材料、所有权和转载关系分别核查；当前候选分不构成风险结论。</p>
+              <details class="metric-explanation">
+                <summary>查看旧候选公式及其证据限制</summary>
+                <p>方法：{{ blindspotExplanation.method_version || '未建立' }}</p>
+                <p>公式：{{ blindspotExplanation.formula }}</p>
+                <p>证据定位：{{ blindspotExplanation.evidence.locator || '不可用' }}；{{ blindspotExplanation.reason_code }}</p>
+              </details>
             </article>
           </section>
 
           <section class="coverage-board">
             <div class="spectrum-card">
               <div class="section-heading">
-                <span>报道覆盖分析</span>
+                <span>来源目录构成</span>
                 <small>{{ statusLabel(sourceBreakdown?.analysis_status || selectedStory.source_analysis_status || 'not_built') }}</small>
               </div>
+              <p class="section-disclaimer">目录标签只能帮助定位待复核样本，不能跨国家直接比较政治立场。</p>
               <div class="bias-bar">
                 <span
                   v-for="bucket in biasBuckets"
@@ -290,6 +348,7 @@
                   :key="`breakdown-${bucket.key}`"
                   type="button"
                   :class="{ active: selectedSourceGroup === bucket.key }"
+                  :aria-pressed="selectedSourceGroup === bucket.key"
                   :style="{
                     '--fill-color': bucket.color,
                     '--fill': `${Math.max(0, Math.min(100, bucket.value))}%`,
@@ -303,6 +362,12 @@
                   </div>
                 </button>
               </div>
+              <details class="metric-explanation">
+                <summary>展开覆盖信号公式、输入和证据</summary>
+                <p>方法：{{ coverageExplanation.method_version || '未建立' }}</p>
+                <p>公式：{{ coverageExplanation.formula }}</p>
+                <p>证据定位：{{ coverageExplanation.evidence.locator || '不可用' }}；{{ coverageExplanation.reason_code }}</p>
+              </details>
             </div>
 
             <div class="signal-stack">
@@ -317,8 +382,8 @@
           <section class="source-intel-grid">
             <article class="source-intel-card source-intel-card--map">
               <div class="section-heading">
-                <span>信源地理分布</span>
-                <small>主要地区</small>
+                <span>文章来源地构成</span>
+                <small>按新闻条目统计</small>
               </div>
               <div class="region-ledger">
                 <span v-for="row in countryRows.slice(0, 6)" :key="`geo-${row.key}`">
@@ -364,7 +429,9 @@
             <button
               v-for="tab in tabs"
               :key="tab.key"
+              type="button"
               :class="{ active: activeTab === tab.key }"
+              :aria-pressed="activeTab === tab.key"
               @click="activeTab = tab.key"
             >
               {{ tab.label }}
@@ -386,12 +453,12 @@
               <small>{{ formatRange(segment.start_date, segment.end_date) }}</small>
               <ul>
                 <li v-for="item in (segment.sample_news || []).slice(0, 3)" :key="item.news_id">
-                  <a :href="newsDetailPath(item.news_id)" target="_blank" rel="noopener">
+                  <a :href="newsDetailPath(item.news_id)" target="_blank" rel="noopener noreferrer">
                     {{ item.title || `新闻 ${item.news_id}` }}
                   </a>
                 </li>
               </ul>
-              <button class="card-action" @click="openSegment(segment)">查看切面样本</button>
+              <button type="button" class="card-action" @click="openSegment(segment)">查看切面样本</button>
             </article>
           </section>
 
@@ -400,14 +467,13 @@
               v-for="segment in segments"
               :key="`timeline-${segment.segment_id}`"
               class="timeline-row"
-              @click="openSegment(segment)"
             >
               <span>{{ angleLabel(segment.story_angle).slice(0, 2) }}</span>
               <div>
                 <small>{{ formatRange(segment.start_date, segment.end_date) }}</small>
                 <h3>{{ segment.title || segment.segment_id }}</h3>
                 <p>{{ eventActionLabel(segment.event_action) }} · {{ segment.article_count }} 条新闻</p>
-                <button class="inline-action" @click.stop="openSegment(segment)">查看相关新闻</button>
+                <button type="button" class="inline-action" @click="openSegment(segment)">查看相关新闻</button>
               </div>
             </article>
           </section>
@@ -424,6 +490,7 @@
                   :key="option.key"
                   type="button"
                   :class="{ active: selectedSourceGroup === option.key }"
+                  :aria-pressed="selectedSourceGroup === option.key"
                   @click="selectSourceGroup(option.key)"
                 >
                   {{ option.label }} <strong>{{ option.count }}</strong>
@@ -462,7 +529,7 @@
                     <span v-if="item.credibility_tier"> · {{ credibilityLabel(item.credibility_tier) }}</span>
                     <span v-if="item.country"> · {{ item.country }}</span>
                   </small>
-                  <a class="news-detail-link" :href="newsDetailPath(item.news_id)" target="_blank" rel="noopener">
+                  <a class="news-detail-link" :href="newsDetailPath(item.news_id)" target="_blank" rel="noopener noreferrer">
                     查看新闻详情
                   </a>
                 </article>
@@ -474,14 +541,20 @@
           <section v-else class="l2-dossier">
             <article class="chain-summary">
               <div class="section-heading">
-                <span>L2 走势链</span>
-                <small>{{ qualityLabel(selectedChainMeta?.chain_quality || 'unselected') }}</small>
+                <span>关联线索</span>
+                <small>质量指标未知</small>
               </div>
-              <h3>{{ selectedChainMeta?.title || '请选择一条关联走势链' }}</h3>
+              <h3>{{ selectedChainMeta?.title || '请选择一条关联线索' }}</h3>
               <p v-if="selectedChainMeta">
                 {{ selectedChainMeta.segment_count }} 个切面 · {{ selectedChainMeta.article_count }} 条新闻 ·
                 评分 {{ qualityPct(selectedChainMeta.quality_score) }}
               </p>
+              <details class="metric-explanation">
+                <summary>展开链质量公式、输入和证据</summary>
+                <p>方法：{{ timelineQualityExplanation.method_version || '未建立' }}</p>
+                <p>公式：{{ timelineQualityExplanation.formula }}</p>
+                <p>证据定位：{{ timelineQualityExplanation.evidence.locator || '不可用' }}；{{ timelineQualityExplanation.reason_code }}</p>
+              </details>
               <div v-if="selectedChainMeta?.risk_flags?.length" class="risk-flags">
                 <span v-for="flag in selectedChainMeta.risk_flags" :key="flag">{{ riskFlagLabel(flag) }}</span>
               </div>
@@ -498,12 +571,20 @@
               <article v-for="edge in chainEdges" :key="`${edge.from_id}-${edge.to_id}`" class="edge-card">
                 <div>
                   <span>{{ edgeTypeLabel(edge.edge_type) }}</span>
-                  <strong>{{ Math.round((edge.edge_weight || 0) * 100) }}%</strong>
+                  <strong>{{ graphMetricPresentation('story_graph.edge_weight', { value: edge.edge_weight }).valueLabel }}</strong>
                 </div>
                 <small>{{ edge.relation_reason || '暂无关系说明' }}</small>
+                <details class="metric-explanation">
+                  <summary>展开边权重公式、输入和证据</summary>
+                  <template v-for="explanation in [edgeWeightExplanation(edge)]" :key="`${edge.from_id}-${edge.to_id}-${explanation.metric_id}`">
+                    <p>方法：{{ explanation.method_version || '未建立' }}</p>
+                    <p>公式：{{ explanation.formula }}</p>
+                    <p>证据定位：{{ explanation.evidence.locator || '不可用' }}；{{ explanation.reason_code }}</p>
+                  </template>
+                </details>
               </article>
             </div>
-            <p v-else class="muted">当前故事尚未选择 L2 走势链。</p>
+            <p v-else class="muted">当前故事尚未选择关联线索。</p>
           </section>
         </template>
       </section>
@@ -536,8 +617,8 @@
 
         <section class="inspector-card">
           <div class="section-heading">
-            <span>国家 / 地区</span>
-            <small>信源数</small>
+            <span>文章来源国家 / 地区</span>
+            <small>新闻数</small>
           </div>
           <div class="chip-cloud">
             <span v-for="row in countryRows" :key="row.key">{{ row.key || '未知' }} · {{ row.value }}</span>
@@ -546,7 +627,7 @@
 
         <section class="inspector-card">
           <div class="section-heading">
-            <span>可信度</span>
+            <span>目录评级</span>
             <small>新闻数</small>
           </div>
           <div class="chip-cloud">
@@ -566,13 +647,21 @@
 
         <section class="inspector-card chain-picker">
           <div class="section-heading">
-            <span>关联 L2 走势链</span>
+            <span>关联线索</span>
             <small>{{ relatedChains.length }} 条关联</small>
           </div>
+          <details class="metric-explanation">
+            <summary>展开列表链质量公式、输入和证据</summary>
+            <p>方法：{{ timelineQualityExplanation.method_version || '未建立' }}</p>
+            <p>公式：{{ timelineQualityExplanation.formula }}</p>
+            <p>证据定位：{{ timelineQualityExplanation.evidence.locator || '不可用' }}；{{ timelineQualityExplanation.reason_code }}</p>
+          </details>
           <button
             v-for="chain in relatedChains"
             :key="chain.chain_id"
+            type="button"
             :class="{ active: chain.chain_id === selectedChainId }"
+            :aria-pressed="chain.chain_id === selectedChainId"
             @click="selectChain(chain.chain_id)"
           >
             <strong>{{ chain.title || chain.chain_id }}</strong>
@@ -581,19 +670,27 @@
               {{ qualityPct(chain.quality_score) }}
             </small>
           </button>
-          <p v-if="!relatedChains.length" class="muted">暂无关联走势链。</p>
+          <p v-if="!relatedChains.length" class="muted">暂无关联线索。</p>
         </section>
       </aside>
     </main>
 
     <div v-if="selectedSegment" class="story-modal-backdrop" @click.self="closeSegment">
-      <section class="story-modal">
-        <button class="story-modal__close" @click="closeSegment">×</button>
+      <section
+        ref="segmentDialogRef"
+        class="story-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ground-news-modal-title"
+        tabindex="-1"
+        @keydown="handleSegmentDialogKeydown"
+      >
+        <button type="button" class="story-modal__close" aria-label="关闭相关新闻" @click="closeSegment">×</button>
         <div class="section-heading">
           <span>{{ angleLabel(selectedSegment.story_angle) }}</span>
           <small>{{ selectedSegment.article_count }} 条新闻</small>
         </div>
-        <h2>{{ selectedSegment.title || selectedSegment.segment_id }}</h2>
+        <h2 id="ground-news-modal-title">{{ selectedSegment.title || selectedSegment.segment_id }}</h2>
         <p class="story-modal__meta">
           {{ formatRange(selectedSegment.start_date, selectedSegment.end_date) }} ·
           {{ eventActionLabel(selectedSegment.event_action) }} ·
@@ -603,7 +700,7 @@
           <article v-for="item in selectedSegment.sample_news" :key="`modal-${item.news_id}`">
             <h3>{{ item.title || `新闻 ${item.news_id}` }}</h3>
             <small>{{ formatDate(item.published_at) }}</small>
-            <a :href="newsDetailPath(item.news_id)" target="_blank" rel="noopener">打开详细新闻页</a>
+            <a :href="newsDetailPath(item.news_id)" target="_blank" rel="noopener noreferrer">打开详细新闻页</a>
           </article>
         </div>
         <p v-else class="muted">该切面暂无样本新闻。</p>
@@ -614,21 +711,26 @@
       :drawer-key="assistantDrawerKey"
       :page-skill="groundNewsAssistantSkill"
       title="新闻观察台数据助手"
-      subtitle="读取当前故事卡、信源光谱、叙事切面和 L2 走势链"
+      subtitle="读取当前故事卡、来源目录、报道切面和关联线索"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
+import { computed, defineComponent, h, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { restoreDialogFocus, trapDialogTab } from '@/utils/dialogFocus'
 import atlasImage from '@/assets/ground-news/coverage-atlas.webp'
 import { AssistantDrawer } from '@/features/assistant/index.js'
 import {
+  graphMetricExplanation,
+  graphMetricPresentation,
+} from '@/governance/graphMetrics.js'
+import {
   angleLabel,
   biasGroupLabel,
-  blindspotLevelLabel,
+  buildGroundNewsSourceProfileModel,
   coverCredit,
   coverImageUrl,
   coverLabel,
@@ -654,7 +756,6 @@ import {
   normalizeBiasBuckets,
   normalizeLeaning,
   ownershipLabel,
-  qualityLabel,
   qualityOptions,
   qualityPct,
   riskFlagLabel,
@@ -671,6 +772,7 @@ const route = useRoute()
 const ASSISTANT_AUTORUN_CONTEXT_KEY = 'data_assistant_autorun_context_v1'
 const assistantDrawerOpen = ref(false)
 const assistantDrawerKey = ref(0)
+const mobileFiltersExpanded = ref(false)
 
 const stories = ref([])
 const totalStories = ref(0)
@@ -689,11 +791,28 @@ const activeTab = ref('coverage')
 const loadingCards = ref(false)
 const loadingDetail = ref(false)
 const selectedSegment = ref(null)
+const segmentDialogRef = ref(null)
 const selectedSourceGroup = ref('all')
 const detailCache = new Map()
 const chainCache = new Map()
 let storyRequestSeq = 0
 let chainRequestSeq = 0
+let segmentReturnFocusTarget = null
+
+watch(selectedSegment, async (value, previousValue) => {
+  if (value) {
+    if (!previousValue && typeof document !== 'undefined') {
+      segmentReturnFocusTarget = document.activeElement
+    }
+    await nextTick()
+    segmentDialogRef.value?.querySelector('.story-modal__close')?.focus()
+    return
+  }
+  if (!previousValue) return
+  await nextTick()
+  restoreDialogFocus(segmentReturnFocusTarget)
+  segmentReturnFocusTarget = null
+})
 
 const StoryCover = defineComponent({
   name: 'StoryCover',
@@ -752,7 +871,7 @@ const groundNewsAssistantSkill = computed(() => {
   return {
     page: '新闻观察台',
     path: '/ground-news',
-    summary: `${story.canonical_title || story.title || '当前故事卡'}；可查看报道切面、信源光谱、盲区提示和 L2 走势链。`,
+    summary: `${story.canonical_title || story.title || '当前故事卡'}；可查看报道切面、来源目录、覆盖缺口检查和关联线索。`,
     access: [
       '导航进入新闻观察台',
       '数据搜索/故事图谱可带 cluster_id 定位故事',
@@ -761,19 +880,19 @@ const groundNewsAssistantSkill = computed(() => {
     sections: [
       '故事卡列表与筛选',
       '报道切面',
-      '信源光谱',
+      '来源目录',
       '时间线',
-      'L2 走势链',
+      '关联线索',
     ],
     actions: [
       '搜索故事卡',
       '调整主题/时间/文章数/信源筛选',
-      '切换报道切面、时间线、信源和 L2 标签',
+      '切换报道切面、时间线、来源目录和关联线索标签',
       '打开样本新闻详情',
     ],
     aiActions: [
-      '解释当前故事主线和信源差异',
-      '识别盲区与补证方向',
+      '解释当前故事主线和标题样本差异',
+      '整理覆盖缺口与补证方向',
       '把观察台材料整理成报告提纲',
     ],
   }
@@ -784,7 +903,28 @@ const comparison = computed(() => detail.value?.comparison || {})
 const segments = computed(() => detail.value?.segments || [])
 const relatedChains = computed(() => detail.value?.related_l2_chains || [])
 const evidence = computed(() => detail.value?.evidence || [])
-const sourceTable = computed(() => comparison.value?.source_table || [])
+const sourceTable = computed(() => {
+  const rows = Array.isArray(comparison.value?.source_table)
+    ? comparison.value.source_table.slice(0, 100)
+    : []
+  return rows.map((row) => {
+    const profile = buildGroundNewsSourceProfileModel(row)
+    return {
+      news_id: row?.news_id,
+      title: typeof row?.title === 'string' ? row.title : '',
+      published_at: row?.published_at,
+      domain: profile.domain,
+      source_name: profile.sourceName,
+      country: profile.country,
+      source_type: profile.values.sourceType,
+      ownership_type: profile.values.ownershipType,
+      political_leaning: profile.values.politicalLeaning,
+      political_group: normalizeLeaning(profile.values.politicalLeaning),
+      credibility_tier: profile.values.credibilityTier,
+      source_profile_method: profile.method,
+    }
+  })
+})
 const blindspotDetail = computed(() => comparison.value?.blindspot || {})
 const chronologicalSegments = computed(() => [...segments.value].sort((a, b) => (
   String(a.start_date || a.end_date || '').localeCompare(String(b.start_date || b.end_date || ''))
@@ -858,41 +998,86 @@ const contextMilestones = computed(() => {
 })
 
 const eventValueLevel = computed(() => {
-  let score = 0
-  score += Math.min(32, sourceCount.value * 4)
-  score += Math.min(24, Number(selectedStory.value?.article_count || 0) * 1.2)
-  score += Math.min(18, relatedChains.value.length * 6)
-  score += Math.min(16, segmentCount.value * 2)
-  score += Math.min(10, Number(blindspotDetail.value?.score || 0) / 10)
-  const rounded = Math.round(score)
-  if (rounded >= 72) return { score: rounded, label: '高价值事件', tone: 'high', reason: '多信源、多切面，已具备持续追踪价值' }
-  if (rounded >= 48) return { score: rounded, label: '值得跟踪', tone: 'medium', reason: '覆盖和结构足够，适合进入研判' }
-  return { score: rounded, label: '观察事件', tone: 'watch', reason: '信息仍偏薄，需要继续补信源或后续节点' }
+  return {
+    score: '未评级',
+    label: '输入待核验',
+    tone: 'watch',
+    reason: '方法未批准，且输入身份或证据定位未完整绑定。',
+  }
 })
 
+const eventValueExplanation = computed(() => graphMetricExplanation(
+  'ground_news.event_research_value',
+  {
+    inputs: {
+      source_count: sourceCount.value,
+      article_count: selectedStory.value?.article_count,
+      related_chain_count: relatedChains.value.length,
+      segment_count: segmentCount.value,
+      blindspot_score: blindspotDetail.value?.score,
+    },
+  },
+))
+
+const blindspotMetric = computed(() => graphMetricPresentation(
+  'ground_news.blindspot_score',
+  { value: blindspotDetail.value?.score },
+))
+
+const blindspotExplanation = computed(() => graphMetricExplanation(
+  'ground_news.blindspot_score',
+  {
+    inputs: {
+      left_pct: biasBuckets.value.find((item) => item.key === 'left')?.value,
+      center_pct: biasBuckets.value.find((item) => item.key === 'center')?.value,
+      right_pct: biasBuckets.value.find((item) => item.key === 'right')?.value,
+      state_aligned_pct: biasBuckets.value.find((item) => item.key === 'state_aligned')?.value,
+      source_count: sourceCount.value,
+      reviewed_known_source_count: sourceBreakdown.value?.reviewed_known_political_source_count,
+      unknown_source_count: sourceBreakdown.value?.unknown_political_source_count,
+    },
+  },
+))
+
+const timelineQualityExplanation = computed(() => graphMetricExplanation(
+  'ground_news.timeline_quality',
+  {
+    inputs: {
+      quality_score: selectedChainMeta.value?.quality_score,
+      chain_quality: selectedChainMeta.value?.chain_quality,
+    },
+  },
+))
+
+function edgeWeightExplanation(edge) {
+  return graphMetricExplanation('story_graph.edge_weight', {
+    inputs: { stored_edge_weight: edge?.edge_weight ?? edge?.weight },
+  })
+}
+
 const valueSignals = computed(() => {
-  const countries = countryRows.value.length
-  const strongestBias = [...biasBuckets.value].sort((a, b) => b.value - a.value)[0]
+  const reviewedSourceCount = Number(sourceBreakdown.value?.reviewed_known_political_source_count || 0)
+  const articleCount = Number(selectedStory.value?.article_count || 0)
   return [
     {
-      label: '影响范围',
-      value: countries >= 5 ? '跨区域' : countries >= 2 ? '多地区' : '局部',
-      detail: `${countries || 1} 个地区信源进入样本`,
+      label: '来源地区',
+      value: `${countryRows.value.length} 个`,
+      detail: '按文章来源地去重，不代表事件实际影响范围',
     },
     {
       label: '报道强度',
-      value: `${selectedStory.value?.article_count || 0} 条`,
-      detail: `${sourceCount.value} 个独立信源，${segmentCount.value} 个切面`,
+      value: `${articleCount} 篇 / ${sourceCount.value} 源`,
+      detail: '新闻与信源计数，尚未核查转载和共同供稿',
     },
     {
-      label: '叙事偏向',
-      value: strongestBias?.label || '未评级',
-      detail: `最大分组约 ${formatPct(strongestBias?.value || 0)}%`,
+      label: '目录覆盖',
+      value: `${reviewedSourceCount} / ${sourceCount.value}`,
+      detail: '已有第三方目录标签的信源，不等于叙事或事实偏向',
     },
     {
-      label: '走势关联',
-      value: relatedChains.value.length ? `${relatedChains.value.length} 条` : '暂无',
-      detail: selectedChainMeta.value ? qualityLabel(selectedChainMeta.value.chain_quality) : '等待 L2 链接',
+      label: '事件结构',
+      value: `${segmentCount.value} 切面 / ${relatedChains.value.length} 线索`,
+      detail: '用于浏览事件结构，不能据此建立影响或因果',
     },
   ]
 })
@@ -901,59 +1086,58 @@ const watchpoints = computed(() => {
   const rows = []
   const newest = chronologicalSegments.value.at(-1)
   if (newest?.title) rows.push(`确认“${newest.title}”是否成为后续主线，而不是一次性更新。`)
-  if (relatedChains.value.length) rows.push(`关注关联 L2 链是否继续新增节点，尤其是 ${selectedChainMeta.value?.title || relatedChains.value[0]?.title || '当前链条'}。`)
-  if ((blindspotDetail.value?.score || 0) >= 35) rows.push('补齐报道盲区：当前立场覆盖不均，单看主流标题容易低估分歧。')
-  if (sourceCount.value < 6) rows.push('等待更多独立信源确认，当前样本量仍不足以支撑强结论。')
+  if (relatedChains.value.length) rows.push(`关注关联线索是否继续新增节点，尤其是 ${selectedChainMeta.value?.title || relatedChains.value[0]?.title || '当前链条'}。`)
+  rows.push('覆盖缺口尚未评估；请分别补看在地来源、第一手材料、不同语言和原文。')
+  if (sourceCount.value < 6) rows.push('当前来源样本偏少；继续补充不同来源并核查转载或共同供稿情况。')
   if (rows.length < 3 && topEvidence.value[0]?.source_name) rows.push(`复核 ${topEvidence.value[0].source_name} 等代表性来源的原文表述。`)
   if (rows.length < 3) rows.push('继续观察官方表态、市场反应和相邻国家/机构的跟进动作。')
   return rows.slice(0, 4)
 })
 
 const coverageSignal = computed(() => {
-  const status = sourceBreakdown.value?.analysis_status || selectedStory.value?.source_analysis_status || ''
-  const left = bucketValue('left')
-  const right = bucketValue('right')
-  if (sourceCount.value <= 1 || status === 'single_source') {
-    return { label: '单一信源', tone: 'risk' }
+  const status = sourceBreakdown.value?.analysis_status || selectedStory.value?.source_analysis_status || 'not_built'
+  return {
+    label: statusLabel(status),
+    tone: sourceCount.value >= 3 ? 'good' : 'warn',
   }
-  if (sourceCount.value < 4 || status === 'low_source_count') {
-    return { label: '覆盖偏少', tone: 'warn' }
-  }
-  if (!Object.keys(biasSource.value || {}).length || status === 'missing_political_ratings') {
-    return { label: '评级缺口', tone: 'warn' }
-  }
-  if ((left < 8 && right >= 20) || (right < 8 && left >= 20)) {
-    return { label: '盲区风险', tone: 'risk' }
-  }
-  return { label: '多信源覆盖', tone: 'good' }
 })
 
+const coverageExplanation = computed(() => graphMetricExplanation(
+  'ground_news.coverage_signal',
+  {
+    inputs: {
+      source_count: sourceCount.value,
+      analysis_status: sourceBreakdown.value?.analysis_status,
+      left_pct: biasBuckets.value.find((item) => item.key === 'left')?.value,
+      right_pct: biasBuckets.value.find((item) => item.key === 'right')?.value,
+      known_directory_label_pct: sourceCount.value
+        ? Math.round((Number(sourceBreakdown.value?.reviewed_known_political_source_count || 0) / sourceCount.value) * 100)
+        : undefined,
+    },
+  },
+))
+
 const coverageCards = computed(() => {
-  const knownBias = biasBuckets.value
-    .filter((row) => row.key !== 'unknown')
-    .reduce((sum, row) => sum + row.value, 0)
-  const largest = [...biasBuckets.value].sort((a, b) => b.value - a.value)[0]
-  const blindspots = biasBuckets.value
-    .filter((row) => ['left', 'center', 'right'].includes(row.key) && row.value < 8)
-    .map((row) => row.label)
+  const reviewedSourceCount = Number(sourceBreakdown.value?.reviewed_known_political_source_count || 0)
+  const unknownSourceCount = Number(sourceBreakdown.value?.unknown_political_source_count || 0)
   return [
     {
       label: '信源数量',
-      value: `${sourceCount.value}`,
-      detail: sourceCount.value >= 6 ? '足够支撑公开故事卡' : '需要更多信源多样性',
-      tone: sourceCount.value >= 6 ? 'good' : 'warn',
+      value: `${sourceCount.value} 个`,
+      detail: `${selectedStory.value?.article_count || 0} 篇新闻；仍需核查转载与共同供稿关系`,
+      tone: sourceCount.value >= 3 ? 'good' : 'warn',
     },
     {
-      label: '已知立场构成',
-      value: `${formatPct(knownBias)}%`,
-      detail: `${largest?.label || '未评级'} 是最大已评级分组`,
-      tone: knownBias >= 60 ? 'good' : 'warn',
+      label: '目录已覆盖',
+      value: `${reviewedSourceCount} / ${sourceCount.value}`,
+      detail: `${unknownSourceCount} 个信源暂无政治目录标签`,
+      tone: unknownSourceCount === 0 && sourceCount.value > 0 ? 'good' : 'warn',
     },
     {
-      label: '覆盖盲区',
-      value: blindspots.length ? blindspots.join('、') : '暂无明显盲区',
-      detail: blindspots.length ? '这些立场在已评级信源中偏少' : '左 / 中 / 右均有覆盖',
-      tone: blindspots.length ? 'risk' : 'good',
+      label: '样本结构',
+      value: `${countryRows.value.length} 地区 / ${sourceTypeRows.value.length} 类型`,
+      detail: '展示来源样本构成，不作为覆盖盲区通过或风险结论',
+      tone: 'warn',
     },
   ]
 })
@@ -1001,7 +1185,9 @@ function buildGroundStoryAssistantMaterial() {
   const differences = Array.isArray(comparison.value?.difference_summary)
     ? comparison.value.difference_summary.slice(0, 5).map((item, index) => `${index + 1}. ${compactAssistantText(item, 240)}`).join('\n')
     : ''
-  const sourceBuckets = biasBuckets.value.map((row) => `${row.label}: ${formatPct(row.value)}%`).join(' | ')
+  const sourceBuckets = biasBuckets.value.length
+    ? '目录标签构成已提供，但未绑定可发布指标证据'
+    : ''
   const regions = countryRows.value.slice(0, 6).map((row) => `${row.key || '未知'} ${row.value}`).join(' | ')
   const sourceTypes = sourceTypeRows.value.slice(0, 6).map((row) => `${sourceTypeLabel(row.key)} ${row.value}`).join(' | ')
   const segmentsText = chronologicalSegments.value.slice(0, 6).map((segment, index) => (
@@ -1028,9 +1214,8 @@ function buildGroundStoryAssistantMaterial() {
     `覆盖信号: ${coverageSignal.value.label}`,
     comparison.value?.neutral_summary ? `中立摘要: ${compactAssistantText(comparison.value.neutral_summary, 700)}` : '',
     facts ? `关键事实:\n${facts}` : '',
-    differences ? `左右报道差异:\n${differences}` : '',
-    `Blindspot: ${blindspotLevelLabel(blindspotDetail.value?.level)} | 分数 ${Math.round(blindspotDetail.value?.score || 0)}`,
-    (blindspotDetail.value?.reasons || []).length ? `盲区原因: ${(blindspotDetail.value.reasons || []).slice(0, 4).join('；')}` : '',
+    differences ? `目录分组标题样本（非叙事差异结论）:\n${differences}` : '',
+    `覆盖缺口检查: ${blindspotMetric.value.valueLabel} | 证据定位不可用`,
     valueSignals.value.length ? `价值信号:\n${valueSignals.value.map((item) => `- ${item.label}: ${item.value} (${item.detail})`).join('\n')}` : '',
     watchpoints.value.length ? `下一步观察:\n${watchpoints.value.map((item) => `- ${item}`).join('\n')}` : '',
     sourceBuckets ? `信源立场: ${sourceBuckets}` : '',
@@ -1048,7 +1233,7 @@ function buildGroundStoryAssistantContext() {
   const title = story.canonical_title || story.title || story.cluster_id || '当前故事卡'
   const prompt = [
     '请基于以下 Ground News 故事卡材料做协同研判。',
-    '请输出：1）事件主线；2）信源偏差和盲区；3）需要继续核验的证据；4）可生成报告的提纲；5）建议进入 L2 走势链或数据搜索的后续动作。',
+    '请输出：1）事件主线；2）目录分组与覆盖缺口；3）需要继续核验的证据；4）可生成报告的提纲；5）建议进入关联线索或数据搜索的后续动作。',
     '如果材料不足，请明确列出缺口，不要补造事实。',
     '',
     buildGroundStoryAssistantMaterial(),
@@ -1226,8 +1411,13 @@ function closeSegment() {
   selectedSegment.value = null
 }
 
-function bucketValue(key) {
-  return biasBuckets.value.find((row) => row.key === key)?.value || 0
+function handleSegmentDialogKeydown(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeSegment()
+    return
+  }
+  trapDialogTab(event, segmentDialogRef.value, document.activeElement)
 }
 
 function sourceTypeWidth(value) {
@@ -4423,6 +4613,166 @@ function sourceTypeFill(value) {
 
   .angle-card .card-action {
     justify-self: start;
+  }
+}
+
+.lead-story-card:not(.has-hero-cover) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.lead-story-card:not(.has-hero-cover) .lead-story-copy {
+  padding: 30px 32px;
+}
+
+.dossier-panel--value .value-score {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.dossier-panel--value .value-score strong {
+  font-family: var(--sans);
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+/* QA-02/QA-03: source-verifiable touch targets and compact mobile filters. */
+.section-disclaimer {
+  margin: 0 0 10px;
+  border-left: 3px solid var(--red);
+  padding-left: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.mobile-desk-filter-toggle {
+  display: none;
+}
+
+.ground-page .ground-subnav a,
+.ground-page .angle-card a,
+.ground-page .news-detail-link,
+.ground-page .modal-news-list a,
+.ground-page .source-table-row {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.ground-page .angle-card a,
+.ground-page .modal-news-list a {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ground-page .story-modal__close {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+}
+
+@media (max-width: 900px) {
+  .ground-page button,
+  .ground-page input,
+  .ground-page select {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .search-card {
+    position: static;
+    top: auto;
+    z-index: 12;
+    max-height: calc(100vh - 82px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .mobile-desk-filter-toggle {
+    box-sizing: border-box;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--line);
+    padding: 8px 12px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .desk-filter-controls {
+    display: none;
+  }
+
+  .desk-filter-controls.is-mobile-expanded {
+    display: block;
+  }
+
+  .desk-filter-group {
+    grid-template-columns: 52px repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Keep the library readable: image-less stories are text rows, not empty cover tiles. */
+.story-list-card {
+  min-height: 118px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  overflow: hidden;
+}
+
+.story-list-card.has-cover {
+  min-height: 118px;
+  grid-template-columns: 92px minmax(0, 1fr);
+}
+
+.story-list-card:not(.has-cover) .story-list-card__top,
+.story-list-card:not(.has-cover) h3,
+.story-list-card:not(.has-cover) .mini-spectrum,
+.story-list-card:not(.has-cover) small {
+  grid-column: 1;
+}
+
+.story-list-card > small {
+  line-height: 1.35;
+}
+
+@media (min-width: 901px) and (max-width: 1500px) {
+  .desk-filter-group button {
+    min-height: 32px;
+  }
+
+  .lead-story-card {
+    grid-template-columns: minmax(260px, 42%) minmax(0, 1fr);
+  }
+
+  .story-hero-cover,
+  .story-cover--hero {
+    min-height: 330px;
+  }
+
+  .lead-story-copy {
+    padding: 22px;
+  }
+
+  .lead-story-card h2 {
+    font-size: 36px;
+  }
+}
+
+@media (max-width: 900px) {
+  .story-list-card.has-cover {
+    grid-template-columns: 1fr;
+  }
+
+  .story-list-card.has-cover .story-list-card__top,
+  .story-list-card.has-cover h3,
+  .story-list-card.has-cover .mini-spectrum,
+  .story-list-card.has-cover small {
+    grid-column: 1;
   }
 }
 </style>

@@ -7,6 +7,8 @@ type Props = {
   unit?: string
   label: string
   thresholds: PriceAlertLine[]
+  historical?: boolean
+  statusMessage?: string
   onAddThreshold?: (value: number) => void
 }
 
@@ -27,7 +29,7 @@ function niceStep(range: number, targetSteps: number) {
   return nice * 10 ** exp
 }
 
-export default function SignalHistoryChart({ points, unit, label, thresholds, onAddThreshold }: Props) {
+export default function SignalHistoryChart({ points, unit, label, thresholds, historical = false, statusMessage, onAddThreshold }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 900, height: 420 })
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -49,7 +51,10 @@ export default function SignalHistoryChart({ points, unit, label, thresholds, on
     return () => observer.disconnect()
   }, [])
 
-  const visiblePoints = useMemo(() => points.slice(-48), [points])
+  const visiblePoints = useMemo(
+    () => historical ? [] : points.slice(-48),
+    [historical, points],
+  )
   const layout = useMemo(() => {
     const left = 18
     const right = 54
@@ -135,7 +140,7 @@ export default function SignalHistoryChart({ points, unit, label, thresholds, on
   }
 
   const handleClick = (event: React.MouseEvent<SVGSVGElement>) => {
-    if (!onAddThreshold) return
+    if (!onAddThreshold || historical) return
     const rect = event.currentTarget.getBoundingClientRect()
     const y = event.clientY - rect.top
     if (y < layout.top || y > layout.top + layout.plotHeight) return
@@ -149,7 +154,9 @@ export default function SignalHistoryChart({ points, unit, label, thresholds, on
         <div className="flex h-full flex-col items-center justify-center px-6 text-center">
           <div className="text-sm font-semibold text-slate-700">{label}</div>
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            当前指标只有实时快照或历史样本不足。系统会继续累积真实观测，不再用伪造波形填充主图。
+            {historical
+              ? statusMessage || '当前数据不满足可信计算门槛，复合指数当前值与历史精确序列均已隐藏。'
+              : '当前指标只有一个可用快照或历史样本不足。系统会继续累积真实观测，不用伪造波形填充主图。'}
           </p>
         </div>
       </div>
@@ -158,6 +165,11 @@ export default function SignalHistoryChart({ points, unit, label, thresholds, on
 
   return (
     <div ref={wrapRef} className="relative h-full min-h-[30rem] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.06)]">
+      {historical ? (
+        <div className="pointer-events-none absolute left-4 top-4 z-10 max-w-md rounded-lg border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-semibold text-amber-800 shadow-sm">
+          {statusMessage || '历史样本，仅供回溯；当前值和阈值评估不可用。'}
+        </div>
+      ) : null}
       <svg
         className="h-full w-full"
         viewBox={`0 0 ${size.width} ${size.height}`}

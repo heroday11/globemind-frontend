@@ -5,22 +5,28 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   BookOpen,
   BriefcaseBusiness,
+  Check,
   ChevronDown,
+  FileText,
   FolderOpen,
   LayoutDashboard,
+  MapPinned,
   MessageSquareText,
-  MoreHorizontal,
+  Newspaper,
+  PanelRightOpen,
   Paperclip,
   Plus,
   Search,
   SendHorizontal,
   SlidersHorizontal,
   Star,
+  TrendingUp,
   UsersRound,
 } from 'lucide-vue-next'
 import { loadItemsForReportTopic } from '@/utils/reportCenterData'
 import { getFavoritesMap, getReportFavoritesForTopic } from '@/utils/reportFavorites'
 import { getToken, getAuthChangedEventName } from '@/utils/auth'
+import { searchModeDisclosure } from '@/governance/searchQuerySemantics.js'
 import {
   assistantApi,
   assistantErrorText as errorText,
@@ -36,6 +42,10 @@ import {
   BRIEFING_PERSPECTIVE_OPTIONS as briefingPerspectiveOptions,
   BRIEFING_TIME_RANGE_OPTIONS as briefingTimeRangeOptions,
   BRIEFING_WEEKDAY_OPTIONS as briefingWeekdayOptions,
+  briefingAssuranceLabel,
+  briefingPlannedTimeLabel,
+  briefingRecordedTimeLabel,
+  briefingRunStatusLabel,
   briefingStatusLabel,
   buildAssistantDashboardTrend,
   buildBriefingPeriodicTasks,
@@ -45,7 +55,10 @@ import {
   calculateDashboardBarHeight,
   createBriefingScheduleForm,
 } from './briefing/model.js'
-import { createBriefingScheduleService } from './briefing/service.js'
+import {
+  createBriefingScheduleService,
+  createLatestBriefingScheduleLoader,
+} from './briefing/service.js'
 import { createAssistantWorkspaceController } from './workspace/controller.js'
 import { triggerBrowserDownload } from './workspace/download.js'
 import { isTextPreviewFile } from './workspace/model.js'
@@ -135,6 +148,10 @@ function requestAssistantLogin() {
   }
 }
 
+function openDisplaySettings() {
+  router.push({ path: '/user-center/personal-center', query: { tab: 'display' } })
+}
+
 // --- 定期简报 / 智能体报告 ---
 const activeTopTab = ref('history') // briefing | agentReport | history
 const topTabs = [
@@ -180,6 +197,12 @@ const briefingError = ref('')
 const selectedBriefingId = ref('')
 const briefingScheduleForm = reactive(createBriefingScheduleForm())
 const briefingScheduleService = createBriefingScheduleService(assistantApi)
+const briefingScheduleLoader = createLatestBriefingScheduleLoader(briefingScheduleService)
+let briefingIdentityGeneration = 0
+
+function currentBriefingIdentity(generation) {
+  return generation === briefingIdentityGeneration && Boolean(getToken())
+}
 
 const selectedBriefingSchedule = computed(() => (
   briefingSchedules.value.find((item) => String(item.id) === String(selectedBriefingId.value)) || null
@@ -276,19 +299,27 @@ function buildBriefingSchedulePayload() {
 }
 
 async function fetchBriefingSchedules() {
-  if (!getToken() || props.embedded) return
+  if (!getToken() || props.embedded) {
+    briefingScheduleLoader.invalidate()
+    briefingSchedules.value = []
+    resetBriefingForm()
+    briefingLoading.value = false
+    briefingError.value = ''
+    return
+  }
   briefingLoading.value = true
   briefingError.value = ''
-  try {
-    briefingSchedules.value = await briefingScheduleService.list()
+  const result = await briefingScheduleLoader.load()
+  if (!result.current) return
+  if (result.error) {
+    briefingError.value = errorText(result.error, '读取定时任务失败')
+  } else {
+    briefingSchedules.value = result.rows
     if (!selectedBriefingId.value && briefingSchedules.value.length) {
       fillBriefingForm(briefingSchedules.value[0])
     }
-  } catch (e) {
-    briefingError.value = errorText(e, '读取定时任务失败')
-  } finally {
-    briefingLoading.value = false
   }
+  briefingLoading.value = false
 }
 
 async function saveBriefingSchedule({ silent = false } = {}) {
@@ -303,17 +334,23 @@ async function saveBriefingSchedule({ silent = false } = {}) {
   }
   briefingSaving.value = true
   briefingError.value = ''
+  briefingScheduleLoader.invalidate()
+  briefingLoading.value = false
+  const identityGeneration = briefingIdentityGeneration
   try {
     const id = selectedBriefingId.value
     const saved = await briefingScheduleService.save(id, payload)
+    if (!currentBriefingIdentity(identityGeneration)) return null
     syncBriefingSchedule(saved)
     if (!silent) ElMessage.success('定时任务已保存')
     return saved
   } catch (e) {
-    briefingError.value = errorText(e, '保存定时任务失败')
+    if (currentBriefingIdentity(identityGeneration)) {
+      briefingError.value = errorText(e, '保存定时任务失败')
+    }
     return null
   } finally {
-    briefingSaving.value = false
+    if (currentBriefingIdentity(identityGeneration)) briefingSaving.value = false
   }
 }
 
@@ -350,17 +387,23 @@ async function runBriefingSchedule(item = null) {
   }
   briefingRunningId.value = String(target.id)
   briefingError.value = ''
+  briefingScheduleLoader.invalidate()
+  briefingLoading.value = false
+  const identityGeneration = briefingIdentityGeneration
   try {
     const result = await briefingScheduleService.run(target.id)
+    if (!currentBriefingIdentity(identityGeneration)) return
     const updated = result?.schedule
     if (updated) syncBriefingSchedule(updated)
     addScheduledReportHistory(updated || target, result?.file)
     await fetchWorkspaces()
-    ElMessage.success('定时报告已生成')
+    ElMessage.success('AI 草稿已生成，需人工审阅')
   } catch (e) {
+    if (!currentBriefingIdentity(identityGeneration)) return
+    await fetchBriefingSchedules()
     briefingError.value = errorText(e, '运行定时任务失败')
   } finally {
-    briefingRunningId.value = ''
+    if (currentBriefingIdentity(identityGeneration)) briefingRunningId.value = ''
   }
 }
 
@@ -382,15 +425,21 @@ async function deleteBriefingSchedule(item) {
   } catch {
     return
   }
+  briefingScheduleLoader.invalidate()
+  briefingLoading.value = false
+  const identityGeneration = briefingIdentityGeneration
   try {
     await briefingScheduleService.remove(item.id)
+    if (!currentBriefingIdentity(identityGeneration)) return
     briefingSchedules.value = briefingSchedules.value.filter((row) => String(row.id) !== String(item.id))
     if (String(selectedBriefingId.value) === String(item.id)) {
       fillBriefingForm(briefingSchedules.value[0] || null)
     }
     ElMessage.success('定时任务已删除')
   } catch (e) {
-    briefingError.value = errorText(e, '删除定时任务失败')
+    if (currentBriefingIdentity(identityGeneration)) {
+      briefingError.value = errorText(e, '删除定时任务失败')
+    }
   }
 }
 
@@ -622,6 +671,38 @@ const filePreviewLoading = ref(false)
 /** 置顶工作区 */
 const pinnedWorkspace = computed(() => workspaces.value.find(ws => ws.pinned) || null)
 const hasHermesContext = computed(() => Boolean(pinnedWorkspace.value || pinnedFavoriteFolder.value || knowledgeContextCount.value))
+const activeHermesContextCount = computed(() => (
+  (pinnedWorkspace.value ? 1 : 0)
+  + (pinnedFavoriteFolder.value ? 1 : 0)
+  + (knowledgeContextCount.value ? 1 : 0)
+))
+
+function toggleWorkspaceMenu() {
+  showModeMenu.value = false
+  showWorkspaceMenu.value = !showWorkspaceMenu.value
+}
+
+async function selectComposerWorkspace(workspace) {
+  showWorkspaceMenu.value = false
+  if (!workspace) return
+  if (pinnedWorkspace.value?.name !== workspace.name) {
+    await togglePinWorkspace(workspace)
+  }
+  currentWorkspace.value = workspace
+  currentFilePath.value = ''
+}
+
+async function clearComposerWorkspace() {
+  showWorkspaceMenu.value = false
+  if (pinnedWorkspace.value) await togglePinWorkspace(pinnedWorkspace.value)
+  currentWorkspace.value = null
+  currentFilePath.value = ''
+}
+
+function openWorkspaceManager() {
+  showWorkspaceMenu.value = false
+  selectSideNav('switch')
+}
 
 async function confirmDeleteWorkspace(workspace) {
   try {
@@ -1032,13 +1113,14 @@ async function loadReportToPreview(r) {
 // 定期简报页内：轻量对话（复用同一套 sendMessage/messages）
 const briefingDraft = ref('')
 const composerTextareaEl = ref(null)
-/** 聊天模式：fast | pro | expert */
+/** 模型类别：兼容沿用 fast/pro/expert 传输键。 */
 const chatMode = ref('fast')
 const showModeMenu = ref(false)
+const showWorkspaceMenu = ref(false)
 const CHAT_MODE_LABELS = {
-  fast: '快速',
-  pro: '研判',
-  expert: '专家',
+  fast: 'GPT-5.6 Luna',
+  pro: 'GPT-5.6 Terra',
+  expert: 'GPT-5.6 Sol',
 }
 
 function chatModeLabel(mode = chatMode.value) {
@@ -1054,11 +1136,22 @@ function closeModeMenu() {
   if (showModeMenu.value) showModeMenu.value = false
 }
 
+function closeWorkspaceMenu() {
+  if (showWorkspaceMenu.value) showWorkspaceMenu.value = false
+}
+
 watch(showModeMenu, (val) => {
   if (val) {
     setTimeout(() => document.addEventListener('click', closeModeMenu), 0)
   } else {
     document.removeEventListener('click', closeModeMenu)
+  }
+})
+watch(showWorkspaceMenu, (val) => {
+  if (val) {
+    setTimeout(() => document.addEventListener('click', closeWorkspaceMenu), 0)
+  } else {
+    document.removeEventListener('click', closeWorkspaceMenu)
   }
 })
 const chatScrollBriefingEl = ref(null)
@@ -1118,12 +1211,12 @@ function toggleClue(kind) {
   expandedClue.value = expandedClue.value === kind ? null : kind
 }
 
-/** 能力胶囊：展示用图标 + 短标签 + 完整发往接口的文案 */
+/** 能力胶囊：保持入口文案简短，点击后仍向接口发送完整任务描述。 */
 const capabilityChips = [
-  { icon: 'NEWS', label: '最近发生了什么大事', desc: '生成全球重大事件简报', query: '最近全球发生了什么大事' },
-  { icon: 'PAPER', label: '制作一份学术报告', desc: '按摘要、背景、发现、引用组织', query: '我想制作一份关于近期国际动态的学术报告' },
-  { icon: 'TREND', label: '帮我分析这个趋势', desc: '识别走势、影响因素和风险信号', query: '帮我分析近期重要新闻的趋势和影响' },
-  { icon: 'REGION', label: '地区局势最新进展', desc: '按地区梳理事件链和关键变化', query: '总结各地区局势的最新进展和关键事件' },
+  { icon: Newspaper, label: '全球要闻', query: '最近全球发生了什么大事' },
+  { icon: FileText, label: '学术报告', query: '我想制作一份关于近期国际动态的学术报告' },
+  { icon: TrendingUp, label: '趋势研判', query: '帮我分析近期重要新闻的趋势和影响' },
+  { icon: MapPinned, label: '地区局势', query: '总结各地区局势的最新进展和关键事件' },
 ]
 
 function openMessageDetail(m) {
@@ -1184,7 +1277,9 @@ function hasSkippedToolCalls(message) {
 }
 
 function toolBoxShouldOpen(message, index) {
-  return hasRunningToolCalls(message) && !assistantMessageReady(message, index)
+  return isLatestStreamingMessage(index)
+    && Boolean(message?.thinking || hasRunningToolCalls(message))
+    && !assistantMessageReady(message, index)
 }
 
 /** 与侧栏 id、URL 参数统一为字符串，避免 number / string 混用导致匹配失败 */
@@ -1201,6 +1296,8 @@ function messageKey(m, idx) {
 
 const _TOOL_LABELS = {
   news_search: '新闻检索',
+  event_coref_l1_search: 'L1 事件聚类',
+  macro_l2_search: 'L2 宏观事件',
   macro_event_search: '宏观事件',
   search_news_corpus: '新闻检索',
   web_search: '联网搜索',
@@ -1225,6 +1322,8 @@ const _TOOL_LABELS = {
 
 const _TOOL_ICONS = {
   news_search: 'search',
+  event_coref_l1_search: 'cluster',
+  macro_l2_search: 'cluster',
   macro_event_search: 'cluster',
   search_news_corpus: 'search',
   web_search: 'globe',
@@ -1262,15 +1361,26 @@ const _ACTION_LABELS = {
   read_file: '读取文件',
 }
 
-const _MODE_LABELS = { exact: '精确', fuzzy: '语义', cluster: '聚类' }
-
 function toolLabel(name) { return _TOOL_LABELS[name] || name }
 
 function toolIcon(name) { return _TOOL_ICONS[name] || 'tool' }
 
+function formatDshArguments(toolCall) {
+  const raw = String(toolCall?.argumentsText || '')
+  if (!raw) return ''
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}
+
 function toolActionLabel(name, action) { return _ACTION_LABELS[action] || action }
 
-function modeLabel(mode) { return _MODE_LABELS[mode] || mode }
+function modeLabel(mode) {
+  if (mode === 'cluster') return '聚类'
+  return searchModeDisclosure(mode).label
+}
 
 function sourceDomain(url) {
   try {
@@ -1652,10 +1762,11 @@ async function loadSessionMessages(sessionId) {
 }
 
 /** 一轮 CC 结束后与数据库对齐（含 message 的 dbId），避免仅内存有记录 */
-async function syncSessionFromServerAfterTurn() {
+async function syncSessionFromServerAfterTurn(expectedSessionId = currentConversationId.value) {
   const token = getToken()
-  const sid = convId(currentConversationId.value)
+  const sid = convId(expectedSessionId)
   if (!token || !sid || sid.startsWith('local')) return
+  if (convId(currentConversationId.value) !== sid) return
   const n = Number(sid)
   if (Number.isNaN(n)) return
   try {
@@ -1755,7 +1866,6 @@ async function bootstrapSessions() {
 async function selectConversation(id) {
   const nid = convId(id)
   if (nid === convId(currentConversationId.value)) return
-  stopGeneration()
   currentConversationId.value = nid
   if (!getToken() || nid.startsWith('local')) {
     messages.value = []
@@ -1773,7 +1883,6 @@ async function selectReportConversation(event) {
 }
 
 async function createConversation() {
-  stopGeneration()
   const token = getToken()
   if (!token) {
     const id = `local-${Date.now()}`
@@ -1919,7 +2028,6 @@ async function openHistoryConversation(id) {
   // 先尝试缓存
   const cached = loadCachedMessages(String(id))
   if (cached && cached.length > 0) {
-    stopGeneration()
     currentConversationId.value = String(id)
     messages.value = cached
     newsHits.value = []
@@ -2117,9 +2225,12 @@ function buildEmbeddedPageSkillContext() {
 function buildChatMessageBody(userQuestion) {
   const q = String(userQuestion || '').trim()
   const payload = { message: q, top_k_news: 8, top_k_clusters: 8 }
-  const pw = pinnedWorkspace.value
-  if (pw) {
-    payload.pinned_workspace = pw.name
+  const workspace = currentWorkspace.value || pinnedWorkspace.value
+  if (workspace) {
+    payload.pinned_workspace = workspace.name
+    if (currentWorkspace.value?.name === workspace.name && currentFilePath.value) {
+      payload.workspace_subpath = currentFilePath.value
+    }
   }
   if (pinnedFavoriteFolder.value) {
     payload.favorite_context = {
@@ -2195,6 +2306,13 @@ function onReportFavoritesUpdated() {
 }
 
 function onAuthChanged() {
+  briefingIdentityGeneration += 1
+  briefingScheduleLoader.invalidate()
+  briefingLoading.value = false
+  briefingSaving.value = false
+  briefingRunningId.value = ''
+  briefingSchedules.value = []
+  resetBriefingForm()
   isAuthenticated.value = Boolean(getToken())
   bootstrapSessions()
   refreshKnowledgeContextFromStorage()
@@ -2289,8 +2407,11 @@ watch(hasStreamContent, (val) => {
 })
 
 onUnmounted(() => {
-  chatStreamController.dispose()
+  briefingIdentityGeneration += 1
+  briefingScheduleLoader.invalidate()
+  // The in-flight request persists its own session and may outlive this view.
   reportStreamController.dispose()
+  document.removeEventListener('click', closeWorkspaceMenu)
   window.removeEventListener('reportFavoritesUpdated', onReportFavoritesUpdated)
   window.removeEventListener(getAuthChangedEventName(), onAuthChanged)
 })
@@ -2344,11 +2465,22 @@ function maybeEmitEmbeddedPageSearch(ev, phase) {
   })
 }
 
+let chatScrollScheduled = false
 function scrollChatToBottom() {
+  if (chatScrollScheduled) return
+  chatScrollScheduled = true
   nextTick(() => {
-    const el = chatScrollAiEl.value || chatScrollBriefingEl.value
-    if (!el || typeof el.scrollTop !== 'number') return
-    el.scrollTop = el.scrollHeight
+    const applyScroll = () => {
+      chatScrollScheduled = false
+      const el = chatScrollAiEl.value || chatScrollBriefingEl.value
+      if (!el || typeof el.scrollTop !== 'number') return
+      el.scrollTop = el.scrollHeight
+    }
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(applyScroll)
+    } else {
+      setTimeout(applyScroll, 16)
+    }
   })
 }
 
@@ -2431,6 +2563,14 @@ async function sendMessage(sendOptions = {}) {
         if (reduction.effects.pageActionPhase) {
           maybeEmitEmbeddedPageSearch(event, reduction.effects.pageActionPhase)
         }
+        if (
+          event?.step === 'tool_finished'
+          && event?.tool === 'workspace_write_file'
+          && event?.result?.ok
+          && currentWorkspace.value?.name
+        ) {
+          void loadWorkspaceFiles(currentWorkspace.value.name, currentFilePath.value)
+        }
         if (reduction.effects.shouldScroll) scrollChatToBottom()
       },
     })
@@ -2439,7 +2579,7 @@ async function sendMessage(sendOptions = {}) {
 
     panelDetailReply.value = ''
     expandedReplyDetail.value = false
-    await syncSessionFromServerAfterTurn()
+    await syncSessionFromServerAfterTurn(cacheSessionId)
   } catch (e) {
     if (isChatStreamAbortError(e)) {
       if (streamMsg) appendStoppedNote(streamMsg)
@@ -2551,7 +2691,7 @@ function reactiveAssistantFromList() {
         <div v-if="hasConversation && (activeTopTab === 'briefing' || activeTopTab === 'history')" class="ys-topbar-brand">GlobeMind</div>
         <div class="ys-topbar-right">
           <span class="ys-topbar-link">套餐</span>
-          <span class="ys-topbar-link">我的</span>
+          <button type="button" class="ys-topbar-link ys-topbar-action" @click="openDisplaySettings">显示设置</button>
         </div>
       </header>
 
@@ -2595,7 +2735,7 @@ function reactiveAssistantFromList() {
           </button>
           <label class="ys-history-search">
             <Search :size="16" :stroke-width="1.9" aria-hidden="true" />
-            <input v-model="historySearch" type="search" placeholder="搜索会话标题或内容" aria-label="搜索历史会话" />
+            <input v-model="historySearch" type="search" placeholder="搜索会话" aria-label="搜索历史会话" />
             <SlidersHorizontal :size="15" :stroke-width="1.8" aria-hidden="true" />
           </label>
           <div class="ys-history-list-heading">
@@ -2681,10 +2821,10 @@ function reactiveAssistantFromList() {
               <section class="dash-panel dash-panel--timeline">
                 <div class="dash-panel-head">
                   <div>
-                    <h2>今日研判队列</h2>
+                    <h2>研判任务队列</h2>
                     <p>按优先级整理需要继续跟进的主题</p>
                   </div>
-                  <span class="dash-live-badge">Live</span>
+                  <span class="dash-live-badge">任务配置</span>
                 </div>
                 <div class="dash-timeline-list">
                   <div v-if="!periodicTasks.length" class="dash-empty-state">
@@ -2985,11 +3125,22 @@ function reactiveAssistantFromList() {
                     新建
                   </button>
                 </div>
-                <button v-else class="ys-chat-topbar-btn" title="打开素材与线索" @click="toggleContextDrawer">
-                  <MoreHorizontal :size="19" :stroke-width="2" aria-hidden="true" />
-                </button>
               </div>
             </div>
+
+            <button
+              v-if="!props.embedded && !rightDrawerOpen"
+              type="button"
+              class="ys-chat-context-rail"
+              title="展开工作区、收藏和知识库上下文"
+              aria-controls="assistant-context-drawer"
+              :aria-expanded="rightDrawerOpen"
+              @click="toggleContextDrawer"
+            >
+              <PanelRightOpen :size="18" :stroke-width="2" aria-hidden="true" />
+              <span>上下文</span>
+              <strong v-if="activeHermesContextCount">{{ activeHermesContextCount }}</strong>
+            </button>
 
             <!-- 消息滚动区 -->
             <div class="ys-chat-scroll" ref="chatScrollAiEl">
@@ -3015,36 +3166,26 @@ function reactiveAssistantFromList() {
               </section>
               <!-- 欢迎页 -->
               <div v-if="messages.length === 0" class="ys-chat-welcome">
-                <div class="ys-chat-welcome-kicker">GlobeMind Assistant</div>
-                <h2 class="ys-chat-welcome-title">从新闻线索进入结构化研判</h2>
-                <p class="ys-chat-welcome-sub">可结合新闻库、事件聚类、收藏文件夹和知识库，完成检索、解释、比较与报告草拟。</p>
-                <div class="ys-chat-welcome-brief" aria-label="当前对话状态">
-                  <div class="ys-chat-welcome-brief-item">
-                    <span>当前会话</span>
-                    <strong>{{ activeConversationTitle }}</strong>
-                  </div>
-                  <div class="ys-chat-welcome-brief-item">
-                    <span>收藏上下文</span>
-                    <strong>{{ favoriteSummary.articles }} 条</strong>
-                  </div>
-                  <div class="ys-chat-welcome-brief-item">
-                    <span>回答模式</span>
-                    <strong>{{ chatModeLabel() }}</strong>
-                  </div>
+                <div class="ys-chat-welcome-kicker">
+                  <img src="/imgs/globemind-mark.png" alt="" />
+                  <span>GlobeMind Assistant</span>
                 </div>
+                <h2 class="ys-chat-welcome-title">今天想研判什么？</h2>
+                <p class="ys-chat-welcome-sub">检索新闻、比较事件、梳理趋势或生成报告</p>
                 <div class="ys-chat-welcome-chips-card" aria-label="快速开始">
-                  <div class="ys-chat-welcome-steps-title">快速开始</div>
                   <div class="ys-chat-chips">
                     <button
                       v-for="chip in capabilityChips"
                       :key="chip.label"
+                      type="button"
                       class="ys-chat-chip"
                       @click="inputText = chip.query; sendMessage()"
                     >
-                      <span class="ys-chat-chip-icon">{{ chip.icon }}</span>
+                      <span class="ys-chat-chip-icon" aria-hidden="true">
+                        <component :is="chip.icon" :size="18" :stroke-width="1.9" />
+                      </span>
                       <span class="ys-chat-chip-copy">
                         <strong>{{ chip.label }}</strong>
-                        <small>{{ chip.desc }}</small>
                       </span>
                     </button>
                   </div>
@@ -3068,7 +3209,7 @@ function reactiveAssistantFromList() {
                     <div class="ys-chat-msg-row">
                       <div class="ys-chat-bubble" :class="'ys-chat-bubble--' + m.role">
                       <details
-                        v-if="m.thinking || (m.toolCalls && m.toolCalls.length)"
+                        v-if="m.thinking || (m.agentTraces && m.agentTraces.length) || (m.toolCalls && m.toolCalls.length)"
                         class="ys-chat-toolbox"
                         :class="{ 'ys-chat-aux-ready': assistantMessageReady(m, i) }"
                         :open="toolBoxShouldOpen(m, i)"
@@ -3077,10 +3218,10 @@ function reactiveAssistantFromList() {
                         <summary class="ys-chat-toolbox-summary">
                           <span class="ys-chat-toolbox-label">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                            工具调用
+                            DSH 执行过程
                           </span>
                           <span class="ys-chat-toolbox-summary-info">
-                            <span class="ys-chat-toolbox-counter">{{ m.toolCalls ? m.toolCalls.filter(t => t.type === 'tool_finished').length : 0 }}/{{ m.toolCalls ? m.toolCalls.length : 0 }}</span>
+                            <span v-if="m.toolCalls && m.toolCalls.length" class="ys-chat-toolbox-counter">{{ m.toolCalls.filter(t => t.type === 'tool_finished').length }}/{{ m.toolCalls.length }}</span>
                             <span v-if="m.toolCalls && m.toolCalls.some(t => t.type === 'tool_executing')" class="ys-chat-toolbox-summary-status executing">执行中</span>
                             <span v-else-if="hasSkippedToolCalls(m)" class="ys-chat-toolbox-summary-status skipped">部分跳过</span>
                             <span v-else class="ys-chat-toolbox-summary-status done">完成</span>
@@ -3095,6 +3236,20 @@ function reactiveAssistantFromList() {
                             </div>
                             <div class="ys-chat-toolbox-text">{{ m.thinking }}</div>
                           </div>
+                          <div
+                            v-for="trace in (m.agentTraces || [])"
+                            :key="trace.sessionId"
+                            class="ys-chat-toolbox-section ys-chat-subagent-trace"
+                          >
+                            <div class="ys-chat-toolbox-section-title">
+                              子代理 · {{ trace.sessionId }}
+                            </div>
+                            <div v-if="trace.thinking" class="ys-chat-toolbox-text">{{ trace.thinking }}</div>
+                            <pre v-if="trace.text" class="ys-chat-subagent-output">{{ trace.text }}</pre>
+                          </div>
+                          <div v-if="m.retryCount" class="ys-chat-dsh-event">
+                            LLM retry · attempt {{ m.retryCount }}<span v-if="m.retryReason"> · {{ m.retryReason }}</span>
+                          </div>
                           <div v-if="m.toolCalls && m.toolCalls.length" class="ys-chat-toolbox-section">
                             <div class="ys-chat-toolbox-section-title">
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
@@ -3103,7 +3258,7 @@ function reactiveAssistantFromList() {
                             <div class="ys-chat-toolbox-list">
                               <div
                                 v-for="(tc, ti) in m.toolCalls"
-                                :key="ti"
+                                :key="tc.callId || ti"
                                 class="ys-chat-toolbox-item"
                                 :class="['ys-chat-toolbox-item--' + tc.type, 'ys-chat-toolbox-item--' + toolIcon(tc.name)]"
                               >
@@ -3121,11 +3276,15 @@ function reactiveAssistantFromList() {
                                 </span>
                                 <!-- 内容 -->
                                 <div class="ys-chat-toolbox-item-body">
-                                  <div class="ys-chat-toolbox-item-name">{{ toolLabel(tc.name) }}</div>
+                                  <div class="ys-chat-toolbox-item-name">{{ tc.label || toolLabel(tc.name) }}</div>
                                   <div class="ys-chat-toolbox-item-detail">
+                                    <span v-if="tc.agentRole === 'subagent'" class="detail-tag">subagent · {{ tc.sessionId }}</span>
                                     <template v-if="tc.invoke">
+                                      <template v-if="tc.invoke.kind === 'dsh' || tc.invoke.kind === 'dsh_subagent'">
+                                        <span class="detail-value">{{ tc.invoke.kind === 'dsh_subagent' ? (tc.input?.description || tc.callId) : toolLabel(tc.name) }}</span>
+                                      </template>
                                       <!-- Shell 命令 -->
-                                      <template v-if="tc.invoke.kind === 'local_shell'">
+                                      <template v-else-if="tc.invoke.kind === 'local_shell'">
                                         <span class="detail-cmd">$ {{ tc.invoke.command_preview || tc.input?.command || '' }}</span>
                                       </template>
                                       <!-- 图片生成 -->
@@ -3139,7 +3298,12 @@ function reactiveAssistantFromList() {
                                       <template v-else-if="tc.invoke.kind === 'http_post' && tc.invoke.keyword_preview">
                                         <span class="detail-label">关键词</span>
                                         <span class="detail-value">{{ tc.invoke.keyword_preview }}</span>
-                                        <span v-if="tc.invoke.mode" class="detail-tag">{{ modeLabel(tc.invoke.mode) }}</span>
+                                        <span
+                                          v-if="tc.invoke.mode"
+                                          class="detail-tag"
+                                          :title="searchModeDisclosure(tc.invoke.mode).description"
+                                        >{{ modeLabel(tc.invoke.mode) }}</span>
+                                        <span v-if="tc.invoke.publish_time" class="detail-tag">{{ tc.invoke.publish_time }}</span>
                                       </template>
                                       <!-- 联网搜索 -->
                                       <template v-else-if="tc.invoke.kind === 'http_get' && tc.invoke.query_preview">
@@ -3168,6 +3332,13 @@ function reactiveAssistantFromList() {
                                       </template>
                                     </template>
                                   </div>
+                                  <details
+                                    v-if="tc.invoke?.kind === 'dsh' && formatDshArguments(tc)"
+                                    class="ys-chat-dsh-details"
+                                  >
+                                    <summary>参数</summary>
+                                    <pre>{{ formatDshArguments(tc) }}</pre>
+                                  </details>
                                   <!-- 完成后的结果摘要 -->
                                   <div v-if="tc.type === 'tool_finished' && tc.result" class="ys-chat-toolbox-item-result">
                                     <template v-if="tc.result.image_url">
@@ -3188,7 +3359,7 @@ function reactiveAssistantFromList() {
                                       <span class="result-badge skipped">超时跳过</span>
                                     </template>
                                     <template v-else-if="tc.result.ok === false">
-                                      <span class="result-badge skipped">未采用</span>
+                                      <span class="result-badge fail">失败</span>
                                     </template>
                                     <template v-else-if="tc.result.items_returned != null">
                                       <span class="result-badge">返回 {{ tc.result.items_returned }} 条</span>
@@ -3213,6 +3384,10 @@ function reactiveAssistantFromList() {
                                         <div v-for="(t, ti2) in tc.result.titles_preview.slice(0, 3)" :key="ti2" class="result-title-item">· {{ t }}</div>
                                       </div>
                                     </template>
+                                    <details v-if="tc.result.output" class="ys-chat-dsh-details ys-chat-dsh-output">
+                                      <summary>输出</summary>
+                                      <pre>{{ tc.result.output }}</pre>
+                                    </details>
                                   </div>
                                 </div>
                                 <!-- 状态 -->
@@ -3221,8 +3396,11 @@ function reactiveAssistantFromList() {
                                     <span class="status-dot-pulse"></span>
                                     执行中
                                   </template>
-                                  <template v-else-if="tc.result?.skipped || tc.result?.ok === false">
+                                  <template v-else-if="tc.result?.skipped">
                                     跳过
+                                  </template>
+                                  <template v-else-if="tc.result?.ok === false">
+                                    失败
                                   </template>
                                   <template v-else>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -3325,16 +3503,63 @@ function reactiveAssistantFromList() {
                       <span>收藏上下文</span>
                       <strong>{{ favoriteSummary.articles }} 条</strong>
                     </button>
+                    <div v-if="!props.embedded" class="ys-chat-workspace-picker" @click.stop>
+                      <button
+                        type="button"
+                        class="ys-chat-composer-tool ys-chat-composer-tool--workspace"
+                        :class="{ active: pinnedWorkspace }"
+                        title="切换当前工作区"
+                        :aria-expanded="showWorkspaceMenu"
+                        @click="toggleWorkspaceMenu"
+                      >
+                        <BriefcaseBusiness :size="16" :stroke-width="1.9" aria-hidden="true" />
+                        <span>工作区</span>
+                        <strong>{{ pinnedWorkspace ? pinnedWorkspace.name : '未选择' }}</strong>
+                        <ChevronDown :size="13" :stroke-width="2" aria-hidden="true" />
+                      </button>
+                      <div v-if="showWorkspaceMenu" class="ys-chat-workspace-menu">
+                        <div class="ys-chat-workspace-menu-head">
+                          <span>当前对话工作区</span>
+                          <button type="button" @click="openWorkspaceManager">管理文件</button>
+                        </div>
+                        <div v-if="workspaceLoading" class="ys-chat-workspace-menu-empty">正在加载工作区…</div>
+                        <div v-else-if="!workspaces.length" class="ys-chat-workspace-menu-empty">暂无工作区</div>
+                        <template v-else>
+                          <button
+                            v-for="workspace in workspaces"
+                            :key="workspace.name"
+                            type="button"
+                            class="ys-chat-workspace-option"
+                            :class="{ active: workspace.pinned }"
+                            @click="selectComposerWorkspace(workspace)"
+                          >
+                            <span>
+                              <strong>{{ workspace.name }}</strong>
+                              <small>{{ workspace.fileCount || 0 }} 个文件</small>
+                            </span>
+                            <Check v-if="workspace.pinned" :size="16" :stroke-width="2.4" aria-hidden="true" />
+                          </button>
+                        </template>
+                        <button
+                          v-if="pinnedWorkspace"
+                          type="button"
+                          class="ys-chat-workspace-clear"
+                          @click="clearComposerWorkspace"
+                        >
+                          清除当前工作区
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <button type="button" class="ys-chat-mode-pill" @click.stop="showModeMenu = !showModeMenu">
-                    <span>回答模式</span>
+                    <span>模型</span>
                     <strong>{{ chatModeLabel() }}</strong>
                     <ChevronDown :size="14" :stroke-width="2" aria-hidden="true" />
                   </button>
                   <div v-if="showModeMenu" class="ys-chat-mode-menu" @click.stop>
-                    <button type="button" :class="{ active: chatMode === 'fast' }" @click="setChatMode('fast')">快速</button>
-                    <button type="button" :class="{ active: chatMode === 'pro' }" @click="setChatMode('pro')">研判</button>
-                    <button type="button" :class="{ active: chatMode === 'expert' }" @click="setChatMode('expert')">专家</button>
+                    <button type="button" :class="{ active: chatMode === 'fast' }" @click="setChatMode('fast')">GPT-5.6 Luna</button>
+                    <button type="button" :class="{ active: chatMode === 'pro' }" @click="setChatMode('pro')">GPT-5.6 Terra</button>
+                    <button type="button" :class="{ active: chatMode === 'expert' }" @click="setChatMode('expert')">GPT-5.6 Sol</button>
                   </div>
                   <button v-if="streaming" class="ys-chat-stop-btn" @click="stopGeneration">停止</button>
                   <button v-else class="ys-chat-send-btn" @click="sendMessage" :disabled="sending || !inputText.trim()">
@@ -3346,7 +3571,7 @@ function reactiveAssistantFromList() {
             </div>
 
             <!-- 右抽屉：详情 -->
-            <aside class="ys-chat-drawer ys-chat-drawer--right" :class="{ 'ys-chat-drawer--open': rightDrawerOpen }">
+            <aside id="assistant-context-drawer" class="ys-chat-drawer ys-chat-drawer--right" :class="{ 'ys-chat-drawer--open': rightDrawerOpen }">
               <div class="ys-chat-drawer-head">
                 <div>
                   <div class="ys-chat-drawer-title">{{ activeSourcePanel ? '消息来源' : '素材与线索' }}</div>
@@ -3542,8 +3767,8 @@ function reactiveAssistantFromList() {
               <header class="ys-schedule-head">
                 <div>
                   <span class="ys-schedule-eyebrow">Hermes scheduled call</span>
-                  <h1>定时生成报告</h1>
-                  <p>按主题和周期调用 Hermes，自动生成 Markdown 报告并保存到用户目录的 report 工作区。</p>
+                  <h1>定时报告配置</h1>
+                  <p>保存主题与周期配置；实际执行依赖后台调度器健康状态。生成内容仅作为待人工审阅的 Markdown 草稿。</p>
                 </div>
                 <div class="ys-schedule-stats" aria-label="定时任务状态">
                   <div>
@@ -3556,7 +3781,7 @@ function reactiveAssistantFromList() {
                   </div>
                   <div>
                     <span>产出</span>
-                    <strong>{{ briefingStats.generated }}</strong>
+                    <strong>{{ briefingStats.generated ?? '—' }}</strong>
                   </div>
                 </div>
               </header>
@@ -3568,7 +3793,7 @@ function reactiveAssistantFromList() {
                   <div class="ys-schedule-section-head">
                     <div>
                       <h2>{{ selectedBriefingId ? '编辑定时任务' : '新增定时任务' }}</h2>
-                      <p>任务会在后端按到期时间执行，不需要保持浏览器页面打开。</p>
+                      <p>此处保存计划记录；后台是否按期执行须结合调度器健康状态和最近任务记录确认。</p>
                     </div>
                     <label class="ys-schedule-switch">
                       <input v-model="briefingScheduleForm.enabled" type="checkbox" />
@@ -3677,24 +3902,30 @@ function reactiveAssistantFromList() {
                 <aside class="ys-schedule-status-panel">
                   <div class="ys-schedule-status-head">
                     <span>任务状态</span>
-                    <strong>{{ selectedBriefingSchedule ? briefingStatusLabel(selectedBriefingSchedule.last_status) : '未保存' }}</strong>
+                    <strong>{{ selectedBriefingSchedule ? briefingStatusLabel(selectedBriefingSchedule.last_status, selectedBriefingSchedule.last_assurance) : '未保存' }}</strong>
                   </div>
                   <dl class="ys-schedule-status-list">
                     <div>
-                      <dt>下次执行</dt>
-                      <dd>{{ formatDateTime(selectedBriefingSchedule?.next_run_at) }}</dd>
+                      <dt>下次计划记录</dt>
+                      <dd>{{ briefingPlannedTimeLabel(selectedBriefingSchedule?.next_run_at, formatDateTime) }}</dd>
                     </div>
                     <div>
-                      <dt>最近运行</dt>
-                      <dd>{{ formatDateTime(selectedBriefingSchedule?.last_run_at) }}</dd>
+                      <dt>最近任务记录</dt>
+                      <dd>{{ briefingRecordedTimeLabel(selectedBriefingSchedule?.last_run_at, formatDateTime) }}</dd>
                     </div>
                     <div>
                       <dt>报告位置</dt>
                       <dd>{{ selectedBriefingSchedule?.last_file?.file_path || '暂无报告' }}</dd>
                     </div>
+                    <div>
+                      <dt>可信边界</dt>
+                      <dd :title="briefingAssuranceLabel(selectedBriefingSchedule)">
+                        {{ briefingAssuranceLabel(selectedBriefingSchedule) }}
+                      </dd>
+                    </div>
                   </dl>
-                  <div v-if="selectedBriefingSchedule?.last_error" class="ys-schedule-last-error">
-                    {{ selectedBriefingSchedule.last_error }}
+                  <div v-if="selectedBriefingSchedule?.last_status === 'failed'" class="ys-schedule-last-error">
+                    最近一次运行失败；内部错误详情未公开
                   </div>
                   <div class="ys-schedule-side-actions">
                     <button
@@ -3721,11 +3952,11 @@ function reactiveAssistantFromList() {
                     </button>
                   </div>
                   <div class="ys-schedule-runs">
-                    <h3>最近执行</h3>
-                    <div v-if="!selectedBriefingSchedule?.recent_runs?.length" class="ys-schedule-runs-empty">暂无执行记录</div>
+                    <h3>最近任务记录</h3>
+                    <div v-if="!selectedBriefingSchedule?.recent_runs?.length" class="ys-schedule-runs-empty">暂无任务记录</div>
                     <article v-for="run in selectedBriefingSchedule?.recent_runs || []" :key="run.id" class="ys-schedule-run">
                       <div>
-                        <strong>{{ run.status === 'done' ? '成功' : '失败' }}</strong>
+                        <strong>{{ briefingRunStatusLabel(run.status) }}</strong>
                         <span>{{ formatDateTime(run.created_at) }}</span>
                       </div>
                       <p>{{ run.file?.file_path || run.error || '未生成文件' }}</p>
@@ -4028,9 +4259,9 @@ function reactiveAssistantFromList() {
                       <span class="ys-mode-label">{{ chatModeLabel() }}</span>
                       <svg class="ys-mode-arrow" width="10" height="10" viewBox="0 0 10 10"><path d="M2 3l3 4 3-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
                       <div v-if="showModeMenu" class="ys-mode-dropdown" @click.stop>
-                        <div class="ys-mode-dropdown-item" :class="{ active: chatMode === 'fast' }" @click="setChatMode('fast')">快速</div>
-                        <div class="ys-mode-dropdown-item" :class="{ active: chatMode === 'pro' }" @click="setChatMode('pro')">研判</div>
-                        <div class="ys-mode-dropdown-item" :class="{ active: chatMode === 'expert' }" @click="setChatMode('expert')">专家</div>
+                        <div class="ys-mode-dropdown-item" :class="{ active: chatMode === 'fast' }" @click="setChatMode('fast')">GPT-5.6 Luna</div>
+                        <div class="ys-mode-dropdown-item" :class="{ active: chatMode === 'pro' }" @click="setChatMode('pro')">GPT-5.6 Terra</div>
+                        <div class="ys-mode-dropdown-item" :class="{ active: chatMode === 'expert' }" @click="setChatMode('expert')">GPT-5.6 Sol</div>
                       </div>
                     </div>
                     <button type="button" class="ys-briefing-send" :disabled="sending || !briefingDraft.trim()" @click="sendBriefingMessage">

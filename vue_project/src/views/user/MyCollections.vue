@@ -1,69 +1,67 @@
 <script setup>
-import { onActivated, onMounted, onUnmounted, ref, computed } from 'vue'
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { API_PREFIX } from '@/config/api'
 import { getAuthChangedEventName, getToken } from '@/utils/auth'
+import { createLatestRequestGate } from '@/utils/latestRequest'
 import { getFavoritesMap } from '@/utils/reportFavorites'
+import {
+  collectBrowserFavorites,
+  mergeFavoriteSources,
+  normalizeServerFavorites,
+} from '@/features/collections'
 
 const router = useRouter()
 const loading = ref(true)
 const items = ref([])
 const infoBanner = ref('')
 const searchText = ref('')
+const favoritesLoadGate = createLatestRequestGate()
+let favoritesAbortController = null
 
 const FAV_EVENT = 'reportFavoritesUpdated'
 
-function formatApiDetail(data) {
-  const d = data?.detail
-  if (typeof d === 'string') return d
-  if (Array.isArray(d)) return d.map((x) => x.msg || JSON.stringify(x)).join('; ')
-  return ''
-}
-
-function collectLocalFavorites() {
-  const map = getFavoritesMap()
-  const byId = new Map()
-  for (const topic of Object.keys(map || {})) {
-    const list = map[topic]
-    if (!Array.isArray(list)) continue
-    for (const x of list) {
-      const id = Number(x?.id)
-      if (!Number.isFinite(id)) continue
-      const title = String(x?.title || '').trim()
-      const prev = byId.get(id)
-      if (!prev || (!prev.title && title)) {
-        byId.set(id, {
-          id,
-          title: title || prev?.title || '',
-          topic: String(topic || '').trim() || '新闻分析主题',
-        })
-      }
-    }
+async function readBoundedJson(response, maxBytes) {
+  const contentType = String(response.headers?.get?.('content-type') || '')
+    .split(';', 1)[0]
+    .trim()
+    .toLowerCase()
+  if (contentType !== 'application/json' && !contentType.endsWith('+json')) {
+    throw new TypeError('response is not JSON')
   }
-  return Array.from(byId.values())
+  const declaredLength = Number(response.headers?.get?.('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new RangeError('response is too large')
+  }
+  const text = await response.text()
+  if (new TextEncoder().encode(text).byteLength > maxBytes) {
+    throw new RangeError('response is too large')
+  }
+  return JSON.parse(text)
 }
 
-async function fetchArticleTitle(newsId, token) {
+async function fetchArticleTitle(newsId, token, signal) {
   const headers = {}
   if (token) headers.Authorization = `Bearer ${token}`
   try {
-    const r = await fetch(`${API_PREFIX}/article/${newsId}`, { headers })
+    const r = await fetch(`${API_PREFIX}/article/${newsId}`, { headers, signal })
     if (!r.ok) return ''
-    const d = await r.json()
+    const d = await readBoundedJson(r, 256 * 1024)
     return String(d?.title || '').trim()
-  } catch {
+  } catch (error) {
+    if (error?.name === 'AbortError' || signal.aborted) throw error
     return ''
   }
 }
 
-async function fillMissingTitles(rows, token) {
+async function fillMissingTitles(rows, token, signal) {
   const need = rows.filter((r) => !r.title)
   const chunk = 6
   for (let i = 0; i < need.length; i += chunk) {
     const part = need.slice(i, i + chunk)
     await Promise.all(
       part.map(async (r) => {
-        const t = await fetchArticleTitle(r.id, token)
+        const t = await fetchArticleTitle(r.id, token, signal)
         r.title = t || `新闻 #${r.id}`
       }),
     )
@@ -71,68 +69,71 @@ async function fillMissingTitles(rows, token) {
 }
 
 async function load() {
+  favoritesAbortController?.abort()
+  const controller = new AbortController()
+  favoritesAbortController = controller
+  const isCurrent = favoritesLoadGate.begin()
   loading.value = true
   infoBanner.value = ''
   items.value = []
 
-  const token = getToken()
-  const localEntries = collectLocalFavorites()
-  const localById = new Map(localEntries.map((e) => [e.id, e]))
+  let nextInfoBanner = ''
+  let rows = []
+  try {
+    const token = getToken()
+    const browserCollection = collectBrowserFavorites(getFavoritesMap())
 
-  let serverIds = []
-  if (token) {
-    try {
-      const res = await fetch(`${API_PREFIX}/user/favorites`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        serverIds = Array.isArray(data.news_ids)
-          ? data.news_ids.map(Number).filter(Number.isFinite)
-          : []
-      } else if (res.status === 401) {
-        infoBanner.value = '登录状态无效，已仅展示本机在数据搜索中保存的收藏。请重新登录以同步服务器数据。'
-      } else {
-        const msg = formatApiDetail(data) || `HTTP ${res.status}`
-        infoBanner.value = `服务器收藏列表暂不可用（${msg}），已改为展示本机收藏。`
+    let accountRecords = []
+    let accountInvalidRecords = 0
+    if (token) {
+      try {
+        const res = await fetch(`${API_PREFIX}/user/favorites`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        })
+        if (res.ok) {
+          const data = await readBoundedJson(res, 128 * 1024)
+          const normalizedAccount = normalizeServerFavorites(data)
+          accountRecords = normalizedAccount.records
+          accountInvalidRecords = normalizedAccount.counts.invalidRecords
+          nextInfoBanner =
+            '账号收藏与本机临时收藏仅在本页按新闻 ID 去重展示；不会上传或改写任一来源。服务器返回的预警不会作为收藏显示。'
+        } else if (res.status === 401 || res.status === 403) {
+          nextInfoBanner =
+            '登录状态无效，当前仅显示本机临时收藏；本页不会上传或改写这些记录。'
+        } else {
+          nextInfoBanner =
+            '账号收藏暂不可用，当前仅显示本机临时收藏；服务器错误正文未展示。'
+        }
+      } catch (error) {
+        if (error?.name === 'AbortError' || controller.signal.aborted) return
+        nextInfoBanner =
+          '账号收藏响应不可用，当前仅显示本机临时收藏；服务器错误正文未展示。'
       }
-    } catch (e) {
-      infoBanner.value = `无法连接服务器读取收藏：${e?.message || e}。已展示本机收藏。`
+    } else {
+      nextInfoBanner =
+        '当前未登录：仅显示本浏览器的临时收藏。本页不会上传或改写这些记录，登录后也不会自动迁移。'
     }
-  } else {
-    infoBanner.value =
-      '当前未登录：以下为在数据搜索页保存在本浏览器的收藏。登录账号后，收藏会同步到服务器并在多设备可见。'
-  }
 
-  const order = []
-  const seen = new Set()
-  for (const id of serverIds) {
-    if (seen.has(id)) continue
-    seen.add(id)
-    order.push(id)
-  }
-  for (const e of localEntries) {
-    if (seen.has(e.id)) continue
-    seen.add(e.id)
-    order.push(e.id)
-  }
-
-  if (order.length === 0) {
-    loading.value = false
-    return
-  }
-
-  const rows = order.slice(0, 80).map((id) => {
-    const loc = localById.get(id)
-    return {
-      id,
-      title: loc?.title || '',
-      topic: loc?.topic,
+    const merged = mergeFavoriteSources(accountRecords, browserCollection.records)
+    rows = merged.rows.map((row) => ({ ...row }))
+    if (merged.truncated || browserCollection.truncated) {
+      nextInfoBanner += ' 当前列表已达到有界展示上限，不能据此推断完整收藏总数。'
     }
-  })
+    const invalidRecords = accountInvalidRecords + browserCollection.invalidRecords
+    if (invalidRecords > 0) {
+      nextInfoBanner += ` 另有 ${invalidRecords} 条格式无效记录未显示。`
+    }
+    await fillMissingTitles(rows, token, controller.signal)
+  } catch (error) {
+    if (error?.name === 'AbortError' || controller.signal.aborted) return
+    nextInfoBanner = '本机收藏暂时无法读取，请刷新后重试。'
+    rows = []
+  }
 
-  await fillMissingTitles(rows, token)
+  if (!isCurrent()) return
   items.value = rows
+  infoBanner.value = nextInfoBanner
   loading.value = false
 }
 
@@ -165,73 +166,99 @@ onActivated(() => {
   load()
 })
 
+onDeactivated(() => {
+  favoritesAbortController?.abort()
+  favoritesLoadGate.invalidate()
+})
+
 onUnmounted(() => {
+  favoritesAbortController?.abort()
+  favoritesLoadGate.invalidate()
   window.removeEventListener(FAV_EVENT, onFavoritesUpdated)
   window.removeEventListener(getAuthChangedEventName(), onFavoritesUpdated)
 })
 </script>
 
 <template>
-  <div class="mc-root">
+  <div class="mc-root" :aria-busy="loading">
     <!-- Header -->
     <header class="mc-header">
       <div class="mc-header-body">
         <div class="mc-header-overline">FAVORITES</div>
         <h1 class="mc-header-title">我的收录</h1>
-        <p class="mc-header-desc">在<strong>数据搜索</strong>中点击星标保存的资讯，与服务器收藏自动合并</p>
+        <p class="mc-header-desc">账号与本机记录仅在本页按新闻 ID 去重展示，不代表同步或集合合并</p>
       </div>
       <div class="mc-header-stat" v-if="items.length">
         <span class="mc-header-count">{{ items.length }}</span>
-        <span class="mc-header-unit">条收录</span>
+        <span class="mc-header-unit">当前显示</span>
       </div>
     </header>
 
     <!-- Info banner -->
-    <div v-if="infoBanner && !loading" class="mc-banner" role="status">
-      <svg class="mc-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <div
+      v-if="infoBanner && !loading"
+      class="mc-banner"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <svg class="mc-banner-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
       <span>{{ infoBanner }}</span>
     </div>
 
     <!-- Search -->
     <div class="mc-search-bar" v-if="items.length > 0 && !loading">
-      <svg class="mc-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <svg class="mc-search-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <label class="mc-visually-hidden" for="collection-search">筛选我的收录</label>
       <input
+        id="collection-search"
         v-model="searchText"
         type="text"
+        name="collection-search"
         class="mc-search-input"
+        autocomplete="off"
         placeholder="搜索标题、ID 或主题…"
       />
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="mc-state">
+    <div v-if="loading" class="mc-state" role="status" aria-live="polite" aria-atomic="true">
       <div class="mc-state-card">
-        <div class="mc-spinner"></div>
+        <div class="mc-spinner" aria-hidden="true"></div>
         <span class="mc-state-text">加载中…</span>
       </div>
     </div>
 
     <!-- Empty -->
-    <div v-else-if="items.length === 0" class="mc-empty">
+    <div v-else-if="items.length === 0" class="mc-empty" role="status" aria-live="polite">
       <div class="mc-empty-card">
-        <svg class="mc-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <svg class="mc-empty-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
         </svg>
         <h2 class="mc-empty-title">暂无收录</h2>
         <p class="mc-empty-desc">
-          在<strong>数据搜索</strong>结果或新闻详情中点击星标收藏；登录后收藏会写入数据库，与此处本地列表合并显示。
+          在<strong>数据搜索</strong>结果或新闻详情中点击星标收藏。本页不会上传或改写本机记录，也不会自动合并账号集合。
         </p>
         <button type="button" class="mc-btn mc-btn--primary" @click="router.push('/data-service/data-search')">
           <span>前往数据搜索</span>
-          <svg class="mc-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <svg class="mc-btn-arrow" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </button>
       </div>
     </div>
 
     <!-- List -->
     <div v-else class="mc-list">
-      <p class="mc-list-summary" v-if="searchText && filteredItems.length !== items.length">
+      <p
+        class="mc-list-summary"
+        v-if="searchText && filteredItems.length !== items.length"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         筛选结果：{{ filteredItems.length }} / {{ items.length }} 条
+      </p>
+      <p v-if="filteredItems.length === 0" class="mc-filter-empty" role="status">
+        没有与“{{ searchText }}”匹配的收录，请调整筛选词。
       </p>
       <button
         v-for="(row, idx) in filteredItems"
@@ -247,10 +274,11 @@ onUnmounted(() => {
           <div class="mc-item-meta">
             <span class="mc-item-id">#{{ row.id }}</span>
             <span v-if="row.topic" class="mc-item-topic">{{ row.topic }}</span>
+            <span class="mc-item-source">{{ row.sourceLabel }}</span>
           </div>
         </div>
         <div class="mc-item-arrow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
         </div>
       </button>
     </div>
@@ -278,8 +306,21 @@ onUnmounted(() => {
 
   width: 100%;
   max-width: 860px;
+  min-width: 0;
   margin: 0 auto;
   animation: mc-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.mc-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @keyframes mc-fade-up {
@@ -322,6 +363,7 @@ onUnmounted(() => {
   font-size: 0.92rem;
   color: var(--mc-text-muted);
   font-weight: 460;
+  overflow-wrap: anywhere;
 }
 
 .mc-header-desc strong {
@@ -369,6 +411,7 @@ onUnmounted(() => {
   border: 1px solid var(--mc-border);
   border-radius: var(--mc-radius-sm);
   animation: mc-fade-up 0.4s ease both;
+  overflow-wrap: anywhere;
 }
 
 .mc-banner-icon {
@@ -408,6 +451,8 @@ onUnmounted(() => {
 
 .mc-search-input {
   flex: 1;
+  min-width: 0;
+  min-height: 44px;
   border: none;
   outline: none;
   background: transparent;
@@ -511,6 +556,7 @@ onUnmounted(() => {
   font-weight: 620;
   cursor: pointer;
   font-family: inherit;
+  min-height: 44px;
   transition: all 0.18s ease;
 }
 
@@ -552,10 +598,22 @@ onUnmounted(() => {
   padding: 0 4px 4px;
 }
 
+.mc-filter-empty {
+  margin: 0;
+  padding: 24px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  color: var(--mc-text-muted);
+  background: var(--mc-surface);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 .mc-item {
   display: flex;
   align-items: center;
   width: 100%;
+  min-height: 44px;
   text-align: left;
   padding: 0;
   border: 1px solid var(--mc-border);
@@ -579,6 +637,12 @@ onUnmounted(() => {
 .mc-item:hover {
   border-color: rgba(91, 114, 223, 0.3);
   box-shadow: var(--mc-shadow);
+}
+
+.mc-item:focus-visible,
+.mc-btn:focus-visible {
+  outline: 3px solid rgba(91, 114, 223, 0.45);
+  outline-offset: 3px;
 }
 
 .mc-item-accent {
@@ -606,12 +670,14 @@ onUnmounted(() => {
   color: var(--mc-text);
   letter-spacing: -0.01em;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .mc-item-meta {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .mc-item-id {
@@ -630,6 +696,13 @@ onUnmounted(() => {
   border-radius: 100px;
 }
 
+.mc-item-source {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mc-text-secondary);
+  overflow-wrap: anywhere;
+}
+
 .mc-item-arrow {
   padding: 0 16px;
   color: var(--mc-text-muted);
@@ -638,10 +711,31 @@ onUnmounted(() => {
   transition: all 0.2s ease;
 }
 
-.mc-item:hover .mc-item-arrow {
+.mc-item:hover .mc-item-arrow,
+.mc-item:focus-visible .mc-item-arrow {
   opacity: 1;
   transform: translateX(0);
   color: var(--uc-accent, #5b72df);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-root,
+  .mc-banner,
+  .mc-empty,
+  .mc-list,
+  .mc-item,
+  .mc-spinner {
+    animation: none;
+  }
+
+  .mc-search-bar,
+  .mc-btn,
+  .mc-btn-arrow,
+  .mc-item,
+  .mc-item-accent,
+  .mc-item-arrow {
+    transition: none;
+  }
 }
 
 .mc-item-arrow svg {

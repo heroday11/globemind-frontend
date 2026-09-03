@@ -3,35 +3,54 @@
     <router-link class="home-link" to="/">← 返回首页</router-link>
     <div class="auth-card glass-panel">
       <h1>创建账号</h1>
-      <p class="auth-subtitle">完成注册后即可使用平台全部核心功能</p>
-      <form @submit.prevent="handleRegister">
+      <p class="auth-subtitle">创建账号前，请先了解信息处理方式和实验性使用边界</p>
+      <form @submit.prevent="handleRegister" :aria-busy="loading">
         <div class="form-item">
-          <label>用户名</label>
-          <input v-model.trim="form.username" required autocomplete="username" placeholder="请输入用户名" />
+          <label for="register-username">用户名</label>
+          <input id="register-username" ref="firstField" v-model.trim="form.username" name="username" required autocomplete="username" placeholder="请输入用户名" />
         </div>
         <div class="form-item">
-          <label>姓名</label>
-          <input v-model.trim="form.full_name" required autocomplete="name" placeholder="请输入姓名" />
+          <label for="register-full-name">姓名（可选）</label>
+          <input id="register-full-name" v-model.trim="form.full_name" name="full_name" autocomplete="name" placeholder="可稍后在个人中心填写" />
         </div>
         <div class="form-item">
-          <label>邮箱</label>
-          <input v-model.trim="form.email" type="email" required autocomplete="email" placeholder="请输入邮箱" />
+          <label for="register-email">邮箱</label>
+          <input id="register-email" v-model.trim="form.email" name="email" type="email" required autocomplete="email" placeholder="请输入邮箱" />
         </div>
         <div class="form-item">
-          <label>手机号</label>
-          <input v-model.trim="form.phone" required inputmode="tel" autocomplete="tel" pattern="1[3-9][0-9]{9}" placeholder="请输入 11 位手机号" />
+          <label for="register-phone">手机号（可选）</label>
+          <input id="register-phone" v-model.trim="form.phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" pattern="1[3-9][0-9]{9}" placeholder="可稍后在个人中心填写" />
         </div>
         <div class="form-item">
-          <label>密码</label>
-          <input v-model="form.password" type="password" required minlength="8" autocomplete="new-password" placeholder="至少 8 位，包含字母和数字" />
+          <label for="register-password">密码</label>
+          <input id="register-password" v-model="form.password" name="password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="register-password-hint" placeholder="至少 8 位，包含字母和数字" />
+          <p id="register-password-hint" class="field-hint">至少 8 位，且同时包含字母和数字。</p>
         </div>
         <div class="form-item">
-          <label>确认密码</label>
-          <input v-model="form.confirm_password" type="password" required minlength="8" autocomplete="new-password" placeholder="请再次输入密码" />
+          <label for="register-confirm-password">确认密码</label>
+          <input id="register-confirm-password" v-model="form.confirm_password" name="confirm_password" type="password" required minlength="8" autocomplete="new-password" placeholder="请再次输入密码" />
         </div>
-        <p v-if="error" class="error">{{ error }}</p>
-        <p v-if="success" class="success">{{ success }}</p>
-        <button type="submit" :disabled="loading">{{ loading ? '提交中...' : '注册' }}</button>
+        <div class="consent-item">
+          <input
+            id="register-consent"
+            v-model="acceptedNotice"
+            name="accepted_notice"
+            type="checkbox"
+            required
+            aria-describedby="registration-data-note"
+          />
+          <label for="register-consent">
+            我已阅读并同意
+            <router-link to="/terms" target="_blank" rel="noopener noreferrer">《服务条款与使用边界》</router-link>，并已了解
+            <router-link to="/privacy" target="_blank" rel="noopener noreferrer">《隐私说明》</router-link>。
+          </label>
+        </div>
+        <p id="registration-data-note" class="registration-data-note">
+          创建账号仅要求用户名、邮箱和密码；姓名与手机号为可选资料，可在个人中心留空或清除。分类保留期及完整自助删除流程仍待治理复核。
+        </p>
+        <p v-if="error" id="register-error" ref="errorMessage" class="error" role="alert" aria-live="assertive" tabindex="-1">{{ error }}</p>
+        <p v-if="success" id="register-success" ref="successMessage" class="success" role="status" aria-live="polite" tabindex="-1">{{ success }}</p>
+        <button type="submit" :disabled="loading" :aria-disabled="loading">{{ loading ? '提交中...' : '注册' }}</button>
       </form>
       <p class="tips">已有账号？<router-link to="/login">去登录</router-link></p>
     </div>
@@ -39,7 +58,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { nextTick, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { API_PREFIX } from '@/config/api'
 import { formatApiErrorDetail } from '@/utils/apiError'
@@ -50,6 +69,10 @@ const router = useRouter()
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
+const acceptedNotice = ref(false)
+const firstField = ref(null)
+const errorMessage = ref(null)
+const successMessage = ref(null)
 const form = reactive({
   username: '',
   full_name: '',
@@ -59,15 +82,27 @@ const form = reactive({
   confirm_password: '',
 })
 
+async function showError(message) {
+  error.value = message
+  await nextTick()
+  errorMessage.value?.focus()
+}
+
+onMounted(() => firstField.value?.focus())
+
 async function handleRegister() {
   error.value = ''
   success.value = ''
   if (form.password !== form.confirm_password) {
-    error.value = '两次输入密码不一致'
+    await showError('两次输入密码不一致')
     return
   }
   if (form.password.length < 8 || !/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) {
-    error.value = '密码至少 8 位，且需同时包含字母和数字'
+    await showError('密码至少 8 位，且需同时包含字母和数字')
+    return
+  }
+  if (!acceptedNotice.value) {
+    await showError('请先阅读服务条款和隐私说明，并确认同意与了解')
     return
   }
   loading.value = true
@@ -79,13 +114,15 @@ async function handleRegister() {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      error.value = formatApiErrorDetail(data)
+      await showError(formatApiErrorDetail(data))
       return
     }
     success.value = '注册成功，正在跳转登录页...'
+    await nextTick()
+    successMessage.value?.focus()
     setTimeout(() => router.replace('/login'), 900)
   } catch {
-    error.value = '网络错误，请稍后重试'
+    await showError('网络错误，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -190,6 +227,50 @@ form {
   background: rgba(255, 255, 255, 0.96);
 }
 
+.field-hint {
+  margin: 6px 2px 0;
+  color: #59708e;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.consent-item {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  color: #344f72;
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.consent-item input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  accent-color: #1767c6;
+}
+
+.consent-item input:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.35);
+  outline-offset: 3px;
+}
+
+.consent-item a,
+.registration-data-note a {
+  color: #1257ad;
+  font-weight: 650;
+}
+
+.registration-data-note {
+  grid-column: 1 / -1;
+  margin: -6px 0 0 32px;
+  color: #647792;
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+
 button {
   grid-column: 1 / -1;
   width: 100%;
@@ -226,6 +307,12 @@ button:disabled {
 .error { color: #b42318; }
 .success { color: #1f7a39; }
 
+.error:focus,
+.success:focus {
+  outline: 3px solid currentColor;
+  outline-offset: 4px;
+}
+
 .tips {
   margin: 16px 0 0;
   font-size: 0.98rem;
@@ -256,6 +343,10 @@ button:disabled {
   form {
     grid-template-columns: 1fr;
     gap: 14px;
+  }
+
+  .registration-data-note {
+    margin-left: 0;
   }
 }
 

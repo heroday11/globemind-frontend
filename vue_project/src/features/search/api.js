@@ -15,12 +15,17 @@ export function createSearchEndpoints(apiPrefix = API_PREFIX) {
   return Object.freeze({
     news: `${apiPrefix}/dashboard/news`,
     search: `${apiPrefix}/dashboard/search`,
+    preflight: `${apiPrefix}/dashboard/search/preflight`,
+    capabilities: `${apiPrefix}/dashboard/search/capabilities`,
     stats: `${apiPrefix}/dashboard/stats`,
     searchOptions: `${apiPrefix}/dashboard/search/options`,
     favorites: `${apiPrefix}/user/favorites`,
     favoriteToggle: `${apiPrefix}/user/favorites/toggle`,
     favoriteRemove: `${apiPrefix}/user/favorites/remove`,
     searchHistory: `${apiPrefix}/user/search-history`,
+    searchSnapshots: `${apiPrefix}/search-snapshots`,
+    searchSnapshot: (id) => `${apiPrefix}/search-snapshots/${encodeURIComponent(id)}`,
+    searchSnapshotReplay: (id) => `${apiPrefix}/search-snapshots/${encodeURIComponent(id)}/replay`,
     v11Children: (id, level) => `${apiPrefix}/dashboard/search/v11-clusters/${encodeURIComponent(id)}/children?level=${encodeURIComponent(level)}&page=1&page_size=50`,
   })
 }
@@ -41,8 +46,9 @@ export function buildNewsListUrl(endpoint, origin, {
   const url = new URL(endpoint, origin)
   url.searchParams.set('page', String(page))
   url.searchParams.set('size', String(size))
-  if (sortBy) url.searchParams.set('sort_by', sortBy)
-  url.searchParams.set('sort_order', sortOrder || 'desc')
+  const canonicalSortBy = sortBy === 'pub_time' ? 'published_at' : sortBy
+  if (canonicalSortBy === 'published_at') url.searchParams.set('sort_by', canonicalSortBy)
+  url.searchParams.set('sort_order', ['asc', 'desc'].includes(sortOrder) ? sortOrder : 'desc')
   url.searchParams.set('favorite_scope_topic', favoriteScopeTopic || '')
   return url
 }
@@ -97,6 +103,24 @@ export function createSearchApi({
   return Object.freeze({
     endpoints,
 
+    async getCapabilities({ signal } = {}) {
+      return requestJson(
+        'search-capabilities',
+        endpoints.capabilities,
+        { signal },
+        '加载搜索能力失败',
+      )
+    },
+
+    async preflight(params, { signal } = {}) {
+      return requestJson('search-preflight', endpoints.preflight, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal,
+      }, '查询条件检查失败')
+    },
+
     async listNews(query, { signal, origin = globalThis.location?.origin } = {}) {
       const url = buildNewsListUrl(endpoints.news, origin, query)
       return requestJson('list-news', url, {
@@ -115,6 +139,45 @@ export function createSearchApi({
         body: JSON.stringify(params),
         signal,
       }, '搜索失败')
+    },
+
+    async captureSearchSnapshot(receipt, expectedPreviousSnapshotId = null, { signal } = {}) {
+      return requestJson('capture-search-snapshot', endpoints.searchSnapshots, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders(),
+        },
+        body: JSON.stringify({
+          receipt,
+          expected_previous_snapshot_id: expectedPreviousSnapshotId,
+        }),
+        signal,
+      }, '保存查询快照失败')
+    },
+
+    async listSearchSnapshots(limit = 100, { signal } = {}) {
+      const boundedLimit = Number.isInteger(limit) && limit >= 1 && limit <= 100 ? limit : 100
+      return requestJson(
+        'list-search-snapshots',
+        `${endpoints.searchSnapshots}?limit=${boundedLimit}`,
+        { headers: { ...authHeaders() }, signal },
+        '加载查询快照失败',
+      )
+    },
+
+    async getSearchSnapshot(id, { signal } = {}) {
+      return requestJson('get-search-snapshot', endpoints.searchSnapshot(id), {
+        headers: { ...authHeaders() },
+        signal,
+      }, '加载查询快照失败')
+    },
+
+    async replaySearchSnapshot(id, { signal } = {}) {
+      return requestJson('replay-search-snapshot', endpoints.searchSnapshotReplay(id), {
+        headers: { ...authHeaders() },
+        signal,
+      }, '读取冻结结果 ID 失败')
     },
 
     async getSearchOptions({ signal } = {}) {

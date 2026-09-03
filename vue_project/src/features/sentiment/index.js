@@ -12,7 +12,7 @@ export {
 
 export {
   OPINION_CACHE_TTL_MS,
-  OPINION_LIVE_REFRESH_MS,
+  OPINION_REFRESH_INTERVAL_MS,
   OVERVIEW_CACHE_KEY,
   TREND_CACHE_KEY,
   createSentimentSnapshotCache,
@@ -43,6 +43,8 @@ export {
 export {
   CORRECTION_LABELS,
   FALLBACK_OVERVIEW_SUMMARY,
+  OPINION_FRESHNESS_MAX_AGE_DAYS,
+  OPINION_TRUST_SCHEMA_VERSION,
   addLocalSearchHistory,
   applyFavoriteResult,
   briefClass,
@@ -58,6 +60,7 @@ export {
   formatOverviewEventTitle,
   formatOverviewTime,
   formatSearchSnippet,
+  invalidateOpinionPayload,
   maxOverviewTagCount,
   mergeFavoriteIds,
   overviewMetrics,
@@ -67,15 +70,30 @@ export {
   overviewTargetIndices,
   overviewTopEventTitle,
   overviewTrendClass,
+  opinionTrustSnapshot,
   qualitySnapshot,
+  resolveAutoEndDate,
+  sanitizeOpinionPayload,
   tagBarWidth,
   tagStyle,
+  validateOpinionClaimContract,
 } from './presentation.js'
 
 export {
   createLatestSentimentRequest,
   isSentimentAbortError,
 } from './request.js'
+
+export {
+  OPINION_SEMANTIC_CONTRACT_VERSION,
+  OPINION_SEMANTIC_SCHEMA_VERSION,
+  enforceOpinionSemanticBoundary,
+  formatSemanticAxis,
+  opinionSemanticMethodSnapshot,
+  opinionSemanticSnapshot,
+  semanticStanceClass,
+  semanticTrendProjection,
+} from './semantics.js'
 
 export {
   PRESET_DAYS_MAP,

@@ -1,215 +1,147 @@
 <script setup>
-import { defineAsyncComponent } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
-const AssistantExperience = defineAsyncComponent({
-  loader: () => import('@/features/assistant/index.js').then((mod) => mod.AssistantExperience),
-  delay: 80,
-  timeout: 30000,
-})
+import { clearAuth, getAuthChangedEventName, getToken } from '@/utils/auth.js'
 
 const props = defineProps({
-  embedded: {
-    type: Boolean,
-    default: false,
-  },
-  pageSkill: {
-    type: Object,
-    default: () => ({}),
-  },
+  embedded: { type: Boolean, default: false },
+  pageSkill: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['page-action'])
+defineEmits(['page-action'])
+
+const frameUrl = ref('')
+const loading = ref(true)
+const error = ref('')
+let requestGeneration = 0
+
+function requestLogin() {
+  window.dispatchEvent(new CustomEvent('showLoginModal'))
+}
+
+async function loadDsh() {
+  const generation = ++requestGeneration
+  frameUrl.value = ''
+  error.value = ''
+  loading.value = true
+  const token = getToken()
+  if (!token) {
+    error.value = '请先登录后使用数据助手。'
+    loading.value = false
+    return
+  }
+  try {
+    const response = await fetch('/api/assistant/dsh-launch', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (response.status === 401) {
+      if (getToken() === token) clearAuth()
+      requestLogin()
+      throw new Error('登录状态已失效，请重新登录后连接数据助手。')
+    }
+    if (!response.ok) throw new Error(payload.detail || 'DSH 数据助手暂时不可用')
+    if (generation === requestGeneration) frameUrl.value = payload.url
+  } catch (cause) {
+    if (generation === requestGeneration) {
+      error.value = cause instanceof Error ? cause.message : 'DSH 数据助手暂时不可用'
+    }
+  } finally {
+    if (generation === requestGeneration) loading.value = false
+  }
+}
+
+function reconnect() {
+  if (!getToken()) {
+    error.value = '请先登录后使用数据助手。'
+    requestLogin()
+    return
+  }
+  void loadDsh()
+}
+
+onMounted(() => {
+  loadDsh()
+  window.addEventListener(getAuthChangedEventName(), loadDsh)
+})
+
+onBeforeUnmount(() => {
+  requestGeneration += 1
+  window.removeEventListener(getAuthChangedEventName(), loadDsh)
+})
 </script>
 
 <template>
-  <Suspense>
-    <AssistantExperience
-      :embedded="props.embedded"
-      :page-skill="props.pageSkill"
-      @page-action="emit('page-action', $event)"
+  <main class="dsh-page" :class="{ 'dsh-page--embedded': props.embedded }">
+    <iframe
+      v-if="frameUrl"
+      class="dsh-frame"
+      :src="frameUrl"
+      title="GlobeMind Data Assistant"
+      allow="clipboard-read; clipboard-write"
     />
-    <template #fallback>
-      <div class="assistant-loading-shell" :class="{ 'assistant-loading-shell--embedded': props.embedded }">
-        <aside v-if="!props.embedded" class="assistant-loading-rail">
-          <span class="assistant-loading-logo">G</span>
-          <span v-for="item in 5" :key="item" class="assistant-loading-rail-line" />
-        </aside>
-        <main class="assistant-loading-main">
-          <div class="assistant-loading-topline" />
-          <section class="assistant-loading-panel">
-            <span class="assistant-loading-kicker" />
-            <span class="assistant-loading-title" />
-            <span class="assistant-loading-title assistant-loading-title--short" />
-            <span class="assistant-loading-copy" />
-            <span class="assistant-loading-copy assistant-loading-copy--wide" />
-            <div class="assistant-loading-cards">
-              <span v-for="item in 4" :key="item" />
-            </div>
-          </section>
-          <div class="assistant-loading-composer" />
-        </main>
-      </div>
-    </template>
-  </Suspense>
+    <section v-else class="dsh-state" aria-live="polite">
+      <span v-if="loading" class="dsh-spinner" aria-hidden="true" />
+      <p>{{ loading ? '正在连接数据助手...' : error }}</p>
+      <button v-if="!loading && error" type="button" @click="reconnect">重新连接</button>
+    </section>
+  </main>
 </template>
 
 <style scoped>
-.assistant-loading-shell {
+.dsh-page {
+  width: 100%;
+  height: calc(100dvh - 64px);
   margin-top: 64px;
-  height: calc(100vh - 64px);
-  display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  background: linear-gradient(180deg, #f8fbff, #eef5ff);
   overflow: hidden;
+  background: #fff;
 }
 
-.assistant-loading-shell--embedded {
-  margin-top: 0;
+.dsh-page--embedded {
   height: 100%;
-  grid-template-columns: minmax(0, 1fr);
+  min-height: 620px;
+  margin-top: 0;
 }
 
-.assistant-loading-rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-  padding: 18px 10px;
-  border-right: 1px solid rgba(37, 99, 235, 0.1);
-  background: rgba(255, 255, 255, 0.72);
+.dsh-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
 }
 
-.assistant-loading-logo,
-.assistant-loading-rail-line,
-.assistant-loading-topline,
-.assistant-loading-kicker,
-.assistant-loading-title,
-.assistant-loading-copy,
-.assistant-loading-cards span,
-.assistant-loading-composer {
-  background: linear-gradient(90deg, rgba(226, 232, 240, 0.7), rgba(255, 255, 255, 0.95), rgba(226, 232, 240, 0.7));
-  background-size: 220% 100%;
-  animation: assistant-loading-shimmer 1.4s ease-in-out infinite;
-}
-
-.assistant-loading-logo {
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
+.dsh-state {
+  height: 100%;
   display: grid;
-  place-items: center;
-  color: rgba(37, 99, 235, 0.28);
-  font-weight: 900;
-}
-
-.assistant-loading-rail-line {
-  width: 56px;
-  height: 54px;
-  border-radius: 14px;
-}
-
-.assistant-loading-main {
-  min-width: 0;
-  display: grid;
-  grid-template-rows: 60px minmax(0, 1fr) auto;
-}
-
-.assistant-loading-topline {
-  margin: 16px 20px;
-  border-radius: 999px;
-}
-
-.assistant-loading-panel {
-  width: min(980px, calc(100% - 48px));
-  align-self: center;
-  justify-self: center;
-  display: grid;
+  place-content: center;
+  justify-items: center;
   gap: 16px;
+  color: #475569;
+  font-size: 14px;
 }
 
-.assistant-loading-kicker {
-  width: 180px;
-  height: 12px;
-  border-radius: 999px;
+.dsh-state p { margin: 0; }
+
+.dsh-state button {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
 }
 
-.assistant-loading-title {
-  width: min(720px, 100%);
-  height: 58px;
-  border-radius: 12px;
+.dsh-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: dsh-spin 0.7s linear infinite;
 }
 
-.assistant-loading-title--short {
-  width: min(460px, 74%);
-}
-
-.assistant-loading-copy {
-  width: min(560px, 88%);
-  height: 18px;
-  border-radius: 999px;
-}
-
-.assistant-loading-copy--wide {
-  width: min(720px, 100%);
-}
-
-.assistant-loading-cards {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  margin-top: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 18px;
-  overflow: hidden;
-}
-
-.assistant-loading-cards span {
-  min-height: 120px;
-  border-right: 1px solid rgba(15, 23, 42, 0.07);
-}
-
-.assistant-loading-cards span:last-child {
-  border-right: 0;
-}
-
-.assistant-loading-composer {
-  width: min(900px, calc(100% - 48px));
-  height: 94px;
-  margin: 0 auto 26px;
-  border-radius: 18px;
-}
-
-@keyframes assistant-loading-shimmer {
-  0% { background-position: 120% 0; }
-  100% { background-position: -120% 0; }
-}
-
-@media (max-width: 760px) {
-  .assistant-loading-shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .assistant-loading-rail {
-    display: none;
-  }
-
-  .assistant-loading-panel,
-  .assistant-loading-composer {
-    width: calc(100% - 28px);
-  }
-
-  .assistant-loading-title {
-    height: 44px;
-  }
-
-  .assistant-loading-cards {
-    grid-template-columns: 1fr;
-  }
-
-  .assistant-loading-cards span {
-    min-height: 76px;
-    border-right: 0;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.07);
-  }
-}
+@keyframes dsh-spin { to { transform: rotate(360deg); } }
 </style>

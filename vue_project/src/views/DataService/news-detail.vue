@@ -65,7 +65,51 @@
                   <div class="metric-bar"><i :style="{ width: scorePercent(chinaAnalysis.confidence) + '%' }"></i></div>
                 </div>
               </div>
-              <div v-if="chinaAnalysis.evidence" class="analysis-evidence">{{ chinaAnalysis.evidence }}</div>
+            </div>
+
+            <div v-if="evidenceChain" class="analysis-section evidence-chain">
+              <div class="analysis-section-title">主张与正文证据</div>
+              <p class="evidence-chain-note">
+                仅接受当前文章正文段落锚点；标题、规则说明和无法定位的文本不会显示为证据。
+              </p>
+              <article
+                v-for="claim in evidenceClaims"
+                :key="claim.id"
+                class="evidence-claim"
+                :class="`is-${claim.evidence_status}`"
+              >
+                <div class="evidence-claim-head">
+                  <span class="evidence-kind">{{ claimTypeLabel(claim.claim_type) }}</span>
+                  <span class="evidence-state">{{ claim.evidence_status === 'available' ? '正文可定位' : 'unavailable' }}</span>
+                </div>
+                <p>{{ claim.text }}</p>
+                <button
+                  v-for="citation in claim.citations"
+                  :key="citation.anchor_id"
+                  type="button"
+                  class="evidence-citation"
+                  @click="scrollToEvidence(citation)"
+                >
+                  <strong>第 {{ citation.paragraph_number }} 段 · {{ citation.relation === 'input' ? '模型输入依据' : citation.relation }}</strong>
+                  <span>{{ citation.excerpt }}</span>
+                </button>
+                <small v-if="claim.evidence_status !== 'available'">
+                  {{ evidenceUnavailableLabel(claim.unavailable_reason) }}
+                </small>
+              </article>
+              <div class="evidence-provenance" role="status" aria-live="polite">
+                <span>{{ evidenceLedgerLabel }}</span>
+                <code v-if="latestEvidenceRevision">{{ latestEvidenceRevision.snapshot_id }}</code>
+                <button
+                  v-if="getToken()"
+                  type="button"
+                  class="evidence-capture"
+                  :disabled="evidenceCaptureLoading || evidenceLedgerLoading || !evidenceLedger.available"
+                  @click="captureEvidenceRevision"
+                >
+                  {{ evidenceCaptureLoading ? '保存中…' : latestEvidenceRevision ? '保存当前修订' : '保存首个快照' }}
+                </button>
+              </div>
             </div>
 
             <div v-if="eventExtraction" class="analysis-section">
@@ -212,8 +256,12 @@
           <h1 class="detail-title">{{ news.title || '无标题' }}</h1>
           <div class="detail-meta">
             <span v-if="news.source" class="meta-item">来源：{{ news.source }}</span>
-            <span v-if="news.pub_time" class="meta-item">{{ formatTime(news.pub_time) }}</span>
-            <span v-if="news.location" class="meta-item">语言/地区：{{ news.location }}</span>
+            <span class="meta-item">新闻发布日期：{{ formatTime(newsTimeSemantics.publishedAt) }}</span>
+            <span class="meta-item">事件时间：{{ eventTimeDisplay }}</span>
+            <span class="meta-item">采集时间：{{ formatTime(newsTimeSemantics.collectedAt) }}</span>
+            <span class="meta-item">更新时间：{{ formatTime(newsTimeSemantics.updatedAt) }}</span>
+            <span v-if="news.language_id" class="meta-item">语言代码：{{ news.language_id }}</span>
+            <span v-if="news.location" class="meta-item">位置（记录值，未核验）：{{ news.location }}</span>
           </div>
           <div class="book-page abstract-page">
             <h3 class="book-page-title">摘要</h3>
@@ -225,6 +273,7 @@
               <p
                 v-for="(p, idx) in bodyParagraphs"
                 :key="`l-${idx}`"
+                :id="articleParagraphAnchor(news.id, idx + 1)"
                 class="body-para"
                 :class="{ linked: linkedLeftIndex === idx }"
                 :ref="(el) => setLeftParagraphEl(el, idx)"
@@ -238,8 +287,8 @@
           </div>
           <div class="detail-footer">
             <a
-              v-if="news.request_url"
-              :href="news.request_url"
+              v-if="safeOriginalUrl"
+              :href="safeOriginalUrl"
               target="_blank"
               rel="noopener noreferrer"
               class="view-original"
@@ -278,9 +327,10 @@
             <h1 class="detail-title">{{ translation?.title || '暂无翻译标题' }}</h1>
             <div class="detail-meta">
               <span v-if="translationLoading" class="meta-item">翻译中...</span>
-              <span v-else-if="translation" class="meta-item">已翻译</span>
-              <span v-else class="meta-item">暂无翻译</span>
-              <span class="meta-item">模式：本地 LLM · 逐段翻译</span>
+              <span v-else-if="translation" class="meta-item">
+                {{ translationDisclosure(translation.provenance) }}
+              </span>
+              <span v-else class="meta-item">暂无翻译 · 人工复核状态未知 · 质量未测量</span>
             </div>
             <div class="translation-toolbar">
               <div class="mode-switch">
@@ -291,6 +341,9 @@
               </button>
             </div>
             <p v-if="translationHint" class="translation-hint">{{ translationHint }}</p>
+            <p class="translation-hint">
+              机器翻译须标为“未经人工复核 / 质量未测量”；数据库既有译文若缺元数据则标为“provenance 未登记”。
+            </p>
             <!-- 右侧面板摘要：有翻译内容才显示，没有则整个去掉，正文自然上移填位 -->
             <div v-if="translation?.abstract" class="book-page abstract-page">
               <h3 class="book-page-title">摘要</h3>
@@ -334,6 +387,25 @@ import { useRoute, useRouter } from 'vue-router'
 import { API_PREFIX } from '@/config/api'
 import { ElMessage } from 'element-plus'
 import { AssistantDrawer } from '@/features/assistant/index.js'
+import { getToken } from '@/utils/auth'
+import { safeExternalHttpUrl } from '@/utils/externalUrl.js'
+import { createLatestRequestGate } from '@/utils/latestRequest.js'
+import { normalizeNewsTimeSemantics } from '@/features/search/index.js'
+import {
+  buildTranslationWorkload,
+  databaseTranslationProvenance,
+  requestMachineTranslation,
+  summarizeMachineTranslationProvenance,
+  translationDisclosure,
+} from '@/features/translation/index.js'
+import {
+  articleParagraphAnchor,
+  buildAssistantEvidenceContext,
+  claimTypeLabel,
+  normalizeEvidenceLedgerHistory,
+  normalizeEvidenceChain,
+  unavailableEvidenceLedger,
+} from '@/features/evidence/index.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -341,6 +413,16 @@ const ASSISTANT_AUTORUN_CONTEXT_KEY = 'data_assistant_autorun_context_v1'
 const assistantDrawerOpen = ref(false)
 const assistantDrawerKey = ref(0)
 const news = ref(null)
+const newsTimeSemantics = computed(() => (
+  news.value?.timeSemantics || normalizeNewsTimeSemantics(news.value)
+))
+const eventTimeDisplay = computed(() => {
+  const start = newsTimeSemantics.value.eventTimeStart
+  const end = newsTimeSemantics.value.eventTimeEnd
+  if (!start && !end) return '—'
+  return `${formatTime(start)} 至 ${formatTime(end)}`
+})
+const safeOriginalUrl = computed(() => safeExternalHttpUrl(news.value?.request_url))
 const loading = ref(true)
 const error = ref('')
 const translation = ref(null)
@@ -363,6 +445,14 @@ const analysisL3Macros = ref([])
 const analysisTrend = ref([])
 const chinaAnalysis = ref(null)
 const eventExtraction = ref(null)
+const evidenceChain = ref(null)
+const evidenceLedger = ref(unavailableEvidenceLedger(0, 'NOT_LOADED'))
+const evidenceLedgerLoading = ref(false)
+const evidenceCaptureLoading = ref(false)
+const newsRequestGate = createLatestRequestGate()
+const evidenceCaptureRequestGate = createLatestRequestGate()
+const translationRequestGate = createLatestRequestGate()
+let translationAbortController = null
 
 const TRANSLATION_BODY_CONCURRENCY = 3
 const PAPER_THEME_STORAGE_KEY = 'globemind_news_paper_theme'
@@ -508,6 +598,53 @@ const compactAnalysisItems = computed(() => {
   ])
   return analysisItems.value.filter((item) => !hidden.has(item.key))
 })
+
+const evidenceClaims = computed(() => evidenceChain.value?.claims || [])
+const latestEvidenceRevision = computed(() => evidenceLedger.value?.items?.[0] || null)
+const evidenceLedgerLabel = computed(() => {
+  if (evidenceLedgerLoading.value) return '正在核验证据快照历史…'
+  if (evidenceLedger.value?.reason === 'AUTH_REQUIRED') {
+    return '证据快照历史需要登录后查看；当前未构造替代值。'
+  }
+  if (!evidenceLedger.value?.available) {
+    return '证据快照历史 unavailable；当前文章正文仍仅按响应哈希核验。'
+  }
+  const latest = latestEvidenceRevision.value
+  if (!latest) return '尚未保存原文证据快照；当前文章正文仍仅按响应哈希核验。'
+  const review = latest.impact_review?.status
+  const reviewLabel = review === 'reviewed'
+    ? '下游影响已复核'
+    : review === 'review_required'
+      ? '下游影响待复核'
+      : '未发现需复核的下游影响'
+  return `已保存 ${evidenceLedger.value.event_count} 个版本；最新 ${latest.captured_at}，${reviewLabel}。`
+})
+
+const evidenceUnavailableLabel = (reason) => ({
+  BODY_UNAVAILABLE: '正文 unavailable，无法建立段落引用。',
+  TITLE_ONLY_EVIDENCE_REJECTED: '现有“证据”仅能对应标题，已拒绝作为段落证据。',
+  PARAGRAPH_ANCHOR_NOT_FOUND: '现有依据无法定位到正文段落。',
+  ANALYSIS_UNAVAILABLE: '文章分析 unavailable。',
+  INVALID_EVIDENCE_CONTRACT: '证据链契约缺失或不一致。',
+  INVALID_CITATION_CONTRACT: '引用锚点不完整或相互冲突。',
+}[reason] || `正文证据 unavailable（${reason || 'UNKNOWN'}）。`)
+
+function scrollToEvidence(citation) {
+  const anchorId = articleParagraphAnchor(citation?.article_id, citation?.paragraph_number)
+  if (!anchorId || anchorId !== citation?.anchor_id) {
+    ElMessage.warning('引用锚点无效')
+    return
+  }
+  const paragraph = document.getElementById(anchorId)
+  if (!paragraph) {
+    ElMessage.warning('正文段落当前不可定位')
+    return
+  }
+  linkedLeftIndex.value = Number(citation.paragraph_number) - 1
+  paragraph.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  paragraph.classList.add('evidence-target')
+  window.setTimeout(() => paragraph.classList.remove('evidence-target'), 1800)
+}
 
 const formatScore = (value) => {
   const n = Number(value)
@@ -718,33 +855,48 @@ function chainLines(items, label) {
     const title = item.title || item.name || item.id || `${label}${index + 1}`
     const count = item.article_count || item.segment_count || item.l2_chain_count || ''
     const range = [item.start_date, item.end_date].filter(Boolean).join(' 至 ')
-    return `${index + 1}. ${compactAssistantText(title, 140)}${count ? `；数量 ${count}` : ''}${range ? `；时间 ${range}` : ''}`
+    return `${index + 1}. ${compactAssistantText(title, 140)}${count ? `；数量 ${count}` : ''}${range ? `；事件时间 ${range}` : ''}`
   })
+}
+
+function anchoredAssistantBody(maxCharacters = 1600) {
+  const lines = []
+  let used = 0
+  for (let index = 0; index < bodyParagraphs.value.length; index += 1) {
+    const anchor = articleParagraphAnchor(news.value?.id, index + 1)
+    const remaining = maxCharacters - used
+    if (!anchor || remaining <= anchor.length + 4) break
+    const paragraph = compactAssistantText(bodyParagraphs.value[index], remaining - anchor.length - 2)
+    const line = `#${anchor} ${paragraph}`
+    lines.push(line)
+    used += line.length
+  }
+  return lines.length ? lines : ['正文 unavailable；不得以标题替代正文证据。']
 }
 
 function buildNewsAssistantContext() {
   const item = news.value || {}
-  const extraction = eventExtraction.value || {}
-  const china = chinaAnalysis.value || {}
+  const evidenceLines = buildAssistantEvidenceContext(evidenceChain.value)
   const lines = [
     '【新闻详情页上下文】',
     `新闻 ID：${item.id || route.params.id || ''}`,
     `标题：${item.title || '无标题'}`,
     `来源：${item.source || '未知来源'}`,
-    `发布时间：${item.pub_time || '未知'}`,
+    `新闻发布日期：${newsTimeSemantics.value.publishedAt || '未知'}`,
+    `事件时间：${eventTimeDisplay.value === '—' ? '未知' : eventTimeDisplay.value}`,
+    `采集时间：${newsTimeSemantics.value.collectedAt || '未知'}`,
+    `更新时间：${newsTimeSemantics.value.updatedAt || '未知'}`,
     item.request_url ? `原文 URL：${item.request_url}` : '',
     `摘要：${compactAssistantText(item.abstract || item.trans_abstract, 600) || '无'}`,
-    `正文节选：${compactAssistantText(item.body || item.trans_body, 1600) || '无正文'}`,
+    '【带锚点正文节选】',
+    ...anchoredAssistantBody(),
     '',
-    '【涉华与事件抽取】',
-    chinaAnalysis.value
-      ? `涉华：${china.is_china_related ? '是' : '否'}；角色 ${chinaRoleLabel(china.china_role)}；直接性 ${directnessLabel(china.directness)}；相关度 ${formatScore(china.relevance_score)}；影响 ${signedNumber(china.impact_index)}；证据 ${compactAssistantText(china.evidence, 260)}`
-      : '涉华分析：暂无',
-    eventExtraction.value
-      ? `事件：${extraction.initiator || '?'} -> ${extraction.target || '?'}；领域 ${extraction.event_domain || '?'}；事件族 ${extraction.event_family || '?'}；行动 ${extraction.event_action || '?'}；语气 ${toneLabel(extraction.tone)}；实体对 ${extraction.entity_pair_key || '?'}`
-      : '事件抽取：暂无',
+    '【已分类主张与正文证据】',
+    ...evidenceLines,
+    '约束：只能把 available 主张作为确定性依据；unavailable 主张必须标为未知或拒绝判断，禁止用标题补足段落证据。',
     '',
     '【事件链路】',
+    '以下链路仅用于导航和继续核查，不等同于本文正文证据：',
     'L1 事件聚类：',
     ...(chainLines(analysisL1Clusters.value, 'L1').length ? chainLines(analysisL1Clusters.value, 'L1') : ['无']),
     'L2 走势：',
@@ -851,6 +1003,16 @@ const translationBodyParagraphs = computed(() => {
 })
 
 async function fetchNews() {
+  const isCurrent = newsRequestGate.begin()
+  evidenceCaptureRequestGate.invalidate()
+  translationRequestGate.invalidate()
+  translationAbortController?.abort()
+  translationAbortController = null
+  analysisLoading.value = false
+  evidenceLedgerLoading.value = false
+  evidenceCaptureLoading.value = false
+  translationLoading.value = false
+  translationHint.value = ''
   const id = route.params.id
   if (!id) {
     error.value = '缺少新闻 ID'
@@ -868,8 +1030,11 @@ async function fetchNews() {
   analysisTrend.value = []
   chinaAnalysis.value = null
   eventExtraction.value = null
+  evidenceChain.value = null
+  evidenceLedger.value = unavailableEvidenceLedger(Number(id), 'NOT_LOADED')
   try {
     const res = await fetch(`${API_PREFIX}/dashboard/news/${id}`)
+    if (!isCurrent()) return
     if (res.status === 404) {
       error.value = '新闻不存在'
       return
@@ -879,34 +1044,118 @@ async function fetchNews() {
       return
     }
     const data = await res.json()
+    if (!isCurrent()) return
+    const timeSemantics = normalizeNewsTimeSemantics(data)
     news.value = {
       id: data.id,
       title: data.title ?? '',
       abstract: data.abstract ?? '',
       body: data.body ?? '',
-      pub_time: data.pub_time,
-      request_url: data.request_url,
-      source: data.source,
-      location: data.location,
+      time_semantics: data.time_semantics,
+      timeSemantics,
+          request_url: data.request_url,
+          source: data.source,
+          language_id: data.language_id,
+          source_country: data.source_country,
+          source_region: data.source_region,
+          news_region: data.news_region,
+          location: data.location,
       trans_title: data.trans_title ?? '',
       trans_abstract: data.trans_abstract ?? '',
       trans_body: data.trans_body ?? '',
     }
-    await fetchAnalysis(data.id)
+    await fetchAnalysis(data.id, isCurrent)
+    if (!isCurrent()) return
+    await loadEvidenceLedger(data.id, isCurrent)
   } catch {
-    error.value = '网络错误，请稍后重试'
+    if (isCurrent()) error.value = '网络错误，请稍后重试'
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 
-async function fetchAnalysis(newsId) {
-  if (!newsId) return
+async function loadEvidenceLedger(articleId, isCurrent = () => true) {
+  if (!isCurrent()) return
+  const token = getToken()
+  if (!token) {
+    if (isCurrent()) {
+      evidenceLedger.value = unavailableEvidenceLedger(articleId, 'AUTH_REQUIRED')
+    }
+    return
+  }
+  evidenceLedgerLoading.value = true
+  try {
+    const res = await fetch(`${API_PREFIX}/evidence-ledger/articles/${articleId}/history`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!isCurrent()) return
+    if (!res.ok) {
+      evidenceLedger.value = unavailableEvidenceLedger(articleId, 'LEDGER_REQUEST_FAILED')
+      return
+    }
+    const data = await res.json().catch(() => ({}))
+    if (!isCurrent()) return
+    evidenceLedger.value = normalizeEvidenceLedgerHistory(data, articleId)
+  } catch {
+    if (isCurrent()) {
+      evidenceLedger.value = unavailableEvidenceLedger(articleId, 'LEDGER_REQUEST_FAILED')
+    }
+  } finally {
+    if (isCurrent()) evidenceLedgerLoading.value = false
+  }
+}
+
+async function captureEvidenceRevision() {
+  const isCurrentRequest = evidenceCaptureRequestGate.begin()
+  const articleId = Number(news.value?.id)
+  const token = getToken()
+  if (!token || !Number.isInteger(articleId) || articleId <= 0) {
+    ElMessage.warning('请登录后保存证据快照')
+    return
+  }
+  const isCurrent = () => (
+    isCurrentRequest()
+    && Number(news.value?.id) === articleId
+    && Number(route.params.id) === articleId
+  )
+  const previous = latestEvidenceRevision.value
+  evidenceCaptureLoading.value = true
+  try {
+    const res = await fetch(`${API_PREFIX}/evidence-ledger/articles/${articleId}/captures`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        reason: 'manual article evidence capture from authenticated reader',
+        change_type: previous ? 'update' : 'initial',
+        expected_previous_event_id: previous?.event_id || null,
+      }),
+    })
+    if (!isCurrent()) return
+    if (!res.ok) throw new Error('EVIDENCE_CAPTURE_FAILED')
+    const data = await res.json().catch(() => ({}))
+    if (!isCurrent()) return
+    await loadEvidenceLedger(articleId, isCurrent)
+    if (!isCurrent()) return
+    ElMessage.success(data.content_changed ? '已保存新版本，并标记下游影响复核' : '当前正文版本已保存')
+  } catch {
+    if (isCurrent()) ElMessage.error('证据快照保存失败，请稍后重试。')
+  } finally {
+    if (isCurrentRequest()) evidenceCaptureLoading.value = false
+  }
+}
+
+async function fetchAnalysis(newsId, isCurrent = () => true) {
+  if (!newsId || !isCurrent()) return
   analysisLoading.value = true
   try {
     const res = await fetch(`${API_PREFIX}/dashboard/news/${newsId}/analysis`)
+    if (!isCurrent()) return
     if (res.ok) {
       const data = await res.json()
+      if (!isCurrent()) return
       analysisItems.value = Array.isArray(data?.items) ? data.items : []
       analysisL1Clusters.value = Array.isArray(data?.l1_clusters) ? data.l1_clusters : []
       analysisL2Chains.value = Array.isArray(data?.l2_chains) ? data.l2_chains : []
@@ -914,6 +1163,7 @@ async function fetchAnalysis(newsId) {
       analysisTrend.value = Array.isArray(data?.trend) ? data.trend : []
       chinaAnalysis.value = data?.china_analysis || null
       eventExtraction.value = data?.event_extraction || null
+      evidenceChain.value = normalizeEvidenceChain(data?.evidence_chain, newsId)
     } else {
       analysisItems.value = []
       analysisL1Clusters.value = []
@@ -922,15 +1172,32 @@ async function fetchAnalysis(newsId) {
       analysisTrend.value = []
       chinaAnalysis.value = null
       eventExtraction.value = null
+      evidenceChain.value = normalizeEvidenceChain(null, newsId)
     }
     if (!analysisItems.value.length && news.value) {
-      analysisItems.value = [
-        { key: 'pub_date', label: '发布日期', value: formatTime(news.value.pub_time) || '—' },
-        { key: 'source', label: '来源', value: news.value.source || '—' },
-        { key: 'language', label: '语言/地区', value: news.value.location || '—' },
-      ]
+        analysisItems.value = [
+          { key: 'published_at', label: '新闻发布日期', value: formatTime(newsTimeSemantics.value.publishedAt) },
+          { key: 'event_time', label: '事件时间', value: eventTimeDisplay.value },
+          { key: 'collected_at', label: '采集时间', value: formatTime(newsTimeSemantics.value.collectedAt) },
+          { key: 'updated_at', label: '更新时间', value: formatTime(newsTimeSemantics.value.updatedAt) },
+          { key: 'source', label: '来源', value: news.value.source || '—' },
+          { key: 'language', label: '语言代码', value: news.value.language_id || '—' },
+          ...(news.value.source_country
+            ? [{ key: 'source_country', label: '来源国（未权威核验）', value: news.value.source_country }]
+            : []),
+          ...(news.value.source_region
+            ? [{ key: 'source_region', label: '来源地区（未权威核验）', value: news.value.source_region }]
+            : []),
+          ...(news.value.news_region
+            ? [{ key: 'news_region', label: '新闻地区（语义未映射）', value: news.value.news_region }]
+            : []),
+          ...(news.value.location
+            ? [{ key: 'location', label: '位置（记录值，未核验）', value: news.value.location }]
+            : []),
+        ]
     }
   } catch {
+    if (!isCurrent()) return
     analysisItems.value = []
     analysisL1Clusters.value = []
     analysisL2Chains.value = []
@@ -938,49 +1205,38 @@ async function fetchAnalysis(newsId) {
     analysisTrend.value = []
     chinaAnalysis.value = null
     eventExtraction.value = null
+    evidenceChain.value = normalizeEvidenceChain(null, newsId)
   } finally {
-    analysisLoading.value = false
+    if (isCurrent()) analysisLoading.value = false
   }
 }
 
-async function translateViaLocalLlm(text) {
-  const res = await fetch(`${API_PREFIX}/dashboard/news/translate-paragraph`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text,
-      target_language: '简体中文',
-    }),
-    signal: AbortSignal.timeout(120000),
+async function translateViaLocalLlm(text, token, signal) {
+  return requestMachineTranslation({
+    apiPrefix: API_PREFIX,
+    sourceText: text,
+    sourceLanguage: 'und',
+    targetLanguage: 'zh-Hans',
+    token,
+    signal,
   })
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const err = await res.json()
-      detail = err?.detail ? `：${err.detail}` : ''
-    } catch {
-      detail = ''
-    }
-    throw new Error(`本地 LLM 翻译失败 ${res.status}${detail}`)
-  }
-  const data = await res.json()
-  return String(data?.text || '').trim()
 }
 
-async function translateParagraphList(paragraphs, translator) {
+async function translateParagraphList(paragraphs, translator, isCurrent) {
   const out = new Array(paragraphs.length).fill('')
   const concurrency = Math.min(TRANSLATION_BODY_CONCURRENCY, paragraphs.length)
   let cursor = 0
   let completed = 0
 
   function updateTranslationProgress() {
+    if (!isCurrent()) return
     translationHint.value = `正在并发翻译正文：${completed} / ${paragraphs.length} 段完成 · 并发 ${concurrency}`
   }
 
   updateTranslationProgress()
 
   async function worker() {
-    while (cursor < paragraphs.length) {
+    while (isCurrent() && cursor < paragraphs.length) {
       const idx = cursor++
       const src = paragraphs[idx] || ''
       if (!src.trim()) {
@@ -990,11 +1246,13 @@ async function translateParagraphList(paragraphs, translator) {
         continue
       }
       const translated = await translator(src)
-      out[idx] = cleanTranslatedText(translated)
-      if (translation.value && Array.isArray(translation.value.body_paragraphs)) {
+      if (!isCurrent()) return
+      out[idx] = cleanTranslatedText(translated.text)
+      if (translation.value && Array.isArray(translation.value.body_paragraphs) && isCurrent()) {
         translation.value.body_paragraphs[idx] = out[idx]
       }
-      await animateParagraphTyping(idx, out[idx])
+      await animateParagraphTyping(idx, out[idx], isCurrent)
+      if (!isCurrent()) return
       completed += 1
       updateTranslationProgress()
     }
@@ -1009,62 +1267,98 @@ async function translateParagraphList(paragraphs, translator) {
 }
 
 async function fetchTranslation() {
+  const articleId = String(news.value?.id || '')
+  const isCurrentRequest = translationRequestGate.begin()
+  translationAbortController?.abort()
+  const controller = new AbortController()
+  translationAbortController = controller
+  let translationRequestClosed = false
+  const isCurrent = () => (
+    !translationRequestClosed
+    && isCurrentRequest()
+    && String(news.value?.id || '') === articleId
+    && String(route.params.id || '') === articleId
+  )
   translationLoading.value = true
   translationHint.value = ''
   renderedTranslationParagraphs.value = []
   paragraphTypingMap.value = {}
 
   try {
-    if (!news.value) return
+    if (!news.value || !articleId) return
+    const token = getToken()
+    if (!token) {
+      if (hasExistingTrans.value) {
+        loadDbTranslation()
+        translationHint.value = '未调用机器翻译；已显示数据库既有译文，provenance 未登记。'
+      } else {
+        translation.value = null
+        translationHint.value = '请登录后使用机器翻译；当前没有数据库既有译文。'
+      }
+      return
+    }
 
-    const t = translateViaLocalLlm
+    const workload = buildTranslationWorkload({
+      title: news.value.title,
+      abstract: news.value.abstract,
+      paragraphs: splitReadableParagraphs(news.value.body || ''),
+    })
+    const receipts = []
+    const t = async (sourceText) => {
+      const result = await translateViaLocalLlm(sourceText, token, controller.signal)
+      if (!isCurrent()) return result
+      receipts.push(result.provenance)
+      return result
+    }
 
     async function doTranslate() {
-      // 只翻译非空内容，避免浪费请求
       translationHint.value = '正在调用本地 LLM 翻译标题与摘要...'
-      const titlePromise = news.value.title ? t(news.value.title) : ''
-      const abstractPromise = news.value.abstract ? t(news.value.abstract) : ''
-      const [title, abstract] = await Promise.all([titlePromise, abstractPromise])
+      const titlePromise = workload.title ? t(workload.title) : Promise.resolve(null)
+      const abstractPromise = workload.abstract ? t(workload.abstract) : Promise.resolve(null)
+      const [titleResult, abstractResult] = await Promise.all([titlePromise, abstractPromise])
+      if (!isCurrent()) return
 
       translation.value = {
-        title: cleanTranslatedText(title || ''),
-        abstract: cleanTranslatedText(abstract || ''),
+        title: cleanTranslatedText(titleResult?.text || ''),
+        abstract: cleanTranslatedText(abstractResult?.text || ''),
         body: '',
         body_paragraphs: [],
+        provenance: null,
       }
 
-      const srcParagraphs = splitReadableParagraphs(news.value.body || '')
       let body = ''
       let bodyParagraphs = []
-      if (srcParagraphs.length) {
-        translation.value.body_paragraphs = new Array(srcParagraphs.length).fill('')
-        renderedTranslationParagraphs.value = new Array(srcParagraphs.length).fill('')
-        bodyParagraphs = await translateParagraphList(srcParagraphs, t)
+      if (workload.paragraphs.length) {
+        translation.value.body_paragraphs = new Array(workload.paragraphs.length).fill('')
+        renderedTranslationParagraphs.value = new Array(workload.paragraphs.length).fill('')
+        bodyParagraphs = await translateParagraphList(workload.paragraphs, t, isCurrent)
+        if (!isCurrent()) return
         body = bodyParagraphs.join('\n\n')
-      } else if (news.value.body) {
-        body = cleanTranslatedText(await t(news.value.body))
       }
 
-      translation.value.title = cleanTranslatedText(title || '')
-      translation.value.abstract = cleanTranslatedText(abstract || '')
       translation.value.body = cleanTranslatedText(body)
       translation.value.body_paragraphs = bodyParagraphs
-      translationHint.value = '本地 LLM 翻译完成，正文已按段落生成。'
+      translation.value.provenance = summarizeMachineTranslationProvenance(receipts)
+      translationHint.value = '机器翻译已生成；未经人工复核，质量未测量。'
     }
 
     await doTranslate()
-  } catch (e) {
-    console.error('获取翻译失败:', e)
-    // LLM 全部不可用时回退到数据库已有翻译
+  } catch {
+    const shouldHandleFailure = isCurrent()
+    translationRequestClosed = true
+    controller.abort()
+    if (!shouldHandleFailure) return
     if (hasExistingTrans.value) {
       loadDbTranslation()
-      translationHint.value = `本地 LLM 暂不可用，已显示数据库已有翻译。${e?.message || ''}`
+      translationHint.value = '机器翻译暂不可用；已显示数据库既有译文，provenance 未登记。'
     } else {
-      translationHint.value = `本地 LLM 翻译失败：${e?.message || e}`
+      translationHint.value = '机器翻译暂不可用，请稍后重试。'
       translation.value = null
     }
   } finally {
-    translationLoading.value = false
+    translationRequestClosed = true
+    if (isCurrentRequest()) translationLoading.value = false
+    if (translationAbortController === controller) translationAbortController = null
   }
 }
 
@@ -1081,6 +1375,7 @@ function loadDbTranslation() {
     abstract: news.value.trans_abstract || '',
     body: body,
     body_paragraphs: body ? splitReadableParagraphs(body) : [],
+    provenance: databaseTranslationProvenance(),
   }
   renderedTranslationParagraphs.value = []
   paragraphTypingMap.value = {}
@@ -1131,17 +1426,20 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function animateParagraphTyping(idx, fullText) {
+async function animateParagraphTyping(idx, fullText, isCurrent = () => true) {
+  if (!isCurrent()) return
   const text = String(fullText || '')
   paragraphTypingMap.value[idx] = true
   renderedTranslationParagraphs.value[idx] = ''
   const step = text.length > 380 ? 3 : 2
   for (let i = 0; i < text.length; i += step) {
+    if (!isCurrent()) return
     renderedTranslationParagraphs.value[idx] = text.slice(0, i + step)
     if (i % (step * 2) === 0) {
       await sleep(10)
     }
   }
+  if (!isCurrent()) return
   renderedTranslationParagraphs.value[idx] = text
   paragraphTypingMap.value[idx] = false
 }
@@ -1221,6 +1519,11 @@ onMounted(() => {
   window.addEventListener('resize', syncParagraphHeights)
 })
 onBeforeUnmount(() => {
+  newsRequestGate.invalidate()
+  evidenceCaptureRequestGate.invalidate()
+  translationRequestGate.invalidate()
+  translationAbortController?.abort()
+  translationAbortController = null
   stopPanelDrag()
   window.removeEventListener('resize', syncParagraphHeights)
 })
@@ -1235,4 +1538,4 @@ watch(showTranslationPanel, (v) => {
 watch([showTranslationPanel, bodyParagraphs, translationBodyParagraphs], syncParagraphHeightsAsync, { deep: true })
 </script>
 
-<style src="./news-detail.css" scoped></style>.news-detail {
+<style src="./news-detail.css" scoped></style>

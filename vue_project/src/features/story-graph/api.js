@@ -64,9 +64,12 @@ export function createStoryGraphApi({
   assistantApiRoot = API_PREFIX,
 } = {}) {
   return Object.freeze({
-    async listStories(mode) {
+    async listStories(mode, { signal } = {}) {
       const request = buildStoryGraphListRequest(mode)
-      const response = await client.get(`${apiRoot}${request.path}`, { params: request.params })
+      const response = await client.get(`${apiRoot}${request.path}`, {
+        params: request.params,
+        signal,
+      })
       return response.data
     },
 

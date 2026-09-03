@@ -2,6 +2,13 @@
 import { onMounted, ref } from 'vue'
 import { getToken } from '@/utils/auth'
 import { assistantApi } from '../api.js'
+import {
+  directoryLoadErrorText,
+  formatDirectoryCount,
+  formatDirectoryTimestamp,
+  memberPresenceLabel,
+  siteDirectoryStatus,
+} from '../directory/model.js'
 
 defineProps({ activeSideNav: { type: String, default: '' } })
 
@@ -32,21 +39,11 @@ async function loadPanelData() {
     ])
     monitoredSites.value = sites
     teamMembers.value = members
-  } catch (e) {
-    panelError.value = e?.message || '站点与成员配置加载失败'
+  } catch (error) {
+    panelError.value = directoryLoadErrorText(error)
   } finally {
     panelLoading.value = false
   }
-}
-
-function safeCount(value) {
-  const n = Number(value || 0)
-  return Number.isFinite(n) ? n.toLocaleString() : '0'
-}
-
-function formatSiteTime(value) {
-  const text = String(value || '')
-  return text.length >= 16 ? text.slice(11, 16) : '-'
 }
 
 function memberInitial(member) {
@@ -68,7 +65,7 @@ onMounted(loadPanelData)
     <div class="ys-page-head">
       <h1 class="ys-page-title">站点</h1>
       <div class="ys-page-head-row">
-        <p class="ys-page-sub">监测站点管理与采集状态</p>
+        <p class="ys-page-sub">只读站点目录与配置状态；不代表实时采集或可用性。</p>
         <button class="kb-upload-btn" disabled title="站点写入由管理员配置文件维护">只读配置</button>
       </div>
     </div>
@@ -79,20 +76,20 @@ onMounted(loadPanelData)
       <div v-for="site in monitoredSites" :key="site.id" class="site-card">
         <div class="site-card-top">
           <span class="site-card-icon">{{ site.icon || '◎' }}</span>
-          <span class="site-card-status" :class="'site-status--' + site.status">
-            {{ site.status === 'active' ? '采集中' : site.status === 'paused' ? '已暂停' : '异常' }}
+          <span class="site-card-status" :class="'site-status--' + siteDirectoryStatus(site.status).tone">
+            {{ siteDirectoryStatus(site.status).label }}
           </span>
         </div>
         <div class="site-card-name">{{ site.name || '未命名站点' }}</div>
         <div class="site-card-url">{{ site.url || '-' }}</div>
         <div class="site-card-stats">
           <div class="site-stat">
-            <span class="site-stat-num">{{ safeCount(site.articles) }}</span>
-            <span class="site-stat-label">文章</span>
+            <span class="site-stat-num">{{ formatDirectoryCount(site.articles) }}</span>
+            <span class="site-stat-label">目录登记文章数</span>
           </div>
           <div class="site-stat">
-            <span class="site-stat-num">{{ formatSiteTime(site.lastCrawl) }}</span>
-            <span class="site-stat-label">上次采集</span>
+            <span class="site-stat-num">{{ formatDirectoryTimestamp(site.lastCrawl) }}</span>
+            <span class="site-stat-label">目录记录时间</span>
           </div>
         </div>
       </div>
@@ -105,7 +102,7 @@ onMounted(loadPanelData)
       <div>
         <p class="members-eyebrow">Team Workspace</p>
         <h1>成员与权限</h1>
-        <p>管理研究、编辑和观察角色，保持报告协作链路清晰。</p>
+        <p>只读成员目录与角色配置；在线字段仅是目录标记，不代表实时在线。</p>
       </div>
       <button class="member-invite-btn" disabled title="成员写入由管理员配置文件维护">只读配置</button>
     </section>
@@ -118,7 +115,7 @@ onMounted(loadPanelData)
         <strong>{{ teamMembers.length }}</strong>
       </div>
       <div class="member-stat-card">
-        <span>在线成员</span>
+        <span>目录在线标记</span>
         <strong>{{ teamMembers.filter(m => m.online).length }}</strong>
       </div>
       <div class="member-stat-card">
@@ -147,7 +144,7 @@ onMounted(loadPanelData)
       <div class="members-list">
         <div v-if="!teamMembers.length" class="member-stat-card member-stat-card--empty">暂无成员配置。</div>
         <article v-for="m in teamMembers" :key="m.id" class="member-row-card">
-          <div class="member-avatar" :class="{ online: m.online }">
+          <div class="member-avatar" :class="{ 'directory-online': m.online === true }">
             {{ memberInitial(m) }}
           </div>
           <div class="member-row-main">
@@ -158,7 +155,7 @@ onMounted(loadPanelData)
           <div class="member-row-meta">
             <span>{{ m.title || '未填写职位' }}</span>
             <span>{{ m.dept || '未填写部门' }}</span>
-            <span :class="{ online: m.online }">{{ m.online ? '在线' : '离线' }}</span>
+            <span :class="{ 'directory-online': m.online === true }">{{ memberPresenceLabel(m.online) }}</span>
           </div>
         </div>
           <span class="member-card-readonly" title="成员写入由管理员配置文件维护">只读</span>
@@ -186,9 +183,10 @@ onMounted(loadPanelData)
 .site-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .site-card-icon { font-size: 24px; }
 .site-card-status { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
-.site-status--active { background: rgba(16, 185, 129, 0.1); color: rgba(4, 120, 87, 0.9); border: 1px solid rgba(16, 185, 129, 0.2); }
+.site-status--configured { background: rgba(16, 185, 129, 0.1); color: rgba(4, 120, 87, 0.9); border: 1px solid rgba(16, 185, 129, 0.2); }
 .site-status--paused { background: rgba(245, 158, 11, 0.1); color: rgba(180, 83, 9, 0.9); border: 1px solid rgba(245, 158, 11, 0.2); }
 .site-status--error { background: rgba(239, 68, 68, 0.1); color: rgba(185, 28, 28, 0.9); border: 1px solid rgba(239, 68, 68, 0.2); }
+.site-status--unknown { background: rgba(100, 116, 139, 0.08); color: rgba(71, 85, 105, 0.92); border: 1px solid rgba(100, 116, 139, 0.18); }
 .site-card-name { font-size: 16px; font-weight: 700; color: rgba(15, 23, 42, 0.9); margin-bottom: 2px; }
 .site-card-url { font-size: 12px; color: rgba(100, 116, 139, 0.85); margin-bottom: 12px; font-weight: 500; }
 .site-card-stats { display: flex; gap: 20px; border-top: 1px solid rgba(15, 23, 42, 0.06); padding-top: 10px; }
@@ -218,13 +216,13 @@ onMounted(loadPanelData)
 .member-row-card:last-child { border-bottom: 0; }
 .member-row-card:hover { background: #f8fbff; }
 .member-avatar { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #fff; background: #94a3b8; font-weight: 900; font-size: 19px; box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08); }
-.member-avatar.online { background: linear-gradient(135deg, #2563eb, #10b981); }
+.member-avatar.directory-online { background: linear-gradient(135deg, #2563eb, #10b981); }
 .member-row-main { min-width: 0; }
 .member-row-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .member-row-top strong { color: #0f172a; font-size: 15px; font-weight: 950; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .member-role-tag { display: inline-flex; align-items: center; flex: 0 0 auto; font-size: 11px; font-weight: 850; padding: 3px 9px; border-radius: 999px; background: rgba(37, 99, 235, 0.08); color: #1d4ed8; border: 1px solid rgba(37, 99, 235, 0.16); }
 .member-row-meta { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 7px; color: rgba(100, 116, 139, 0.9); font-size: 12px; font-weight: 700; }
-.member-row-meta .online { color: #047857; }
+.member-row-meta .directory-online { color: #047857; }
 .member-card-del { height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid rgba(239, 68, 68, 0.14); background: rgba(239, 68, 68, 0.06); color: rgba(185, 28, 28, 0.85); cursor: pointer; font-size: 12px; font-weight: 820; }
 .member-card-del:hover { background: rgba(239, 68, 68, 0.12); }
 .member-card-readonly { height: 28px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid rgba(100, 116, 139, 0.16); background: rgba(100, 116, 139, 0.06); color: rgba(71, 85, 105, 0.86); font-size: 12px; font-weight: 820; }
