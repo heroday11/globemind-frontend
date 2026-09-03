@@ -11,22 +11,10 @@
 
       <div class="intel-topbar__meta">
         <div class="intel-mode-switch" data-tour="story-level-switch" role="tablist" aria-label="图谱层级">
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="graphMode === 'l3'"
-            :class="{ 'is-active': graphMode === 'l3' }"
-            @click="switchGraphMode('l3')"
-          >
+          <button :class="{ 'is-active': graphMode === 'l3' }" @click="switchGraphMode('l3')">
             L3 大事件
           </button>
-          <button
-            type="button"
-            role="tab"
-            :aria-selected="graphMode === 'l2'"
-            :class="{ 'is-active': graphMode === 'l2' }"
-            @click="switchGraphMode('l2')"
-          >
+          <button :class="{ 'is-active': graphMode === 'l2' }" @click="switchGraphMode('l2')">
             L2 走势链
           </button>
         </div>
@@ -37,13 +25,13 @@
         <span class="intel-badge intel-badge--soft" v-if="storyStatsText">
           {{ storyStatsText }}
         </span>
-        <button type="button" class="intel-btn intel-btn--ghost" :disabled="!graph" @click="fitCanvas">
+        <button class="intel-btn intel-btn--ghost" :disabled="!graph" @click="fitCanvas">
           适配视图
         </button>
-        <button type="button" class="intel-btn intel-btn--ghost" :disabled="!graph" @click="toggleContextLinks">
+        <button class="intel-btn intel-btn--ghost" :disabled="!graph" @click="toggleContextLinks">
           {{ showContextLinks ? '隐藏关联线' : '显示关联线' }}
         </button>
-        <button type="button" class="intel-btn intel-btn--assistant intel-topbar__assistant" @click="openStoryAssistantDrawer()">
+        <button class="intel-btn intel-btn--assistant intel-topbar__assistant" @click="openStoryAssistantDrawer()">
           数据助手
         </button>
       </div>
@@ -62,30 +50,19 @@
               <span class="intel-panel__eyebrow">{{ graphModeLabel }} 导航</span>
               <h2>{{ libraryTitle }}</h2>
             </div>
-            <button type="button" class="intel-icon-btn" @click="leftCollapsed = true" title="收起导航">
+            <button class="intel-icon-btn" @click="leftCollapsed = true" title="收起导航">
               <span>⟨</span>
             </button>
           </div>
 
           <section class="intel-section">
-            <label class="intel-label" for="story-graph-query">{{ searchLabel }}</label>
+            <label class="intel-label">{{ searchLabel }}</label>
             <input
-              id="story-graph-query"
               v-model.trim="storySearch"
               class="intel-input"
               type="text"
               :placeholder="searchPlaceholder"
-              aria-describedby="story-graph-query-status"
             />
-            <p
-              id="story-graph-query-status"
-              class="intel-query-status"
-              :class="{ 'is-empty': storySearch && !filteredStories.length }"
-              role="status"
-              aria-live="polite"
-            >
-              {{ libraryQueryMessage }}
-            </p>
           </section>
 
           <section class="intel-section intel-section--library">
@@ -97,7 +74,6 @@
               <button
                 v-for="story in filteredStories"
                 :key="story.id"
-                type="button"
                 class="intel-story-card"
                 :class="{ 'is-active': String(story.id) === selectedStoryId }"
                 @click="selectStory(story.id)"
@@ -107,7 +83,7 @@
                     familyLabel(story.family_group || story.event_type)
                   }}</span>
                   <span class="intel-story-card__count">{{
-                    researchValueLabel(researchValueScore(story))
+                    storyResearchMetric(story).valueLabel
                   }}</span>
                 </div>
                 <strong>{{ displayStoryTitle(story) }}</strong>
@@ -146,7 +122,7 @@
                     ? `${graphMetrics.mainNodes} 个 L2 节点`
                     : `${graphMetrics.mainNodes} 个走势节点`
                 }}</span>
-                <span class="intel-chip">{{ evidenceLevel(currentStory.meta?.article_count) }}</span>
+                <span class="intel-chip">{{ currentStory.meta?.article_count || 0 }} 条新闻</span>
               </div>
             </div>
           </section>
@@ -160,7 +136,6 @@
               <button
                 v-for="item in branchStories"
                 :key="item.story_id"
-                type="button"
                 class="intel-related-card"
                 @click="selectStory(item.story_id)"
               >
@@ -179,7 +154,6 @@
       <main class="intel-canvas-panel" data-tour="story-canvas">
         <button
           v-if="leftCollapsed"
-          type="button"
           class="intel-side-toggle intel-side-toggle--left"
           @click="leftCollapsed = false"
           title="打开导航"
@@ -209,58 +183,17 @@
           {{ samplingNotice }}
         </p>
 
-        <p id="story-graph-keyboard-help" class="intel-sr-only">
-          图谱节点和关系可用 Tab 聚焦，并用 Enter 或空格选择。也可展开键盘与列表视图逐项浏览。
-        </p>
-        <div
-          ref="graphContainer"
-          class="intel-canvas"
-          role="region"
-          aria-label="事件故事关系图"
-          aria-describedby="story-graph-keyboard-help"
-        ></div>
+        <div ref="graphContainer" class="intel-canvas" role="region" aria-label="事件故事关系图"></div>
 
-        <details v-if="currentStory" class="intel-accessible-list">
-          <summary>
-            <span>键盘与列表视图</span>
-            <strong>{{ accessibleGraphList.nodes.length }} 节点 · {{ accessibleGraphList.edges.length }} 关系</strong>
-          </summary>
-          <div class="intel-accessible-list__body">
-            <p>列表与画布使用同一图谱数据；选择一项会打开相同的结构化焦点面板。</p>
-            <section aria-labelledby="story-graph-node-list-title">
-              <h2 id="story-graph-node-list-title">节点</h2>
-              <ul>
-                <li v-for="item in accessibleGraphList.nodes" :key="`accessible-node-${item.id}`">
-                  <button type="button" @click="selectInspector(item.payload)">
-                    <strong>{{ item.title }}</strong>
-                    <small>{{ item.meta }}</small>
-                  </button>
-                </li>
-              </ul>
-            </section>
-            <section v-if="accessibleGraphList.edges.length" aria-labelledby="story-graph-edge-list-title">
-              <h2 id="story-graph-edge-list-title">关系</h2>
-              <ul>
-                <li v-for="item in accessibleGraphList.edges" :key="`accessible-edge-${item.id}`">
-                  <button type="button" @click="selectInspector(item.payload)">
-                    <strong>{{ item.title }}</strong>
-                    <small>{{ item.meta }}</small>
-                  </button>
-                </li>
-              </ul>
-            </section>
-          </div>
-        </details>
-
-        <div v-if="loading" class="intel-overlay" role="status" aria-live="polite">
+        <div v-if="loading" class="intel-overlay">
           <div class="intel-spinner"></div>
           <span>正在加载{{ graphMode === 'l3' ? ' L3 大事件图谱' : ' L2 走势工作台' }}...</span>
         </div>
 
-        <div v-else-if="error" class="intel-overlay intel-overlay--error" role="alert">
+        <div v-else-if="error" class="intel-overlay intel-overlay--error">
           <strong>走势图谱加载失败</strong>
           <p>{{ error }}</p>
-          <button type="button" class="intel-btn" @click="reloadCurrentStory">重试</button>
+          <button class="intel-btn" @click="reloadCurrentStory">重试</button>
         </div>
 
         <div v-else-if="!currentStory" class="intel-overlay intel-overlay--quiet">
@@ -283,7 +216,7 @@
               ><i class="legend-swatch legend-swatch--branch"></i
               >{{ graphMode === 'l3' ? '角度支线' : '关联分支' }}</span
             >
-            <span><i class="legend-swatch legend-swatch--context"></i>关系假设</span>
+            <span><i class="legend-swatch legend-swatch--context"></i>影响关系</span>
           </div>
         </div>
 
@@ -297,7 +230,7 @@
                 <h3>{{ selectedInspectorTitle }}</h3>
                 <p>{{ selectedInspectorSubtitle }}</p>
               </div>
-              <button type="button" class="intel-icon-btn" title="关闭详情" @click="closeFocusPanel">
+              <button class="intel-icon-btn" title="关闭详情" @click="closeFocusPanel">
                 <span>×</span>
               </button>
             </header>
@@ -318,46 +251,14 @@
                 <strong>{{ focusResearchValueText }}</strong>
               </div>
               <div>
-                <label>报道覆盖</label>
+                <label>证据</label>
                 <strong>{{ focusEvidenceText }}</strong>
               </div>
             </div>
 
-            <details class="intel-metric-explanation">
-              <summary>展开指标公式、输入和证据</summary>
-              <dl>
-                <div>
-                  <dt>指标</dt>
-                  <dd>{{ focusMetricExplanation.label }} · {{ focusMetricExplanation.valueLabel }}</dd>
-                </div>
-                <div>
-                  <dt>方法版本</dt>
-                  <dd>{{ focusMetricExplanation.method_version || '未建立' }}</dd>
-                </div>
-                <div>
-                  <dt>公式</dt>
-                  <dd>{{ focusMetricExplanation.formula }}</dd>
-                </div>
-                <div>
-                  <dt>证据定位</dt>
-                  <dd>{{ focusMetricExplanation.evidence.locator || '不可用' }}</dd>
-                </div>
-                <div>
-                  <dt>状态</dt>
-                  <dd>{{ focusMetricExplanation.reason_code }} · 不可用于事实或排序</dd>
-                </div>
-              </dl>
-              <ul>
-                <li v-for="input in focusMetricExplanation.inputs" :key="input.field">
-                  <code>{{ input.field }}</code>：{{ input.state === 'provided_unverified' ? `已提供但未核验（${input.value}）` : '不可用' }}
-                </li>
-              </ul>
-            </details>
-
             <div class="intel-focus-sheet__actions">
               <button
                 v-if="selectedInspector.kind === 'l3-chain' && selectedInspector.l2ChainId"
-                type="button"
                 class="intel-btn"
                 @click="openL2Chain(selectedInspector.l2ChainId)"
               >
@@ -370,7 +271,7 @@
               >
                 打开 Story Page
               </RouterLink>
-              <button type="button" class="intel-btn intel-btn--assistant" @click="openStoryAssistantDrawer(focusAssistantQuestion)">
+              <button class="intel-btn intel-btn--assistant" @click="openStoryAssistantDrawer(focusAssistantQuestion)">
                 让助手研判
               </button>
             </div>
@@ -413,27 +314,17 @@
               </div>
               <div v-if="evidenceLoading" class="intel-evidence-loading">正在加载新闻证据...</div>
               <div v-else-if="focusEvidenceNews.length" class="intel-focus-news__list">
-                <template v-for="item in focusEvidenceNews" :key="item.news_id">
-                  <a
-                    v-if="item.safe_url"
-                    class="intel-focus-news__item"
-                    :href="item.safe_url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <small>{{ evidenceNewsMeta(item) }}</small>
-                    <strong>{{ item.title || `新闻 ${item.news_id}` }}</strong>
-                  </a>
-                  <div
-                    v-else
-                    class="intel-focus-news__item is-unavailable"
-                    aria-disabled="true"
-                    title="原文链接不可用"
-                  >
-                    <small>{{ evidenceNewsMeta(item) }}</small>
-                    <strong>{{ item.title || `新闻 ${item.news_id}` }}</strong>
-                  </div>
-                </template>
+                <a
+                  v-for="item in focusEvidenceNews"
+                  :key="item.news_id"
+                  class="intel-focus-news__item"
+                  :href="item.url || '#'"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <small>{{ evidenceNewsMeta(item) }}</small>
+                  <strong>{{ item.title || `新闻 ${item.news_id}` }}</strong>
+                </a>
               </div>
               <div v-else class="intel-evidence-empty">
                 {{ focusEmptyText }}
@@ -1857,13 +1748,13 @@ function clampText(value, max = 11000) {
 }
 
 .intel-mode-switch button {
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
   padding: 9px 11px;
-  min-width: 44px;
-  min-height: 44px;
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
@@ -1994,12 +1885,12 @@ function clampText(value, max = 11000) {
 
 .intel-icon-btn,
 .intel-btn {
+  min-height: 44px;
   border: 1px solid var(--stroke);
   background: var(--paper-strong);
   color: var(--navy);
   border-radius: var(--panel-radius);
   padding: 10px 14px;
-  min-height: 44px;
   font-size: 13px;
   cursor: pointer;
   transition:
@@ -2167,22 +2058,6 @@ function clampText(value, max = 11000) {
 .intel-textarea:focus {
   border-color: rgba(39, 124, 139, 0.42);
   box-shadow: 0 0 0 3px rgba(39, 124, 139, 0.12);
-}
-
-.intel-query-status {
-  min-height: 34px;
-  margin: -2px 0 0;
-  border-radius: 6px;
-  padding: 7px 9px;
-  color: var(--muted);
-  background: rgba(232, 240, 247, 0.62);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.intel-query-status.is-empty {
-  color: #8a341f;
-  background: rgba(254, 235, 226, 0.82);
 }
 
 .intel-textarea {
@@ -2653,16 +2528,6 @@ function clampText(value, max = 11000) {
   box-shadow: 0 12px 26px rgba(28, 80, 124, 0.12);
 }
 
-.intel-focus-news__item.is-unavailable {
-  opacity: 0.72;
-}
-
-.intel-focus-news__item.is-unavailable:hover {
-  transform: none;
-  border-color: rgba(52, 91, 128, 0.14);
-  box-shadow: none;
-}
-
 .intel-focus-news__item small {
   color: var(--muted);
   font-size: 11px;
@@ -2782,8 +2647,8 @@ function clampText(value, max = 11000) {
 
 .intel-evidence-link {
   display: inline-flex;
-  align-items: center;
   min-height: 44px;
+  align-items: center;
   width: max-content;
   margin-top: 10px;
   border: 1px solid rgba(31, 123, 189, 0.36);
@@ -2801,6 +2666,8 @@ function clampText(value, max = 11000) {
 }
 
 .intel-side-toggle {
+  min-width: 44px;
+  min-height: 44px;
   position: absolute;
   top: 50%;
   z-index: 6;
@@ -2811,128 +2678,12 @@ function clampText(value, max = 11000) {
   background: var(--paper-strong);
   color: var(--soft);
   padding: 12px 10px;
-  min-width: 44px;
-  min-height: 44px;
   border-radius: var(--panel-radius);
   cursor: pointer;
 }
 
 .intel-side-toggle--left {
   left: 12px;
-}
-
-.intel-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.intel-accessible-list {
-  position: absolute;
-  top: 64px;
-  right: 18px;
-  z-index: 6;
-  box-sizing: border-box;
-  width: min(420px, calc(100% - 36px));
-  border: 1px solid var(--stroke);
-  border-radius: var(--panel-radius);
-  background: var(--paper-strong);
-  box-shadow: 0 14px 32px rgba(24, 67, 106, 0.16);
-}
-
-.intel-accessible-list > summary {
-  box-sizing: border-box;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  color: var(--soft);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.intel-accessible-list > summary strong {
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.intel-accessible-list__body {
-  max-height: min(52vh, 480px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-top: 1px solid var(--stroke);
-  padding: 12px;
-}
-
-.intel-accessible-list__body > p {
-  margin: 0 0 12px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.intel-accessible-list__body h2 {
-  margin: 12px 0 6px;
-  color: var(--soft);
-  font-size: 13px;
-}
-
-.intel-accessible-list__body ul {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.intel-accessible-list__body button {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 44px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 3px;
-  border: 1px solid var(--stroke);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--paper-soft);
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.intel-accessible-list__body button small {
-  color: var(--muted);
-  line-height: 1.35;
-}
-
-.intel-page button,
-.intel-page input,
-.intel-page .intel-focus-news__item {
-  min-height: 44px;
-  touch-action: manipulation;
-}
-
-.intel-page .intel-icon-btn {
-  min-width: 44px;
-}
-
-.intel-canvas :deep(.react-flow__node:focus-visible),
-.intel-canvas :deep(.react-flow__edge:focus-visible) {
-  outline: 3px solid #0b6ea8;
-  outline-offset: 4px;
 }
 
 @keyframes spin {
@@ -3026,17 +2777,6 @@ function clampText(value, max = 11000) {
   .intel-focus-detail-grid {
     grid-template-columns: 1fr;
   }
-
-  .intel-accessible-list {
-    top: 174px;
-    left: 18px;
-    right: 18px;
-    width: auto;
-  }
-
-  .intel-accessible-list__body {
-    max-height: 390px;
-  }
 }
 
 @media (max-width: 640px) {
@@ -3061,12 +2801,8 @@ function clampText(value, max = 11000) {
   }
 
   .intel-topbar h1 {
-    font-size: clamp(23px, 7.5vw, 28px);
+    font-size: 24px;
     overflow-wrap: anywhere;
-  }
-
-  .intel-topbar p {
-    line-height: 1.45;
   }
 
   .intel-topbar__meta {
@@ -3107,11 +2843,6 @@ function clampText(value, max = 11000) {
 
   .intel-canvas-panel {
     min-height: 620px;
-  }
-
-  .intel-accessible-list {
-    left: 10px;
-    right: 10px;
   }
 
   .intel-footerbar {
