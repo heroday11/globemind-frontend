@@ -174,15 +174,6 @@
           </div>
         </div>
 
-        <p
-          v-if="currentStory && samplingNotice"
-          class="intel-sampling-notice"
-          role="status"
-          aria-live="polite"
-        >
-          {{ samplingNotice }}
-        </p>
-
         <div ref="graphContainer" class="intel-canvas" role="region" aria-label="事件故事关系图"></div>
 
         <div v-if="loading" class="intel-overlay">
@@ -2243,25 +2234,6 @@ function clampText(value, max = 11000) {
 .intel-canvas-toolbar {
   top: 16px;
   right: 18px;
-}
-
-.intel-sampling-notice {
-  position: absolute;
-  z-index: 5;
-  top: 58px;
-  left: 18px;
-  right: 18px;
-  width: fit-content;
-  max-width: min(820px, calc(100% - 36px));
-  margin: 0;
-  padding: 8px 11px;
-  border: 1px solid rgba(168, 101, 32, 0.25);
-  border-radius: 7px;
-  background: rgba(255, 247, 232, 0.94);
-  color: #744516;
-  font-size: 12px;
-  line-height: 1.45;
-  box-shadow: 0 4px 12px rgba(80, 56, 28, 0.08);
 }
 
 .intel-footerbar {

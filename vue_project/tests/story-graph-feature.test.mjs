@@ -636,7 +636,7 @@ test('route consumes story graph only through the feature public entry', async (
   assert.match(source, /evidenceRequestGate\.isCurrent\(requestToken\)/)
   assert.match(source, /return relationResearchGuidance\(item\)/)
   assert.match(source, /graphSamplingNotice\(currentStory\.value\)/)
-  assert.match(source, /class="intel-sampling-notice"/)
+  assert.doesNotMatch(source, /class="intel-sampling-notice"/)
   assert.match(source, /\['主张 ID', item\.claimId/)
   assert.match(source, /\['引用定位', item\.citationLocator/)
   assert.doesNotMatch(source, /该边可进入报告草稿/)
