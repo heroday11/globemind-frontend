@@ -475,7 +475,7 @@ test('opinion presentation fails closed when trust metadata rejects the composit
   assert.equal(snapshot.computable, false)
   assert.equal(snapshot.headline, '目标立场指数不可计算')
   assert.equal(snapshot.cutoffDate, '2026-07-21')
-  assert.match(snapshot.detail, /超过时效门槛/)
+  assert.doesNotMatch(snapshot.detail, /超过时效门槛/)
   assert.match(snapshot.detail, /信源覆盖不足/)
   assert.equal(formatIndexValue(null), '--')
   assert.equal(formatIndexValue(undefined), '--')
@@ -507,7 +507,7 @@ test('snapshot cache rejects expired and corrupt entries without blocking the pa
   assert.equal(cache.read(OVERVIEW_CACHE_KEY), null)
 })
 
-test('snapshot cache re-ages trust on every read and removes stale exact composites', () => {
+test('snapshot cache keeps historical composites available beyond the freshness window', () => {
   const values = new Map()
   const storage = {
     getItem: (key) => values.get(key) ?? null,
@@ -532,11 +532,11 @@ test('snapshot cache re-ages trust on every read and removes stale exact composi
 
   now = Date.UTC(2026, 7, 12)
   const stale = cache.read(OVERVIEW_CACHE_KEY)
-  assert.equal(stale.trust.is_computable, false)
-  assert.equal(stale.summary.current_index, null)
-  assert.equal(stale.summary.positive_pct, null)
-  assert.equal(stale.families[0].avg_stance, null)
-  assert.ok(stale.trust.reason_codes.includes('STALE_DATA'))
+  assert.equal(stale.trust.is_computable, true)
+  assert.equal(stale.summary.current_index, -27.4)
+  assert.equal(stale.summary.positive_pct, 20)
+  assert.equal(stale.families[0].avg_stance, -0.4)
+  assert.deepEqual(stale.trust.reason_codes, [])
 })
 
 test('unified frontend sanitizer rejects missing, damaged, and contradictory trust metadata', () => {
@@ -616,6 +616,8 @@ test('sentiment page consumes the feature through its public entry and has no di
   assert.match(page, /from ['"]@\/features\/sentiment\/index\.js['"]/)
   assert.doesNotMatch(page, /@\/features\/sentiment\/(?!index\.js)/)
   assert.doesNotMatch(page, /\baxios\b|\bfetch\s*\(|@\/config\/api|\bAPI_PREFIX\b/)
+  assert.doesNotMatch(page, /quality-status-bar|chart-trust-unavailable/)
+  assert.doesNotMatch(page, /目标立场趋势暂不出分|数据已超过时效门槛/)
   assert.match(entry, /SentimentFilterToggle/)
   assert.match(component, /variant === 'drawer'/)
   assert.match(component, /SENTIMENT_OPTIONS/)

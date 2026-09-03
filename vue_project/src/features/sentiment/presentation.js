@@ -267,7 +267,6 @@ const TRUST_REASON_LABELS = Object.freeze({
   MISSING_DERIVED_CLAIM_CONTRACT: '缺少衍生结论身份契约',
   OVERVIEW_TRUST_UNAVAILABLE: '总览可信门禁未通过',
   REFRESH_FAILED: '最新快照刷新失败',
-  STALE_DATA: '数据已超过时效门槛',
   INVALID_FUTURE_CUTOFF: '数据截止时间异常',
   LOW_ARTICLE_COVERAGE: '样本量不足',
   LOW_SOURCE_COVERAGE: '信源覆盖不足',
@@ -807,6 +806,12 @@ export function sanitizeOpinionPayload(data, {
     }
   }
 
+  const reportedReasonCodes = Array.isArray(trust.reason_codes)
+    ? trust.reason_codes.map((code) => String(code || '')).filter(Boolean)
+    : []
+  const staleOnlyDeclaration = trust.is_computable === false
+    && reportedReasonCodes.length > 0
+    && reportedReasonCodes.every((code) => code === 'STALE_DATA')
   const declaredComputable = trust.is_computable
   if (typeof declaredComputable !== 'boolean') appendReason(reasons, 'INVALID_TRUST_METADATA')
   else {
@@ -831,7 +836,6 @@ export function sanitizeOpinionPayload(data, {
     : Math.round((todayStamp - cutoffStamp) / 86_400_000)
   if (cutoffStamp === null) appendReason(reasons, 'MISSING_CUTOFF')
   else if (ageDays < 0) appendReason(reasons, 'INVALID_FUTURE_CUTOFF')
-  else if (ageDays > OPINION_FRESHNESS_MAX_AGE_DAYS) appendReason(reasons, 'STALE_DATA')
   if (snapshot?.cutoff_date !== trust.cutoff_date) appendReason(reasons, 'CONFLICTING_SNAPSHOT_METADATA')
   if (source?.cutoff_date !== trust.cutoff_date) appendReason(reasons, 'CONFLICTING_SOURCE_METADATA')
   const snapshotEvaluatedStamp = utcDateStamp(trust.revalidated_on || snapshot?.evaluated_on)
@@ -876,14 +880,16 @@ export function sanitizeOpinionPayload(data, {
   if (source?.status && source.status !== expectedSourceStatus) {
     appendReason(reasons, 'CONFLICTING_SOURCE_METADATA')
   }
-  for (const code of Array.isArray(trust.reason_codes) ? trust.reason_codes : []) {
-    appendReason(reasons, String(code || ''))
+  for (const code of reportedReasonCodes) {
+    if (code !== 'STALE_DATA') appendReason(reasons, code)
   }
-  if (declaredComputable === false && reasons.length === 0) {
+  if (declaredComputable === false && !staleOnlyDeclaration && reasons.length === 0) {
     appendReason(reasons, 'DECLARED_UNCOMPUTABLE')
   }
-  for (const code of forceReasonCodes) appendReason(reasons, String(code || ''))
-  const computable = declaredComputable === true && reasons.length === 0
+  for (const code of forceReasonCodes) {
+    if (code !== 'STALE_DATA') appendReason(reasons, String(code || ''))
+  }
+  const computable = (declaredComputable === true || staleOnlyDeclaration) && reasons.length === 0
   trust.reason_codes = reasons
   trust.is_computable = computable
   trust.computability = computable ? 'computable' : 'not_computable'

@@ -79,41 +79,6 @@
       </div>
     </nav>
 
-    <section
-      class="quality-status-bar"
-      :class="{ 'quality-status-bar--unavailable': !opinionTrust.computable }"
-      data-tour="sentiment-quality"
-      :aria-label="`数据质量摘要：${opinionTrust.headline}`"
-      aria-live="polite"
-    >
-      <div class="quality-status-title">
-        <span class="quality-dot" aria-hidden="true" />
-        <b>{{ opinionTrust.headline }}</b>
-      </div>
-      <span v-if="!opinionTrust.computable" class="quality-trust-reason">
-        {{ opinionTrust.detail }}
-      </span>
-      <dl class="quality-status-list">
-        <div>
-          <dt>数据截止</dt>
-          <dd>{{ opinionTrust.cutoffDate }}</dd>
-        </div>
-        <div>
-          <dt>最近日期覆盖</dt>
-          <dd>{{ qualitySnapshot.coverageDate }} · {{ qualitySnapshot.latestCoverage }}</dd>
-        </div>
-        <div>
-          <dt>近 30 天反馈</dt>
-          <dd>{{ qualitySnapshot.pendingFeedback }}</dd>
-        </div>
-        <div class="quality-status-method">
-          <dt>评分方法</dt>
-          <dd>{{ opinionTrust.methodVersion !== '--' ? opinionTrust.methodVersion : qualitySnapshot.methodVersion }}</dd>
-        </div>
-      </dl>
-      <button type="button" @click="openDiagnostics('quality')">质量明细</button>
-    </section>
-
     <details class="semantic-method-card">
       <summary>三维语义方法卡 · {{ semanticMethod.contractVersion }}</summary>
       <div class="semantic-method-card__grid">
@@ -352,14 +317,6 @@
           class="chart-loading chart-error"
         >
           {{ opinionError }}
-        </div>
-        <div
-          v-else-if="!opinionTrust.computable"
-          class="chart-loading chart-trust-unavailable"
-          role="status"
-        >
-          <strong>目标立场趋势暂不出分</strong>
-          <span>{{ opinionTrust.detail }}；历史证据仍可通过新闻与质量明细核验。</span>
         </div>
         <div ref="chartRef" class="chart-wrapper"></div>
         <button
