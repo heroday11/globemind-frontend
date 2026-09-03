@@ -3,7 +3,6 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppNav from './components/appNav.vue'
 import NewUserGuide from './components/NewUserGuide.vue'
-import DataFreshnessNotice from './components/DataFreshnessNotice.vue'
 import GuestAccessBanner from './components/GuestAccessBanner.vue'
 import { createOperationsHeartbeat } from './features/operations/index.js'
 import { routePreloaders } from './router/routePreloaders.js'
@@ -11,7 +10,6 @@ import { routePreloaders } from './router/routePreloaders.js'
 const route = useRoute()
 const routeContent = ref(null)
 const isFinancialTerminal = computed(() => route.path === '/financial-terminal')
-const showFreshnessNotice = computed(() => route.path !== '/data-assistant')
 const operationsHeartbeat = createOperationsHeartbeat({
   getPath: () => route.path || '/',
 })
@@ -49,7 +47,6 @@ watch(() => route.path, async () => {
     <a class="skip-to-content" href="#main-content">跳到主要内容</a>
     <appNav :route-preloaders="routePreloaders" />
     <NewUserGuide />
-    <DataFreshnessNotice v-if="showFreshnessNotice" />
     <GuestAccessBanner />
     <div id="main-content" ref="routeContent" class="route-content" tabindex="-1">
       <router-view v-slot="{ Component, route }">
@@ -123,13 +120,5 @@ body {
   overflow-x: hidden;
   color-scheme: light;
   background-color: #f6f8ff;
-}
-
-.freshness-notice ~ .route-content .home {
-  padding-top: 0;
-}
-
-.freshness-notice ~ .route-content .intel-page {
-  --nav-offset: 0px;
 }
 </style>

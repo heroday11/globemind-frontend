@@ -481,36 +481,11 @@ test('freshness normalization rejects partial, contradictory, and null-as-zero c
   )
 })
 
-test('global freshness notice fails closed without overlaying page interactions', async () => {
-  const source = await readFile(
-    new URL('../src/components/DataFreshnessNotice.vue', import.meta.url),
-    'utf8',
-  )
+test('global freshness notice is not mounted by the application shell', async () => {
   const app = await readFile(new URL('../src/App.vue', import.meta.url), 'utf8')
 
-  assert.match(source, /useFeatureFreshness\(\)/)
-  assert.match(source, /report\.value\.phase === ['"]idle['"]/)
-  assert.match(source, /report\.value\.phase === ['"]error['"]/)
-  assert.match(source, /freshnessNoticeReportKey\(report\.value\)/)
-  assert.doesNotMatch(source, /routeGeneration/)
-  assert.doesNotMatch(source, /watch\(\(\) => route\.fullPath/)
-  assert.match(source, /getAuthChangedEventName\(\)/)
-  assert.match(source, /identityGeneration\.value \+= 1/)
-  assert.match(source, /role=['"]region['"]/)
-  assert.match(source, /aria-live=['"]polite['"]/)
-  assert.match(source, /aria-atomic=['"]true['"]/)
-  assert.match(source, /sessionStorage\.setItem/)
-  assert.match(source, /:aria-expanded=/)
-  assert.match(source, /展开业务数据时效提示/)
-  assert.match(source, /onMounted\(\(\) => \{\s*void refresh\(\)/)
-  assert.doesNotMatch(source, /setTimeout\([^)]*refresh/)
-  assert.doesNotMatch(source, /\.freshness-notice\s*\{[^}]*position:\s*fixed/s)
-  assert.match(source, /\.freshness-notice button\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/s)
-  assert.match(source, /\.freshness-notice button:focus-visible/)
-  assert.match(source, /@media \(prefers-reduced-motion:\s*reduce\)/)
-  assert.doesNotMatch(source, /已知快照最晚截止/)
-  assert.match(app, /\.freshness-notice ~ \.route-content \.home\s*\{\s*padding-top:\s*0;/)
-  assert.match(app, /\.freshness-notice ~ \.route-content \.intel-page\s*\{\s*--nav-offset:\s*0px;/)
+  assert.doesNotMatch(app, /DataFreshnessNotice/)
+  assert.doesNotMatch(app, /freshness-notice/)
 })
 
 test('mount, initial route, and visibility bursts send one heartbeat with the latest state', async () => {

@@ -143,32 +143,12 @@ test('Ground News routes keep long mobile pages reachable with disclosures, shor
   assert.match(timeline, /\.node-actions a\s*\{[\s\S]*min-height:\s*44px;/)
 })
 
-test('global freshness notice stays in document flow and remains operable when collapsed', async () => {
-  const [notice, app] = await Promise.all([
-    readFile(new URL('../src/components/DataFreshnessNotice.vue', import.meta.url), 'utf8'),
-    readFile(new URL('../src/App.vue', import.meta.url), 'utf8'),
-  ])
-  const { descriptor, errors } = parse(notice, { filename: 'DataFreshnessNotice.vue' })
-  assert.deepEqual(errors, [])
-  assert.ok(descriptor.template)
-  const compiled = compileTemplate({
-    filename: 'DataFreshnessNotice.vue',
-    id: 'qa-data-freshness-notice',
-    source: descriptor.template.content,
-  })
-  assert.deepEqual(compiled.errors, [])
+test('global shell does not render the removed freshness notice', async () => {
+  const app = await readFile(new URL('../src/App.vue', import.meta.url), 'utf8')
 
-  assert.match(app, /<appNav[\s\S]*?<DataFreshnessNotice[\s\S]*?id="main-content"/)
-  assert.doesNotMatch(notice, /\.freshness-notice\s*\{[^}]*position:\s*fixed/s)
-  assert.match(notice, /\.freshness-notice\s*\{[^}]*width:\s*min\(920px,\s*calc\(100vw - 28px\)\)/s)
-  assert.match(notice, /@media \(max-width:\s*720px\)[\s\S]*width:\s*calc\(100vw - 20px\)/)
-  assert.match(notice, /min-width:\s*0/)
-  assert.match(notice, /:aria-expanded=/)
-  assert.match(notice, /aria-controls="freshness-notice-detail"/)
-  assert.match(notice, /@media \(prefers-reduced-motion:\s*reduce\)/)
-  assert.doesNotMatch(notice, /@keyframes/)
-  assert.match(notice, /transition:\s*none/)
-  assert.match(notice, /animation:\s*none/)
+  assert.match(app, /<appNav[\s\S]*?id="main-content"/)
+  assert.doesNotMatch(app, /DataFreshnessNotice/)
+  assert.doesNotMatch(app, /freshness-notice/)
 })
 
 test('story graph canvas supports keyboard selection and an explicit list alternative', async () => {
