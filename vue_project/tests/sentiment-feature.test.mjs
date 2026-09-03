@@ -32,6 +32,8 @@ import {
   formatIndexValue,
   formatOverviewEventTitle,
   mergeFavoriteIds,
+  overviewPrimaryTopic,
+  overviewStanceDistribution,
   opinionTrustSnapshot,
   qualitySnapshot,
   resolveAutoEndDate,
@@ -464,6 +466,29 @@ test('presentation models keep quality, event, history, and favorite behavior st
   assert.deepEqual(mergeFavoriteIds([1], [{ id: '2', is_favorited: true }]), [1, 2])
   assert.deepEqual(applyFavoriteResult([1, 2], 2, false), [1])
   assert.deepEqual(applyFavoriteResult([1], 2, true), [1, 2])
+
+  assert.deepEqual(overviewStanceDistribution({ summary: {
+    negative_pct: 31.4,
+    neutral_pct: 32.9,
+    positive_pct: 35.7,
+  } }).map(({ displayLabel, formattedValue, sentimentFilter }) => ({
+    displayLabel,
+    formattedValue,
+    sentimentFilter,
+  })), [
+    { displayLabel: '批评报道', formattedValue: '31.4%', sentimentFilter: 'negative' },
+    { displayLabel: '中性报道', formattedValue: '32.9%', sentimentFilter: 'neutral' },
+    { displayLabel: '支持报道', formattedValue: '35.7%', sentimentFilter: 'positive' },
+  ])
+  assert.deepEqual(overviewPrimaryTopic({ families: [
+    { event_family: 'economic_trade', article_count: 7 },
+    { event_family: 'diplomacy', article_count: 24 },
+  ] }), {
+    label: '主要议题',
+    title: '外交 · 24 篇',
+    eventFamily: 'diplomacy',
+    articleCount: 24,
+  })
 })
 
 test('opinion presentation fails closed when trust metadata rejects the composite', () => {

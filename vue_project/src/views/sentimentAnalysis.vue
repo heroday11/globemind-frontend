@@ -143,8 +143,8 @@
               @click="openEventInsight"
               @keydown.enter.prevent="openEventInsight"
             >
-              <span class="risk-event-label">主题事件</span>
-              <b class="risk-event-title">{{ overviewTopEventTitle }}</b>
+              <span class="risk-event-label">{{ overviewPrimaryTopic.label }}</span>
+              <b class="risk-event-title">{{ overviewPrimaryTopic.title }}</b>
               <div class="risk-event-trend">
                 <span>立场走向</span>
                 <b class="trend" :class="overviewTrendClass">{{ overviewSummary.trend_label }}</b>
@@ -152,16 +152,10 @@
             </div>
           </div>
 
-          <div class="semantic-axis-strip" aria-label="三维语义状态">
-            <span><b>目标立场</b> {{ formatSemanticAxis(overviewSemantics.stance, { includeUnit: true }) }}</span>
-            <span><b>文本语气</b> {{ formatSemanticAxis(overviewSemantics.tone) }}</span>
-            <span><b>现实影响</b> {{ formatSemanticAxis(overviewSemantics.impact) }}</span>
-          </div>
-
           <div class="target-indices-wrapper risk-indices-wrapper">
             <div class="target-indices">
               <span
-                v-for="item in overviewReadableIndices"
+                v-for="item in overviewDistribution"
                 :key="item.label"
                 class="index-item insight-trigger"
                 :class="item.state"
@@ -172,17 +166,8 @@
                 @keydown.enter.prevent="openRiskInsight(item)"
               >
                 <span class="index-badge">{{ item.displayLabel }}</span>
-                <span class="index-value">{{ formatSemanticAxis(opinionSemanticSnapshot(item).stance) }}</span>
+                <span class="index-value">{{ item.formattedValue }}</span>
                 <span class="index-copy">{{ item.description }}</span>
-                <svg
-                  v-if="opinionSemanticSnapshot(item).stance.state === 'available' && item.trend_values && item.trend_values.length > 1"
-                  class="index-spark"
-                  :class="item.state === 'negative' ? 'index-spark--neg' : 'index-spark--warn'"
-                  viewBox="0 0 96 28"
-                  aria-hidden="true"
-                >
-                  <polyline :points="sparklinePoints(item.trend_values, 96, 28)" />
-                </svg>
               </span>
             </div>
           </div>
@@ -862,10 +847,10 @@ import {
   normalizeSentimentSearchResponse,
   normalizeTrendResponse,
   overviewMetrics as buildOverviewMetrics,
-  overviewReadableIndices as buildOverviewReadableIndices,
+  overviewPrimaryTopic as buildOverviewPrimaryTopic,
   overviewScoreClass as buildOverviewScoreClass,
+  overviewStanceDistribution as buildOverviewStanceDistribution,
   overviewSummary as buildOverviewSummary,
-  overviewTopEventTitle as buildOverviewTopEventTitle,
   overviewTrendClass as buildOverviewTrendClass,
   opinionTrustSnapshot as buildOpinionTrustSnapshot,
   opinionSemanticMethodSnapshot,
@@ -905,7 +890,7 @@ let assistantFabSuppressClick = false
 const sentimentAssistantSkill = computed(() => ({
   page: '智能舆情分析',
   path: '/sentiment-analysis',
-  summary: `当前目标立场快照 ${overviewLatestDate.value || '未选择日期'}，搜索结果 ${searchTotal.value || searchResults.value?.length || 0} 条；语气与现实影响独立且当前未知。`,
+  summary: `当前目标立场快照 ${overviewLatestDate.value || '未选择日期'}，搜索结果 ${searchTotal.value || searchResults.value?.length || 0} 条。`,
   access: [
     '导航进入智能舆情分析',
     '搜索结果和日期下钻可打开新闻详情',
@@ -1259,7 +1244,7 @@ const opinionTrust = computed(() => buildOpinionTrustSnapshot(safeOverviewData.v
   now: opinionTrustEvaluationNow.value,
 }))
 const overviewLatestDate = computed(() => safeOverviewData.value?.latest_date || '--')
-const overviewTopEventTitle = computed(() => buildOverviewTopEventTitle(safeOverviewData.value, {
+const overviewPrimaryTopic = computed(() => buildOverviewPrimaryTopic(safeOverviewData.value, {
   loading: overviewLoading.value,
   error: overviewError.value,
 }))
@@ -1273,7 +1258,7 @@ const overviewScoreClass = computed(() => (
     ? buildOverviewScoreClass({ current_index: overviewSemantics.value.stance.score })
     : 'risk-score-panel--neutral'
 ))
-const overviewReadableIndices = computed(() => buildOverviewReadableIndices(safeOverviewData.value))
+const overviewDistribution = computed(() => buildOverviewStanceDistribution(safeOverviewData.value))
 const overviewMetrics = computed(() => buildOverviewMetrics(safeOverviewData.value))
 const overviewBriefs = computed(() => safeOverviewData.value?.briefs || [])
 const overviewTags = computed(() => safeOverviewData.value?.families || [])
@@ -1422,8 +1407,8 @@ function buildSentimentSearchMaterial() {
 function buildSentimentOverviewMaterial() {
   const summary = overviewSummary.value || {}
   const metrics = overviewMetrics.value.map((item) => `${item.label}: ${item.value}`).join(' | ')
-  const targets = overviewReadableIndices.value.map((item) => (
-    `${item.displayLabel}: ${formatSemanticAxis(opinionSemanticSnapshot(item).stance)} (${item.description})`
+  const targets = overviewDistribution.value.map((item) => (
+    `${item.displayLabel}: ${item.formattedValue} (${item.description})`
   )).join(' | ')
   const briefs = overviewBriefs.value.slice(0, 5).map((item, index) => {
     const title = compactAssistantText(item.title || item.text || item.summary || '', 220)
@@ -1436,15 +1421,13 @@ function buildSentimentOverviewMaterial() {
     overviewSemantics.value.stance.state === 'available'
       ? `加权目标立场指数: ${formatSemanticAxis(overviewSemantics.value.stance, { includeUnit: true })} | 趋势: ${summary.trend_label || '--'}`
       : `加权目标立场指数: 未知 | 原因: ${opinionTrust.value.detail}`,
-    '文本语气: 未知（来源模型未建立） | 现实影响方向/强度: 未知（来源模型与量纲未建立）',
-    '响应投影组合规则: 三维不组合，不从一个维度推断另一个维度 | 上游轴独立性: 未建立',
     `报道量: ${formatCompactCount(summary.article_count)} | 信源: ${formatCompactCount(summary.source_count)} | 主题数: ${formatCompactCount(summary.family_count)}`,
     opinionTrust.value.computable
       ? `支持/中性/批评立场占比: ${formatCompactCount(summary.positive_pct)} / ${formatCompactCount(summary.neutral_pct)} / ${formatCompactCount(summary.negative_pct)}`
       : '立场分布: 不可计算',
     metrics ? `指标: ${metrics}` : '',
     targets ? `分项指数: ${targets}` : '',
-    overviewTopEventTitle.value ? `主题事件: ${overviewTopEventTitle.value}` : '',
+    `主要议题: ${overviewPrimaryTopic.value.title}`,
     briefs ? `代表性简报:\n${briefs}` : '',
   ].filter(Boolean).join('\n')
 }
@@ -1542,18 +1525,18 @@ const fetchInsightNews = async ({ sentimentFilter = 'all', eventFamily = '', day
 
 const openRiskInsight = (item = null) => {
   const key = String(item?.label || 'CN').toUpperCase()
-  const sentimentFilter = key === 'NEG' ? 'negative' : key === 'POS' ? 'positive' : 'all'
-  const targetRecord = item || overviewSummary.value
+  const sentimentFilter = item?.sentimentFilter || (key === 'NEG' ? 'negative' : key === 'POS' ? 'positive' : 'all')
   const title = item?.displayLabel || '加权目标立场指数'
   setInsightModal({
     eyebrow: '涉华目标立场指标',
     title,
-    subtitle: `近 30 天 ${item?.description || '涉华目标立场报道'}；文本语气与现实影响不从立场推断`,
+    subtitle: `近 30 天 ${item?.description || '涉华目标立场报道'}`,
     loading: true,
     metrics: [
-      { label: '目标立场', value: formatSemanticAxis(opinionSemanticSnapshot(targetRecord).stance, { includeUnit: true }) },
-      { label: '文本语气', value: '未知' },
-      { label: '现实影响', value: '未知' },
+      { label: '总体指数', value: formatSemanticAxis(overviewSemantics.value.stance, { includeUnit: true }) },
+      { label: '批评占比', value: `${Number(overviewSummary.value.negative_pct || 0).toFixed(1)}%` },
+      { label: '中性占比', value: `${Number(overviewSummary.value.neutral_pct || 0).toFixed(1)}%` },
+      { label: '支持占比', value: `${Number(overviewSummary.value.positive_pct || 0).toFixed(1)}%` },
       { label: '信源', value: formatCompactCount(overviewSummary.value.source_count) },
     ],
   })
@@ -1562,19 +1545,22 @@ const openRiskInsight = (item = null) => {
 
 const openEventInsight = () => {
   const event = safeOverviewData.value?.top_event
+  const primaryTopic = overviewPrimaryTopic.value
+  const family = safeOverviewData.value?.families?.find((item) => item.event_family === primaryTopic.eventFamily)
+  const topicRecord = event || family
   setInsightModal({
-    eyebrow: '主题事件',
-    title: overviewTopEventTitle.value,
-    subtitle: event?.event_family ? `${formatFamilyName(event.event_family)} · 近 30 天相关报道` : '近 30 天相关报道',
+    eyebrow: primaryTopic.label,
+    title: primaryTopic.title,
+    subtitle: '近 30 天相关报道',
     loading: true,
     metrics: [
-      { label: '事件报道', value: formatCompactCount(event?.article_count || 0) },
-      { label: '涉华文章', value: formatCompactCount(event?.china_articles || 0) },
-      { label: '平均目标立场', value: formatSemanticAxis(opinionSemanticSnapshot(event).stance, { includeUnit: true }) },
-      { label: '现实影响', value: '未知' },
+      { label: '相关报道', value: formatCompactCount(primaryTopic.articleCount) },
+      { label: '平均目标立场', value: formatSemanticAxis(opinionSemanticSnapshot(topicRecord).stance, { includeUnit: true }) },
+      { label: '总报道量', value: formatCompactCount(overviewSummary.value.article_count) },
+      { label: '信源', value: formatCompactCount(overviewSummary.value.source_count) },
     ],
   })
-  fetchInsightNews({ eventFamily: event?.event_family || '', pageSize: 10 })
+  fetchInsightNews({ eventFamily: primaryTopic.eventFamily, pageSize: 10 })
 }
 
 const openBriefInsight = (brief) => {

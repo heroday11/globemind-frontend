@@ -146,6 +146,46 @@ export function overviewTopEventTitle(data, { loading = false, error = '' } = {}
   return '暂无主题事件'
 }
 
+export function overviewPrimaryTopic(data, { loading = false, error = '' } = {}) {
+  if (data?.top_event?.title) {
+    return {
+      label: '主题事件',
+      title: formatOverviewEventTitle(data.top_event.title),
+      eventFamily: data.top_event.event_family || '',
+      articleCount: Number(data.top_event.article_count || 0),
+    }
+  }
+  const leadingFamily = [...(data?.families || [])]
+    .sort((a, b) => Number(b?.article_count || 0) - Number(a?.article_count || 0))[0]
+  if (leadingFamily) {
+    const articleCount = Number(leadingFamily.article_count || 0)
+    return {
+      label: '主要议题',
+      title: `${formatFamilyName(leadingFamily.event_family)} · ${formatCompactCount(articleCount)} 篇`,
+      eventFamily: leadingFamily.event_family || '',
+      articleCount,
+    }
+  }
+  if (loading) return { label: '主要议题', title: '加载中', eventFamily: '', articleCount: 0 }
+  if (error) return { label: '主要议题', title: '数据异常', eventFamily: '', articleCount: 0 }
+  const summary = overviewSummary(data)
+  return {
+    label: '数据覆盖',
+    title: `${formatCompactCount(summary.article_count)} 篇报道 · ${formatCompactCount(summary.source_count)} 个信源`,
+    eventFamily: '',
+    articleCount: Number(summary.article_count || 0),
+  }
+}
+
+export function overviewStanceDistribution(data) {
+  const summary = overviewSummary(data)
+  return [
+    { label: 'NEG', displayLabel: '批评报道', value: Number(summary.negative_pct || 0), description: '有效报道占比', state: 'negative', sentimentFilter: 'negative' },
+    { label: 'NEU', displayLabel: '中性报道', value: Number(summary.neutral_pct || 0), description: '有效报道占比', state: 'neutral', sentimentFilter: 'neutral' },
+    { label: 'POS', displayLabel: '支持报道', value: Number(summary.positive_pct || 0), description: '有效报道占比', state: 'positive', sentimentFilter: 'positive' },
+  ].map((item) => ({ ...item, formattedValue: `${item.value.toFixed(1)}%` }))
+}
+
 export function overviewTrendClass(summary) {
   const value = Number(summary?.current_index || 0)
   if (value < -12) return 'trend--neg'
