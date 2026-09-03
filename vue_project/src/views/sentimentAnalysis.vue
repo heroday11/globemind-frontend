@@ -874,6 +874,7 @@ import {
   rangeIndexes as calculateRangeIndexes,
   resolveAutoEndDate,
   resolveChartPointDate,
+  resolveDataZoomEventRange,
   sanitizeOpinionPayload,
   selectDatePoint,
   sentimentApi,
@@ -1207,6 +1208,8 @@ const searchPublishTimeOptions = SEARCH_PUBLISH_TIME_OPTIONS
 const searchPageSizeOptions = SEARCH_PAGE_SIZE_OPTIONS
 let lastFetchDays = 365 // 跟踪最近一次成功请求的天数参数
 let chartInstance = null
+let chartZoomGeneration = 0
+let isUserZooming = false
 let echartsModule = null
 let echartsLoadPromise = null
 const overviewRequest = createLatestSentimentRequest()
@@ -2044,26 +2047,36 @@ watch(startDate, (val) => {
 })
 
 // 数据缩放事件：用户拖动时间条时仅更新百分比
-const onDataZoom = () => {
+const onDataZoom = (event) => {
   if (!chartInstance) return
   const option = chartInstance.getOption()
-  const dz = option.dataZoom && option.dataZoom[0]
-  if (dz && typeof dz.start === 'number' && typeof dz.end === 'number') {
-    zoomStartPercent.value = dz.start
-    zoomEndPercent.value = dz.end
+  const fallback = option.dataZoom?.[0] || {
+    start: zoomStartPercent.value,
+    end: zoomEndPercent.value,
   }
+  const range = resolveDataZoomEventRange(event, fallback)
+  const generation = ++chartZoomGeneration
+  isUserZooming = true
+  zoomStartPercent.value = range.start
+  zoomEndPercent.value = range.end
+  void nextTick(() => {
+    if (!chartInstance) return
+    chartInstance.setOption({
+      yAxis: {
+        min: yAxisRange.value.min,
+        max: yAxisRange.value.max,
+      },
+    }, { lazyUpdate: true })
+    if (generation === chartZoomGeneration) isUserZooming = false
+  })
 }
 
-// 监听图表配置变化，重新设置选项并绑定事件（dataZoom 起止已由 chartOption 计算）
+// 数据或预设范围变化时重建图表；用户拖动期间仅更新 Y 轴。
 watch(
   chartOption,
   (newOption) => {
-    if (chartInstance) {
-      chartInstance.setOption(newOption, true)
-      chartInstance.off('click')
-      chartInstance.off('datazoom')
-      chartInstance.on('click', onChartClick)
-      chartInstance.on('datazoom', onDataZoom)
+    if (chartInstance && !isUserZooming) {
+      chartInstance.setOption(newOption, { notMerge: true, lazyUpdate: true })
     }
   },
   { deep: true },

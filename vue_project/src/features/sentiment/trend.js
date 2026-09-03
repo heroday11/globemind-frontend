@@ -133,6 +133,23 @@ export function dataZoomRange(indexes) {
   }
 }
 
+export function resolveDataZoomEventRange(event, fallback = { start: 0, end: 100 }) {
+  const candidate = Array.isArray(event?.batch) ? event.batch[0] : event
+  const fallbackStart = Number(fallback?.start)
+  const fallbackEnd = Number(fallback?.end)
+  const start = Number(candidate?.start)
+  const end = Number(candidate?.end)
+  const normalizedStart = Number.isFinite(start) ? start : fallbackStart
+  const normalizedEnd = Number.isFinite(end) ? end : fallbackEnd
+  if (!Number.isFinite(normalizedStart) || !Number.isFinite(normalizedEnd)) {
+    return { start: 0, end: 100 }
+  }
+  return {
+    start: Math.max(0, Math.min(normalizedStart, normalizedEnd, 100)),
+    end: Math.max(0, Math.min(Math.max(normalizedStart, normalizedEnd), 100)),
+  }
+}
+
 export function yAxisRange(values, startPercent, endPercent) {
   if (!values?.length) return { min: -10, max: 10 }
   const total = values.length - 1

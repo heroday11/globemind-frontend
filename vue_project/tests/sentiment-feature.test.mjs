@@ -46,6 +46,7 @@ import {
   findAnomalyPoints,
   rangeIndexes,
   resolveChartPointDate,
+  resolveDataZoomEventRange,
   selectDatePoint,
   sparklinePoints,
   trimTrendData,
@@ -375,6 +376,15 @@ test('trend, date range, KPI, and chart models are pure and boundary-safe', () =
   const zoom = dataZoomRange(indexes)
   assert.ok(Math.abs(zoom.start - (100 / 3)) < 1e-10)
   assert.ok(Math.abs(zoom.end - (200 / 3)) < 1e-10)
+  assert.deepEqual(resolveDataZoomEventRange({ start: 0, end: 25 }), { start: 0, end: 25 })
+  assert.deepEqual(
+    resolveDataZoomEventRange({ batch: [{ start: -4, end: 18 }] }),
+    { start: 0, end: 18 },
+  )
+  assert.deepEqual(
+    resolveDataZoomEventRange({}, { start: 12, end: 46 }),
+    { start: 12, end: 46 },
+  )
   assert.deepEqual(yAxisRange([10, 20, 30], 50, 100), { min: 12, max: 38 })
   assert.equal(sparklinePoints([5], 100, 20), '')
   assert.equal(resolveAutoEndDate('', '', '2026-08-08'), '2026-08-08')

@@ -105,6 +105,7 @@ export {
   normalizeResultDate,
   rangeIndexes,
   resolveChartPointDate,
+  resolveDataZoomEventRange,
   selectDatePoint,
   sparklinePoints,
   trimTrendData,
