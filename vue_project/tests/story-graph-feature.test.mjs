@@ -633,6 +633,8 @@ test('route consumes story graph only through the feature public entry', async (
   assert.match(source, /clearWorkspaceState\(\{ clearSelection: true \}\)/)
   assert.match(source, /queryStatus\.value = buildStoryGraphQueryStatus\(['"]search-empty['"]/)
   assert.match(source, /workspaceRequestGate\.isCurrent\(requestToken\)/)
+  assert.match(source, /const activeStory = currentStory\.value/)
+  assert.doesNotMatch(source, /currentStory\.value !== nextStory/)
   assert.match(source, /evidenceRequestGate\.isCurrent\(requestToken\)/)
   assert.match(source, /return relationResearchGuidance\(item\)/)
   assert.match(source, /graphSamplingNotice\(currentStory\.value\)/)

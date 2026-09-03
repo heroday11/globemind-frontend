@@ -1068,12 +1068,13 @@ async function loadStoryWorkspace(storyId) {
       return
     }
     currentStory.value = nextStory
-    selectedInspector.value = makeMainInspector(nextStory, requestedMode)
+    const activeStory = currentStory.value
+    selectedInspector.value = makeMainInspector(activeStory, requestedMode)
     await bootstrapStoryAssistantSession(requestToken, requestController.signal)
-    if (!workspaceRequestGate.isCurrent(requestToken) || currentStory.value !== nextStory) return
+    if (!workspaceRequestGate.isCurrent(requestToken) || currentStory.value !== activeStory) return
     await nextTick()
-    await renderWorkspaceGraph(requestToken, nextStory)
-    if (!workspaceRequestGate.isCurrent(requestToken) || currentStory.value !== nextStory) return
+    await renderWorkspaceGraph(requestToken, activeStory)
+    if (!workspaceRequestGate.isCurrent(requestToken) || currentStory.value !== activeStory) return
     queryStatus.value = buildStoryGraphQueryStatus('ready', {
       mode: requestedMode,
       storyId: requestedStoryId,
