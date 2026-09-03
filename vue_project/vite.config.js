@@ -281,6 +281,9 @@ export default defineConfig(({ mode }) => {
       port: devPort,
       strictPort: true,
       allowedHosts: true,
+      watch: {
+        ignored: ['**/.deploy/**', '**/dist/**', '**/dist.previous*/**'],
+      },
       // 远端 Vite 由 Nginx/Cloudflare 暴露时，资源和 HMR 必须使用公开站点地址。
       ...(devPublicHost
         ? {
