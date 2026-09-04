@@ -123,7 +123,7 @@ export function freshnessLabel(status?: FreshnessStatus): string {
 export function trustLabel(status?: TrustStatus): string {
   if (status === 'trusted') return '门禁允许计算'
   if (status === 'limited') return '受限计算'
-  if (status === 'unavailable') return '不可计算'
+  if (status === 'unavailable') return '暂无有效观测'
   if (status === 'mock') return '模拟演示'
   return '等待门禁判定'
 }
@@ -173,7 +173,7 @@ export function modeLabel(mode?: DashboardData['mode']): string {
   if (mode === 'live') return '数据可用'
   if (mode === 'delayed') return '延迟数据'
   if (mode === 'historical') return '历史快照'
-  if (mode === 'unavailable') return '不可计算'
+  if (mode === 'unavailable') return '暂无有效观测'
   if (mode === 'mock-fallback') return '接口回退'
   if (mode === 'mock') return '模拟数据'
   return '同步中'

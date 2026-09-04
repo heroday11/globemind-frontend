@@ -51,7 +51,7 @@ export default function IndexSummaryCards({ indices, activeMetricId, onSelectMet
             <div className="mt-2 flex items-end justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-mono text-xl font-semibold text-slate-900">
-                  {available ? index.value!.toFixed(index.value! >= 100 ? 0 : 2) : '不可计算'}
+                  {available ? index.value!.toFixed(index.value! >= 100 ? 0 : 2) : '—'}
                 </div>
                 {available ? (
                   <div className={`mt-1 font-mono text-xs font-semibold ${up ? 'text-emerald-600' : 'text-rose-600'}`}>

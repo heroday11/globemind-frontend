@@ -44,7 +44,7 @@ function categoryLabel(id?: FilterId | MetricCategory) {
 function formatMetricValue(metric?: MetricSeries | null) {
   if (!metric) return '—'
   if (metric.availability === 'not_computable' || metric.latest === null) {
-    return metric.kind === 'index' ? '不可计算' : '暂无观测'
+    return '—'
   }
   const decimals = metric.latest >= 100 ? 0 : metric.unit === '%' || metric.unit === 'Mw' ? 2 : 2
   const value = metric.latest.toLocaleString('zh-CN', { maximumFractionDigits: decimals, minimumFractionDigits: decimals })
@@ -111,7 +111,7 @@ function isPrimaryRow(row: WatchRow, metric?: MetricSeries | null) {
 
 function dataQuality(metric?: MetricSeries | null) {
   if (!metric) return '等待'
-  if (metric.availability === 'not_computable' || metric.status === 'unavailable') return '不可计算'
+  if (metric.availability === 'not_computable' || metric.status === 'unavailable') return '暂无有效观测'
   if (metric.status === 'disabled') return '待配置'
   if (!hasSignalValue(metric)) return '无观测'
   if (metric.status === 'degraded') return '降级'
@@ -354,11 +354,6 @@ export default function TerminalDashboard() {
                   <p className="mt-1 max-w-3xl truncate text-sm text-slate-600">
                     {selectedMetric?.description || '选择右侧指标后，在这里查看它自己的真实历史。'}
                   </p>
-                  {selectedUnavailable ? (
-                    <p className="mt-1 text-xs font-semibold text-rose-700">
-                      当前复合指数不可计算；精确值和复合历史序列已隐藏。
-                    </p>
-                  ) : null}
                 </div>
 
                 <div className="flex shrink-0 items-end gap-5 border-l border-slate-200 pl-5">
@@ -416,7 +411,7 @@ export default function TerminalDashboard() {
                 thresholds={alertsEnabled && !selectedUnavailable ? currentThresholds : []}
                 historical={selectedUnavailable || selectedMetric?.status === 'degraded'}
                 statusMessage={selectedUnavailable
-                  ? '当前指数不可计算，精确值和复合历史序列已隐藏。'
+                  ? '当前没有可展示的有效观测。'
                   : selectedMetric?.status === 'degraded'
                     ? `历史观测序列，数据截止 ${selectedMetric.data_as_of?.slice(0, 10) || '待确认'}。`
                     : undefined}
@@ -657,9 +652,7 @@ function IndexTape({
                   {index.change_pct!.toFixed(2)}%
                 </span>
               </>
-            ) : (
-              <span className={`text-[11px] font-semibold ${active ? 'text-amber-200' : 'text-amber-700'}`}>不可计算</span>
-            )}
+            ) : null}
           </button>
         )
       })}

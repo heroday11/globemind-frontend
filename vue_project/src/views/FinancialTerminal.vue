@@ -66,7 +66,8 @@ const iframeSrc = computed(() => {
   if (dev) return dev
   const b = import.meta.env.BASE_URL || '/'
   const prefix = b.endsWith('/') ? b : `${b}/`
-  return `${prefix}fin-terminal/index.html`
+  const buildId = encodeURIComponent(import.meta.env.VITE_BUILD_ID || 'current')
+  return `${prefix}fin-terminal/index.html?v=${buildId}`
 })
 </script>
 

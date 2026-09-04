@@ -94,7 +94,7 @@ export default function DetailModal({ target, onClose }: Props) {
             </>
           ) : (
             <>
-              <Metric label="指数值" value={target.data.value === null ? '不可计算' : target.data.value.toFixed(2)} />
+              <Metric label="指数值" value={target.data.value === null ? '—' : target.data.value.toFixed(2)} />
               <Metric label="变化" value={pct(target.data.change_pct)} valueClass={target.data.change_pct === null ? 'text-amber-300' : target.data.change_pct >= 0 ? 'text-up' : 'text-down'} />
               <Metric label="来源" value={sourceLabel(target.data.source)} />
               <div className="md:col-span-3 rounded border border-white/[0.06] bg-white/[0.03] p-3">
