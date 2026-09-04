@@ -8,12 +8,9 @@ import { financialTrendDisclosurePresentation } from '../lib/trust'
 import {
   cadenceLabel,
   freshnessLabel,
-  modeLabel,
   sourceDetailLabel,
   sourceLabel,
   statusLabel,
-  trustLabel,
-  trustReasonLabel,
 } from '../lib/sourceLabels'
 import type { AlertRule, DataSourceStatus, IndexCard, MetricCategory, MetricSeries, WatchRow } from '../types'
 
@@ -90,12 +87,19 @@ function hasMovement(values?: number[]) {
 }
 
 function isDisplayIndex(index: IndexCard, metric?: MetricSeries | null) {
-  if (index.id === 'wsi') return true
-  if (metric?.availability === 'not_computable') return true
+  if (metric?.availability === 'not_computable' || index.value === null) return false
   if (metric?.status === 'disabled') return false
   const values = metric?.points.map((point) => point.value) || index.spark
   if (metric?.status === 'degraded' && !hasMovement(values)) return false
   return hasMovement(values) || Math.abs(index.change_pct || 0) > 0.01
+}
+
+function changeLabel(metric?: MetricSeries | null, row?: WatchRow | null) {
+  const value = metric?.change_value ?? row?.change_value
+  if (value === null || value === undefined || !Number.isFinite(value)) return null
+  const unit = metric?.change_unit || row?.change_unit || '%'
+  const period = metric?.change_period || row?.change_period || '较上期'
+  return `${period} ${value >= 0 ? '+' : ''}${value.toFixed(2)}${unit === '%' ? '%' : ` ${unit}`}`
 }
 
 function isPrimaryRow(row: WatchRow, metric?: MetricSeries | null) {
@@ -125,6 +129,7 @@ function cacheLabel(cache?: string | null) {
   if (cache === 'shared') return '共享缓存快照'
   if (cache === 'coalesced') return '聚合快照'
   if (cache === 'miss') return '新生成快照'
+  if (cache === 'invalid') return '基础观测已更新'
   return '缓存状态待确认'
 }
 
@@ -140,13 +145,8 @@ function severityLabel(rule: AlertRule) {
   return '低'
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  return value as Record<string, unknown>
-}
-
 export default function TerminalDashboard() {
-  const { indices, watchlist, series, defaultMetricId, sources, alertRules, coverage, trust, mode, lastUpdated, cacheState, loading, error } = useMarketData()
+  const { indices, watchlist, series, defaultMetricId, sources, alertRules, coverage, trust, lastUpdated, cacheState, loading, error } = useMarketData()
   const [activeCategory, setActiveCategory] = useState<FilterId>('all')
   const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null)
   const [signalQuery, setSignalQuery] = useState('')
@@ -246,29 +246,19 @@ export default function TerminalDashboard() {
   const activeSourceCount = coverage?.usable_sources ?? coverage?.live_sources ?? liveSources
   const totalSourceCount = trust?.source_total ?? coverage?.sources_total ?? sources.length
   const selectedCategoryName = selectedMetric?.id === 'IDX-WSI' ? '全部信号' : categoryLabel(selectedMetric?.category)
-  const dashboardUnavailable = Boolean(
-    !loading && trust && !trust.computable && trust.trust_status !== 'mock',
-  )
   const selectedUnavailable = Boolean(
     selectedMetric?.kind === 'index'
-      && (selectedMetric.availability === 'not_computable' || selectedMetric.latest === null || dashboardUnavailable),
+      && (selectedMetric.availability === 'not_computable' || selectedMetric.latest === null),
   )
   const alertsEnabled = Boolean(trust?.alerts_enabled || trust?.trust_status === 'mock')
-  const dataAsOf = trust?.data_as_of || coverage?.ground_news_latest_story_date || null
-  const primaryTrustReason = trust?.unavailable_reasons?.[0]
+  const dataAsOf = selectedMetric?.data_as_of || coverage?.ground_news_latest_story_date || lastUpdated || null
   const coveragePercent = trust ? `${(trust.coverage_ratio * 100).toFixed(0)}%` : '待判定'
-  const methodCard = asRecord(trust?.composite_method_card)
-  const frequencyAlignment = asRecord(methodCard?.frequency_alignment)
-  const methodApproval = methodCard?.approval_status === 'not_approved' ? '未批准' : '待确认'
-  const dimensionalStatus = methodCard?.input_units_status === 'not_dimensionally_validated'
-    ? '量纲未验证'
-    : '量纲状态待确认'
   const selectedTrendDisclosure = financialTrendDisclosurePresentation(
     selectedMetric?.trend_disclosure,
   )
-  const selectedChange = selectedTrendDisclosure.preciseChangeAllowed
-    ? selectedMetric?.change_pct
-    : null
+  const selectedChangeLabel = selectedMetric?.kind === 'index'
+    ? (selectedTrendDisclosure.preciseChangeAllowed ? changeLabel(selectedMetric) : null)
+    : changeLabel(selectedMetric, selectedWatchRow)
 
   const handleSelectMetric = (metricId?: string) => {
     if (!metricId) return
@@ -313,8 +303,8 @@ export default function TerminalDashboard() {
           <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h1 className="mr-1 text-base font-semibold tracking-tight text-slate-950">世界状态信号库</h1>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${dashboardUnavailable ? 'bg-rose-50 text-rose-700' : trust?.freshness_status === 'delayed' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
-                {loading ? '同步中' : trust ? `${trustLabel(trust.trust_status)} · ${freshnessLabel(trust.freshness_status)}` : modeLabel(mode)}
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${degradedSources ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
+                {loading ? '同步中' : `${activeSourceCount}/${totalSourceCount} 数据源可用`}
               </span>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
                 {primaryWatchlist.length} 个可用信号
@@ -332,16 +322,11 @@ export default function TerminalDashboard() {
             <IndexTape indices={visibleIndices} activeMetricId={selectedMetricId} onSelectMetric={handleSelectMetric} />
           </div>
           {!loading ? (
-            <div
-              role="status"
-              className={`mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border px-3 py-2 text-xs ${dashboardUnavailable ? 'border-rose-200 bg-rose-50 text-rose-800' : trust?.freshness_status === 'delayed' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-50 text-slate-600'}`}
-            >
-              <span className="font-semibold">{trust ? trustLabel(trust.trust_status) : modeLabel(mode)}</span>
-              <span>{trust ? freshnessLabel(trust.freshness_status) : '等待新鲜度判定'}</span>
-              <span>数据截止 {dataAsOf ? dataAsOf.slice(0, 19).replace('T', ' ') + ' UTC' : '未知'}</span>
-              <span>有效覆盖 {coveragePercent}</span>
-              <span>方法 {trust?.method_version || '待确认'}</span>
-              {primaryTrustReason ? <span className="font-semibold">原因：{trustReasonLabel(primaryTrustReason)}</span> : null}
+            <div role="status" className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <span className="font-semibold">基础观测 {primaryWatchlist.length} 项</span>
+              <span>数据源覆盖 {coveragePercent}</span>
+              <span>当前指标截止 {dataAsOf ? dataAsOf.slice(0, 19).replace('T', ' ') + (dataAsOf.includes('T') ? ' UTC' : '') : '未知'}</span>
+              {coverage?.ground_news_latest_story_date ? <span>事件图谱截止 {coverage.ground_news_latest_story_date}</span> : null}
             </div>
           ) : null}
           {error ? <p className="mt-2 text-sm font-medium text-rose-600">{error}</p> : null}
@@ -381,10 +366,9 @@ export default function TerminalDashboard() {
                     <div className="text-[10px] font-semibold uppercase text-slate-400">当前值</div>
                     <div className="mt-1 font-mono text-3xl font-semibold text-slate-950">{formatMetricValue(selectedMetric)}</div>
                   </div>
-                  {!selectedUnavailable && selectedChange !== null && selectedChange !== undefined ? (
-                    <div className={`pb-1 font-mono text-sm font-semibold ${selectedChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {selectedChange >= 0 ? '+' : ''}
-                      {selectedChange.toFixed(2)}%
+                  {!selectedUnavailable && selectedChangeLabel ? (
+                    <div className={`pb-1 text-sm font-semibold ${(selectedMetric?.change_value ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {selectedChangeLabel}
                     </div>
                   ) : (
                     <div className="pb-1 text-xs font-semibold text-slate-500">变化不可用</div>
@@ -430,11 +414,11 @@ export default function TerminalDashboard() {
                 points={selectedMetric?.points || []}
                 unit={selectedMetric?.unit}
                 thresholds={alertsEnabled && !selectedUnavailable ? currentThresholds : []}
-                historical={selectedUnavailable || trust?.freshness_status === 'stale'}
+                historical={selectedUnavailable || selectedMetric?.status === 'degraded'}
                 statusMessage={selectedUnavailable
                   ? '当前指数不可计算，精确值和复合历史序列已隐藏。'
-                  : !selectedTrendDisclosure.preciseChangeAllowed
-                    ? '历史序列仅供回溯；基期和不确定性方法未建立，不显示变化百分比。'
+                  : selectedMetric?.status === 'degraded'
+                    ? `历史观测序列，数据截止 ${selectedMetric.data_as_of?.slice(0, 10) || '待确认'}。`
                     : undefined}
                 onAddThreshold={alertsEnabled && !selectedUnavailable ? addThreshold : undefined}
               />
@@ -445,7 +429,7 @@ export default function TerminalDashboard() {
                   <MetaCell label="更新频率" value={cadenceLabel(selectedMetric?.cadence)} />
                   <MetaCell label="数据截止" value={selectedMetric?.data_as_of?.slice(0, 10) || dataAsOf?.slice(0, 10) || '未知'} />
                   <MetaCell label="有效覆盖" value={selectedMetric?.coverage_ratio !== undefined ? `${(selectedMetric.coverage_ratio * 100).toFixed(0)}%` : coveragePercent} />
-                  <MetaCell label="方法版本" value={selectedMetric?.method_version || trust?.method_version || '待确认'} />
+                  <MetaCell label="数据类型" value={selectedMetric?.kind === 'index' ? '衍生指数' : '原始观测'} />
                   <MetaCell label="输入/输出单位" value={selectedMetric?.unit || '未声明'} />
                   <MetaCell label="地区" value={selectedMetric?.region || '全球'} />
                 </div>
@@ -453,7 +437,7 @@ export default function TerminalDashboard() {
                   <div className="text-[10px] font-semibold uppercase text-slate-400">阈值线</div>
                   <div className="mt-1 flex min-w-0 gap-1.5 overflow-x-auto pb-1">
                     {!alertsEnabled || selectedUnavailable ? (
-                      <span className="text-xs font-semibold text-amber-700">可信门禁已暂停阈值评估</span>
+                      <span className="text-xs text-slate-500">基础观测暂不生成自动阈值告警</span>
                     ) : currentThresholds.length === 0 ? (
                       <span className="text-xs text-slate-500">点击图表添加监控线</span>
                     ) : (
@@ -523,7 +507,7 @@ export default function TerminalDashboard() {
                           </div>
                           <div className={`mt-1 flex items-center gap-1.5 text-[10px] ${active ? 'text-slate-400' : 'text-slate-500'}`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${statusTone(metric?.status || row.status)}`} />
-                            <span>{dashboardUnavailable ? '历史快照' : dataQuality(metric)}</span>
+                            <span>{dataQuality(metric)}</span>
                             <span>·</span>
                             <span>{cadenceLabel(metric?.cadence || row.cadence)}</span>
                           </div>
@@ -532,10 +516,11 @@ export default function TerminalDashboard() {
                           <div className={`font-mono text-sm font-semibold ${active ? 'text-white' : 'text-slate-900'}`}>
                             {row.price.toLocaleString('zh-CN', { maximumFractionDigits: row.price >= 100 ? 0 : 2 })}
                           </div>
-                          <div className={`mt-1 font-mono text-xs font-semibold ${row.change_pct >= 0 ? (active ? 'text-emerald-300' : 'text-emerald-600') : active ? 'text-rose-300' : 'text-rose-600'}`}>
-                            {row.change_pct >= 0 ? '+' : ''}
-                            {row.change_pct.toFixed(2)}%
-                          </div>
+                          {changeLabel(metric, row) ? (
+                            <div className={`mt-1 text-xs font-semibold ${(metric?.change_value ?? row.change_value ?? 0) >= 0 ? (active ? 'text-emerald-300' : 'text-emerald-600') : active ? 'text-rose-300' : 'text-rose-600'}`}>
+                              {changeLabel(metric, row)}
+                            </div>
+                          ) : <div className={`mt-1 text-[11px] ${active ? 'text-slate-400' : 'text-slate-500'}`}>暂无可比上期</div>}
                         </div>
                       </button>
                     </li>
@@ -551,9 +536,9 @@ export default function TerminalDashboard() {
               </div>
               <div className="mt-2 divide-y divide-slate-100">
                 <StatusLine
-                  label="可信门禁"
-                  value={trust ? `${trustLabel(trust.trust_status)} · ${freshnessLabel(trust.freshness_status)}` : '等待判定'}
-                  detail={`覆盖 ${coveragePercent} · 截止 ${dataAsOf?.slice(0, 10) || '未知'}`}
+                  label="数据源覆盖"
+                  value={`${activeSourceCount}/${totalSourceCount} 个来源可用`}
+                  detail={`${degradedSources} 个延迟 · ${disabledSources} 个离线`}
                 />
                 <StatusLine
                   label="本地事件图谱"
@@ -571,36 +556,9 @@ export default function TerminalDashboard() {
                   detail="禁用、全零或观测不足"
                 />
                 <StatusLine
-                  label="计算版本"
-                  value={trust?.method_version || '待确认'}
-                  detail={trust?.model_version || '模型版本待确认'}
-                />
-                <StatusLine
-                  label="方法治理"
-                  value={`方法卡${methodApproval} · ${dimensionalStatus}`}
-                  detail="公式仅部分从原型代码提取；基线未建立，阈值未批准"
-                />
-                <StatusLine
-                  label="短样本趋势"
-                  value={selectedTrendDisclosure.baseline || '基期未建立'}
-                  detail={selectedTrendDisclosure.sampleSize}
-                />
-                <StatusLine
-                  label="趋势不确定性"
-                  value={selectedTrendDisclosure.uncertainty || '不确定性不可计算（方法未建立）'}
-                  detail={selectedTrendDisclosure.outliers}
-                />
-                <StatusLine
-                  label="混合频率对齐"
-                  value={frequencyAlignment?.status === 'not_approved' ? '实现存在，规则未批准' : '状态待确认'}
-                  detail={frequencyAlignment?.interpolation === 'linear_by_array_position_not_observation_timestamp'
-                    ? '当前按数组位置线性插值，不是按观测时间戳对齐'
-                    : '插值规则待确认'}
-                />
-                <StatusLine
-                  label="缺失与修订"
-                  value="治理规则未建立"
-                  detail="当前空输入零填充、单值重复；修订与历史重算政策未建立"
+                  label="当前指标"
+                  value={selectedMetric?.source ? sourceLabel(selectedMetric.source) : '等待选择'}
+                  detail={`${selectedMetric?.points.length || 0} 个观测 · 截止 ${selectedMetric?.data_as_of?.slice(0, 10) || '未知'}`}
                 />
               </div>
             </section>
@@ -621,12 +579,11 @@ export default function TerminalDashboard() {
                           className="flex w-full items-center justify-between gap-3 border-b border-slate-100 py-1.5 text-left last:border-b-0 hover:text-slate-950"
                         >
                           <span className="truncate text-xs font-semibold text-slate-700">{metric.label}</span>
-                          {metric.change_pct === null ? (
-                            <span className="shrink-0 text-[11px] font-semibold text-slate-500">不可用</span>
+                          {!changeLabel(metric) ? (
+                            <span className="shrink-0 text-[11px] text-slate-500">暂无可比上期</span>
                           ) : (
-                            <span className={`shrink-0 font-mono text-[11px] font-semibold ${metric.change_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {metric.change_pct >= 0 ? '+' : ''}
-                              {metric.change_pct.toFixed(2)}%
+                            <span className={`shrink-0 text-[11px] font-semibold ${(metric.change_value ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {changeLabel(metric)}
                             </span>
                           )}
                         </button>
@@ -639,7 +596,7 @@ export default function TerminalDashboard() {
                   <div className="text-[10px] font-semibold uppercase text-slate-400">系统预警</div>
                   <div className="mt-2 space-y-1">
                     {!alertsEnabled ? (
-                      <div className="text-xs font-semibold text-amber-700">数据不满足门槛，未生成阈值告警。</div>
+                      <div className="text-xs text-slate-500">基础观测暂未配置自动告警。</div>
                     ) : alertRules.length === 0 ? (
                       <div className="text-xs text-slate-500">当前没有系统告警。</div>
                     ) : alertRules.slice(0, 3).map((rule) => (

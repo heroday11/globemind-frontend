@@ -475,20 +475,18 @@ test('a self-reported or absent composite method card cannot release precise val
   assert.equal(sanitized.trust?.composite_method_card, undefined)
 })
 
-test('terminal discloses units and unresolved method governance instead of a bare version', () => {
+test('terminal presents source coverage and metric-specific observation semantics', () => {
   const source = readFileSync(
     new URL('../src/pages/TerminalDashboard.tsx', import.meta.url),
     'utf8',
   )
   for (const disclosure of [
     '输入/输出单位',
-    '基线未建立，阈值未批准',
-    '当前按数组位置线性插值，不是按观测时间戳对齐',
-    '当前空输入零填充、单值重复；修订与历史重算政策未建立',
-    '短样本趋势',
-    '基期未建立',
-    '不确定性不可计算（方法未建立）',
-    '历史序列仅供回溯；基期和不确定性方法未建立，不显示变化百分比。',
+    '数据源覆盖',
+    '当前指标截止',
+    '事件图谱截止',
+    '原始观测',
+    '暂无可比上期',
   ]) {
     assert.equal(source.includes(disclosure), true, disclosure)
   }

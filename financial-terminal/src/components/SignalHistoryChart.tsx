@@ -52,8 +52,8 @@ export default function SignalHistoryChart({ points, unit, label, thresholds, hi
   }, [])
 
   const visiblePoints = useMemo(
-    () => historical ? [] : points.slice(-48),
-    [historical, points],
+    () => points.slice(-48),
+    [points],
   )
   const layout = useMemo(() => {
     const left = 18
@@ -154,9 +154,7 @@ export default function SignalHistoryChart({ points, unit, label, thresholds, hi
         <div className="flex h-full flex-col items-center justify-center px-6 text-center">
           <div className="text-sm font-semibold text-slate-700">{label}</div>
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            {historical
-              ? statusMessage || '当前数据不满足可信计算门槛，复合指数当前值与历史精确序列均已隐藏。'
-              : '当前指标只有一个可用快照或历史样本不足。系统会继续累积真实观测，不用伪造波形填充主图。'}
+            {statusMessage || '当前指标只有一个可用快照或历史样本不足。系统会继续累积真实观测，不用伪造波形填充主图。'}
           </p>
         </div>
       </div>

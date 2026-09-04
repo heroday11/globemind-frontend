@@ -233,6 +233,9 @@ export interface MetricSeries extends IndexTrustMetadata {
   points: SeriesPoint[]
   latest: number | null
   change_pct: number | null
+  change_value?: number | null
+  change_unit?: string
+  change_period?: string
 }
 
 /** 行情监视行 */
@@ -242,6 +245,10 @@ export interface WatchRow {
   label: string
   price: number
   change_pct: number
+  change_value?: number | null
+  change_unit?: string
+  change_period?: string
+  data_as_of?: string | null
   category?: MetricCategory
   region?: string
   source?: string
