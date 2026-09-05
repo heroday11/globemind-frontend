@@ -244,20 +244,9 @@ const enterDataServiceDropdown = () => {
   preloadRoute('/data-service/data-search')
 }
 
-const toggleDataServiceDropdown = () => {
-  const opening = !isDataServiceDropdownOpen.value
-  closeDropdowns()
-  isDataServiceDropdownOpen.value = opening
-  if (opening) preloadRoute('/data-service/data-search')
-}
-
-// 鼠标进入数据服务系统下拉菜单内容
-const enterDataServiceDropdownContent = () => {
-  clearDropdownTimers()
-}
-
 // 鼠标离开数据服务系统下拉菜单
-const leaveDataServiceDropdown = () => {
+const leaveDataServiceDropdown = (event) => {
+  if (event?.relatedTarget && event.currentTarget?.contains?.(event.relatedTarget)) return
   if (dataServiceTimer) clearTimeout(dataServiceTimer)
   dataServiceTimer = setTimeout(() => {
     isDataServiceDropdownOpen.value = false
@@ -281,13 +270,9 @@ const toggleUserCenterDropdown = () => {
   if (opening) preloadRoute('/user-center/personal-center')
 }
 
-// 鼠标进入用户中心下拉菜单内容
-const enterUserCenterDropdownContent = () => {
-  clearDropdownTimers()
-}
-
 // 鼠标离开用户中心下拉菜单
-const leaveUserCenterDropdown = () => {
+const leaveUserCenterDropdown = (event) => {
+  if (event?.relatedTarget && event.currentTarget?.contains?.(event.relatedTarget)) return
   if (userCenterTimer) clearTimeout(userCenterTimer)
   userCenterTimer = setTimeout(() => {
     isUserCenterDropdownOpen.value = false
@@ -367,23 +352,21 @@ const submitGlobalSearch = () => {
           @focusin="enterDataServiceDropdown"
           @focusout="leaveDataServiceDropdown"
         >
-          <button
-            type="button"
+          <router-link
+            to="/data-service/data-search"
             class="dropdown-trigger"
             :aria-expanded="isDataServiceDropdownOpen"
             aria-controls="desktop-data-service-menu"
             aria-haspopup="true"
-            @click="toggleDataServiceDropdown"
+            @click="closeDropdowns"
           >
             <span>数据服务</span>
             <ChevronDown class="nav-icon dropdown-icon" :class="{ rotate: isDataServiceDropdownOpen }" :size="14" />
-          </button>
+          </router-link>
           <div
             id="desktop-data-service-menu"
             class="dropdown-menu"
             :class="{ show: isDataServiceDropdownOpen }"
-            @pointerenter="enterDataServiceDropdownContent"
-            @pointerleave="leaveDataServiceDropdown"
           >
             <!-- 修改后 -->
             <button
@@ -489,8 +472,6 @@ const submitGlobalSearch = () => {
             id="desktop-user-center-menu"
             class="dropdown-menu"
             :class="{ show: isUserCenterDropdownOpen }"
-            @pointerenter="enterUserCenterDropdownContent"
-            @pointerleave="leaveUserCenterDropdown"
           >
             <button
               type="button"
