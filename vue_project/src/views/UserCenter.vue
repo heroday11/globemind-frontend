@@ -1,12 +1,13 @@
 <script setup>
 import '@/styles/user-center.css'
+import { BookOpen, CircleHelp, FileText, LogOut, Star, UserRound } from 'lucide-vue-next'
 
 const navItems = [
-  { path: '/user-center/personal-center', label: '个人中心', icon: '👤' },
-  { path: '/user-center/my-applications', label: '我的报告', icon: '📊' },
-  { path: '/user-center/help-docs', label: '帮助文档', icon: '📘' },
-  { path: '/user-center/my-collections', label: '我的收录', icon: '⭐' },
-  { path: '/user-center/logout', label: '退出登录', icon: '🚪', muted: true },
+  { path: '/user-center/personal-center', label: '个人中心', icon: UserRound },
+  { path: '/user-center/my-applications', label: '我的报告', icon: FileText },
+  { path: '/user-center/help-docs', label: '帮助文档', icon: BookOpen },
+  { path: '/user-center/my-collections', label: '我的收录', icon: Star },
+  { path: '/user-center/logout', label: '退出登录', icon: LogOut, muted: true },
 ]
 
 function openNewUserGuide() {
@@ -29,12 +30,14 @@ function openNewUserGuide() {
           class="uc-nav-link"
           :class="{ 'is-muted': item.muted }"
         >
-          <span class="uc-nav-ico" aria-hidden="true">{{ item.icon }}</span>
+          <component :is="item.icon" class="uc-nav-ico" :size="18" :stroke-width="1.8" aria-hidden="true" />
           <span class="uc-nav-label">{{ item.label }}</span>
         </router-link>
       </nav>
       <button type="button" class="uc-tour-entry" data-tour="account-guide-entry" @click="openNewUserGuide">
-        <span class="uc-tour-entry__mark" aria-hidden="true">?</span>
+        <span class="uc-tour-entry__mark" aria-hidden="true">
+          <CircleHelp :size="18" :stroke-width="2" />
+        </span>
         <span class="uc-tour-entry__copy">
           <strong>重看新手教程</strong>
           <small>逐页认识核心功能</small>
@@ -58,9 +61,9 @@ function openNewUserGuide() {
 }
 
 .uc-sidebar {
-  width: 260px;
+  width: 236px;
   flex-shrink: 0;
-  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+  background: #ffffff;
   border-right: 1px solid var(--uc-border);
   padding: 0 0 24px;
   position: sticky;
@@ -79,16 +82,16 @@ function openNewUserGuide() {
 
 .uc-side-title {
   display: block;
-  font-size: clamp(1.2rem, 2.4vw, 1.45rem);
-  font-weight: 800;
+  font-size: 1.25rem;
+  font-weight: 700;
   color: var(--uc-text);
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .uc-side-sub {
   display: block;
   margin-top: 6px;
-  font-size: clamp(0.84rem, 1.6vw, 0.92rem);
+  font-size: 0.84rem;
   color: var(--uc-muted);
   font-weight: 500;
 }
@@ -109,7 +112,7 @@ function openNewUserGuide() {
   text-decoration: none;
   color: var(--uc-muted);
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 550;
   transition:
     background 0.2s ease,
     color 0.2s ease,
@@ -122,7 +125,7 @@ function openNewUserGuide() {
 }
 
 .uc-nav-link.router-link-active {
-  background: linear-gradient(135deg, rgba(91, 114, 223, 0.12), rgba(102, 126, 234, 0.08));
+  background: #eef2ff;
   color: var(--uc-accent);
   box-shadow: inset 0 0 0 1px rgba(91, 114, 223, 0.22);
 }
@@ -137,9 +140,8 @@ function openNewUserGuide() {
 }
 
 .uc-nav-ico {
-  width: 1.5rem;
-  text-align: center;
-  font-size: 1.1rem;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
@@ -170,8 +172,25 @@ function openNewUserGuide() {
 .uc-main {
   flex: 1;
   min-width: 0;
-  padding: clamp(22px, 3.2vw, 36px) clamp(20px, 3vw, 40px) clamp(40px, 5vw, 64px);
+  padding: 36px clamp(28px, 4vw, 56px) 64px;
   box-sizing: border-box;
+}
+
+@media (min-width: 901px) {
+  .uc-shell {
+    display: block;
+  }
+
+  .uc-sidebar {
+    position: fixed;
+    inset: 64px auto 0 0;
+    z-index: 20;
+    max-height: none;
+  }
+
+  .uc-main {
+    margin-left: 236px;
+  }
 }
 
 @media (max-width: 900px) {
@@ -186,22 +205,37 @@ function openNewUserGuide() {
     max-height: none;
     border-right: none;
     border-bottom: 1px solid var(--uc-border);
+    display: block;
+    overflow: hidden;
+  }
+
+  .uc-side-head {
+    display: none;
   }
 
   .uc-nav {
     flex-direction: row;
-    flex-wrap: wrap;
-    padding: 8px 10px 16px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+
+  .uc-nav::-webkit-scrollbar { display: none; }
 
   .uc-nav-link {
-    flex: 1 1 auto;
-    min-width: 140px;
+    flex: 0 0 auto;
+    min-width: auto;
+    padding: 9px 12px;
     justify-content: center;
+    white-space: nowrap;
   }
 
+  .uc-tour-entry { display: none; }
+
   .uc-main {
-    padding: 16px 16px 40px;
+    padding: 20px 16px 40px;
   }
 }
 </style>

@@ -854,7 +854,7 @@ onBeforeUnmount(() => {
     <!-- Header -->
     <header class="pc-header">
       <div class="pc-header-body">
-        <div class="pc-header-overline">ACCOUNT SETTINGS</div>
+        <div class="pc-header-overline">账户设置</div>
         <h1 class="pc-header-title">个人中心</h1>
         <p class="pc-header-desc">管理账号、安全、模型与全站显示偏好</p>
       </div>
@@ -912,7 +912,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="pc-badge">
             <span class="pc-badge-dot"></span>
-            <span class="pc-badge-text">Active Account</span>
+            <span class="pc-badge-text">账号正常</span>
           </div>
         </div>
 
@@ -958,7 +958,7 @@ onBeforeUnmount(() => {
           aria-label="个人设置分类"
         >
           <button
-            v-for="(tab, index) in settingsTabs"
+            v-for="tab in settingsTabs"
             :key="tab.id"
             type="button"
             class="pc-tab"
@@ -966,7 +966,6 @@ onBeforeUnmount(() => {
             :aria-current="activeTab === tab.id ? 'page' : undefined"
             @click="selectSettingsTab(tab.id)"
           >
-            <span class="pc-tab-num">{{ String(index + 1).padStart(2, '0') }}</span>
             <span class="pc-tab-label">{{ tab.label }}</span>
           </button>
           <div class="pc-tab-track">
@@ -983,30 +982,36 @@ onBeforeUnmount(() => {
             label-width="0"
             class="pc-form"
           >
-            <div class="pc-field">
-              <label class="pc-field-label" for="profile-full-name">姓名（可选）</label>
-              <el-input
-                id="profile-full-name"
-                v-model="formData.full_name"
-                placeholder="可留空或清除"
-                class="pc-input"
-              />
+            <div class="pc-form-intro">
+              <h2>基本资料</h2>
+              <p>完善用于账号识别和联系的信息，姓名与手机号可以留空。</p>
             </div>
-            <div class="pc-field">
+            <div class="pc-profile-fields">
+              <div class="pc-field">
+                <label class="pc-field-label" for="profile-full-name">姓名</label>
+                <el-input
+                  id="profile-full-name"
+                  v-model="formData.full_name"
+                  placeholder="请输入姓名（可选）"
+                  class="pc-input"
+                />
+              </div>
+              <div class="pc-field">
+                <label class="pc-field-label" for="profile-phone">手机号码</label>
+                <el-input
+                  id="profile-phone"
+                  v-model="formData.phone"
+                  placeholder="请输入手机号码（可选）"
+                  class="pc-input"
+                />
+              </div>
+            </div>
+            <div class="pc-field pc-field--wide">
               <label class="pc-field-label" for="profile-email">邮箱地址</label>
               <el-input
                 id="profile-email"
                 v-model="formData.email"
                 placeholder="name@example.com"
-                class="pc-input"
-              />
-            </div>
-            <div class="pc-field">
-              <label class="pc-field-label" for="profile-phone">手机号码（可选）</label>
-              <el-input
-                id="profile-phone"
-                v-model="formData.phone"
-                placeholder="可留空或清除"
                 class="pc-input"
               />
             </div>
@@ -1026,6 +1031,10 @@ onBeforeUnmount(() => {
             label-width="0"
             class="pc-form"
           >
+            <div class="pc-form-intro">
+              <h2>修改密码</h2>
+              <p>更新后其他已登录设备可能需要重新验证身份。</p>
+            </div>
             <div class="pc-field">
               <label class="pc-field-label">当前密码</label>
               <el-input
@@ -1831,7 +1840,7 @@ onBeforeUnmount(() => {
 .pc-header-overline {
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0;
   color: var(--uc-accent, #5b72df);
   margin-bottom: 8px;
 }
@@ -1841,7 +1850,7 @@ onBeforeUnmount(() => {
   font-size: 1.85rem;
   font-weight: 750;
   color: var(--pc-text);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.15;
 }
 
@@ -1964,7 +1973,7 @@ onBeforeUnmount(() => {
   font-size: 2rem;
   font-weight: 700;
   color: var(--uc-accent, #5b72df);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1;
 }
 
@@ -1997,7 +2006,7 @@ onBeforeUnmount(() => {
   font-size: 1.1rem;
   font-weight: 680;
   color: var(--pc-text);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   line-height: 1.3;
 }
 
@@ -2043,7 +2052,7 @@ onBeforeUnmount(() => {
   font-size: 0.78rem;
   font-weight: 600;
   color: #15803d;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 /* Divider */
@@ -2164,7 +2173,7 @@ onBeforeUnmount(() => {
 .pc-tab-num {
   font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   color: var(--pc-text-muted);
   transition: color var(--pc-transition);
 }
@@ -2227,7 +2236,7 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
   font-weight: 620;
   color: var(--pc-text-secondary);
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 .pc-field-help {
@@ -2273,7 +2282,7 @@ onBeforeUnmount(() => {
   color: var(--api-teal);
   font-size: 0.66rem;
   font-weight: 750;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
 }
 
 .pc-api-title {
@@ -3095,7 +3104,7 @@ onBeforeUnmount(() => {
   border-radius: var(--pc-radius-sm) !important;
   font-size: 0.88rem !important;
   font-weight: 620 !important;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   position: relative;
   overflow: hidden;
   transition:
@@ -3248,6 +3257,409 @@ onBeforeUnmount(() => {
 @media (min-width: 769px) and (max-width: 1200px) {
   .pc-layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Refined account workspace: calmer type, wider forms, and compact navigation. */
+.pc-root {
+  --pc-bg: #f5f7fb;
+  --pc-border: #dfe3ea;
+  --pc-border-light: #edf0f4;
+  --pc-text: #182033;
+  --pc-text-secondary: #4e596d;
+  --pc-text-muted: #737d90;
+  --pc-radius: 8px;
+  --pc-radius-lg: 8px;
+  --pc-shadow: 0 1px 2px rgba(24, 32, 51, 0.04), 0 8px 24px rgba(24, 32, 51, 0.05);
+  max-width: 1180px;
+  font-family: Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+.pc-header {
+  min-height: 88px;
+  margin-bottom: 24px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.pc-header-overline {
+  margin-bottom: 7px;
+  color: #5367c8;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.pc-header-title {
+  font-size: 2rem;
+  font-weight: 720;
+}
+
+.pc-header-desc {
+  margin-top: 8px;
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+
+.pc-header-visual,
+.pc-card-grain,
+.pc-card-accent {
+  display: none;
+}
+
+.pc-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+}
+
+.pc-card {
+  border-color: var(--pc-border);
+  box-shadow: var(--pc-shadow);
+}
+
+.pc-card--identity {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.85fr) 1px minmax(0, 1.65fr);
+  align-items: stretch;
+  position: static;
+}
+
+.pc-avatar-block {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 18px;
+  row-gap: 8px;
+  padding: 24px 28px;
+}
+
+.pc-avatar-outer {
+  grid-row: 1 / 3;
+  width: 76px;
+  height: 76px;
+  margin: 0;
+}
+
+.pc-avatar-init {
+  font-size: 1.6rem;
+}
+
+.pc-avatar-name {
+  font-size: 1.04rem;
+  font-weight: 680;
+}
+
+.pc-avatar-info {
+  align-self: end;
+  min-width: 0;
+  text-align: left;
+}
+
+.pc-badge {
+  align-self: start;
+  justify-self: start;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.pc-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  padding: 18px 12px;
+}
+
+.pc-meta-row {
+  display: flex;
+  min-width: 0;
+  min-height: 58px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 9px;
+  padding: 8px 18px;
+  border-left: 1px solid var(--pc-border-light);
+}
+
+.pc-meta-val {
+  min-width: 0;
+  font-weight: 520;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.pc-divider {
+  width: 1px;
+  height: auto;
+  margin: 20px 0;
+  border-top: 0;
+  border-left: 1px solid var(--pc-border-light);
+}
+
+.pc-tabs {
+  gap: 4px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pc-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.pc-tab {
+  flex: 0 0 auto;
+  min-width: 88px;
+  padding: 9px 12px;
+  border-radius: 6px;
+}
+
+.pc-tab:hover {
+  background: #f5f7fb;
+}
+
+.pc-tab.is-active {
+  background: #eef1ff;
+}
+
+.pc-tab-label {
+  color: #667085;
+  font-size: 0.86rem;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.pc-tab.is-active .pc-tab-label {
+  color: #4054b8;
+  font-weight: 650;
+}
+
+.pc-tab-track {
+  display: none;
+}
+
+.pc-form-stage {
+  min-height: 390px;
+  padding: 36px 40px 40px;
+}
+
+.pc-form-intro {
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--pc-border-light);
+}
+
+.pc-form-intro h2 {
+  margin: 0;
+  color: var(--pc-text);
+  font-size: 1.14rem;
+  font-weight: 680;
+  line-height: 1.4;
+}
+
+.pc-form-intro p {
+  margin: 6px 0 0;
+  color: var(--pc-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.65;
+}
+
+.pc-profile-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.pc-field {
+  margin-bottom: 24px;
+}
+
+.pc-field-label {
+  margin-bottom: 9px;
+  color: #394359;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.pc-input :deep(.el-input__wrapper) {
+  min-height: 46px;
+  padding: 4px 14px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #ccd2dc inset;
+}
+
+.pc-input :deep(.el-input__wrapper:hover) {
+  background: #fff;
+  box-shadow: 0 0 0 1px #8993a5 inset;
+}
+
+.pc-input :deep(.el-input__inner) {
+  font-size: 0.92rem;
+  font-weight: 450;
+}
+
+.pc-input :deep(.el-input__inner::placeholder) {
+  color: #9aa3b2;
+}
+
+.pc-actions {
+  margin-top: 4px;
+  padding-top: 20px;
+  border-top: 1px solid var(--pc-border-light);
+}
+
+.pc-btn {
+  min-height: 42px;
+  border-radius: 6px !important;
+  box-shadow: none;
+}
+
+.pc-btn:hover {
+  box-shadow: 0 4px 12px rgba(91, 114, 223, 0.2);
+}
+
+@media (min-width: 769px) and (max-width: 1200px) {
+  .pc-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pc-card--identity {
+    grid-template-columns: minmax(230px, 0.8fr) 1px minmax(0, 1.5fr);
+  }
+
+  .pc-avatar-block {
+    padding-inline: 22px;
+  }
+
+  .pc-meta-row {
+    padding-inline: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .pc-root {
+    animation: none;
+  }
+
+  .pc-header {
+    min-height: auto;
+    margin-bottom: 18px;
+    padding: 2px 0;
+  }
+
+  .pc-header-overline {
+    font-size: 0.72rem;
+  }
+
+  .pc-header-title {
+    font-size: 1.6rem;
+  }
+
+  .pc-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .pc-card--identity {
+    display: block;
+    position: static;
+  }
+
+  .pc-avatar-block {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+    gap: 14px;
+    padding: 18px;
+  }
+
+  .pc-avatar-outer {
+    width: 58px;
+    height: 58px;
+    margin: 0;
+  }
+
+  .pc-avatar-info {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .pc-avatar-name,
+  .pc-avatar-handle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pc-badge {
+    align-self: center;
+    margin: 0;
+  }
+
+  .pc-divider {
+    width: auto;
+    height: 0;
+    margin: 0 18px;
+    border-top: 1px solid var(--pc-border-light);
+    border-left: 0;
+  }
+
+  .pc-meta {
+    display: block;
+    padding: 8px 10px 12px;
+  }
+
+  .pc-meta-row {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    min-height: 0;
+    gap: 12px;
+    padding: 8px;
+    border-left: 0;
+  }
+
+  .pc-meta-val {
+    text-align: right;
+  }
+
+  .pc-tabs {
+    padding: 10px;
+  }
+
+  .pc-tab {
+    min-width: auto;
+    padding: 9px 12px;
+  }
+
+  .pc-form-stage {
+    min-height: 0;
+    padding: 24px 20px 28px;
+  }
+
+  .pc-form-intro {
+    margin-bottom: 22px;
+    padding-bottom: 17px;
+  }
+
+  .pc-profile-fields {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .pc-actions {
+    align-items: stretch;
+  }
+
+  .pc-actions .pc-btn {
+    width: 100%;
+  }
+
+  .pc-actions-hint {
+    text-align: center;
   }
 }
 </style>

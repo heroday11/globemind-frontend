@@ -2,8 +2,8 @@
  * 用户中心与设计站一致的视觉 token（与 AcademicData / App 主色对齐）
  */
 .uc-theme {
-  --uc-bg: #f6f8ff;
-  --uc-bg-soft: linear-gradient(180deg, #f6f8ff 0%, #eef2ff 100%);
+  --uc-bg: #f5f7fa;
+  --uc-bg-soft: #f5f7fa;
   --uc-surface: #ffffff;
   --uc-border: #dbe3ff;
   --uc-border-soft: #e6ebff;
@@ -15,7 +15,7 @@
   --uc-radius-sm: 10px;
   --uc-shadow: 0 8px 24px rgba(91, 114, 223, 0.1);
   --uc-shadow-sm: 0 2px 12px rgba(91, 114, 223, 0.08);
-  --uc-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --uc-font: 'Inter', 'Noto Sans SC', 'Microsoft YaHei', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   /* Element Plus 主色与壳内组件对齐 */
   --el-color-primary: #5b72df;
@@ -27,6 +27,7 @@
   --el-color-primary-dark-2: #4f66d4;
 
   font-family: var(--uc-font);
+  letter-spacing: 0;
   color: var(--uc-text);
   background: var(--uc-bg-soft);
 }
@@ -57,7 +58,7 @@
   font-size: clamp(1.75rem, 4.2vw, 2.35rem);
   font-weight: 800;
   color: var(--uc-text);
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
