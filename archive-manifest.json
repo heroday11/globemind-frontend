@@ -1,0 +1,52 @@
+{
+  "format": "encrypted tar.gz using OpenSSL AES-256-CBC + PBKDF2-SHA256 (300000 iterations)",
+  "key_path_on_source_host": "/root/data/secrets/globemind-shared-ssh/github-archive-20261013.key",
+  "key_permissions": "0600; parent directory 0700",
+  "plaintext_archive_bytes": 328337458,
+  "plaintext_archive_sha256": "99780797016e8b00769d7b9051b56228eb5a40b973d06f9a1b13b0e82d7ceef6",
+  "ciphertext_bytes": 328337488,
+  "ciphertext_sha256": "4201dc2fa1d36cac53fdd8b9bd4ca2b64e13b9d4cc8ab52ddfeb284f06608680",
+  "parts": [
+    {
+      "name": "archive-000.enc.part",
+      "bytes": 41943040,
+      "sha256": "dea3ea3619342e136dd2862b7503e25d2bb4cc367b0e72465de8bf388af65123"
+    },
+    {
+      "name": "archive-001.enc.part",
+      "bytes": 41943040,
+      "sha256": "6cd864be4cbbd425cb85a2675d4f3ff2721ed245808c6d5c9dee1cff09356840"
+    },
+    {
+      "name": "archive-002.enc.part",
+      "bytes": 41943040,
+      "sha256": "cffda573c160c05dcc6b2fb31cfc71a09459bc8832c040e70de60fe85baaa0e5"
+    },
+    {
+      "name": "archive-003.enc.part",
+      "bytes": 41943040,
+      "sha256": "26514e31027808adf70e809d31be37b9a043ef9b5ebf1ccce05f14c5cc8d6596"
+    },
+    {
+      "name": "archive-004.enc.part",
+      "bytes": 41943040,
+      "sha256": "1f476f5ddc8dea42fc3a5581f1f8e582a40a6de063ea2aa11fece015481b8a21"
+    },
+    {
+      "name": "archive-005.enc.part",
+      "bytes": 41943040,
+      "sha256": "ddec8e576b6404672d2e299ead3fadc8d523c0b3d5ab17aadd3da44a66e38bb7"
+    },
+    {
+      "name": "archive-006.enc.part",
+      "bytes": 41943040,
+      "sha256": "7373bee6cc768b81588de0126b29335593ce64590bd30ab0ad71c8dcd08390ad"
+    },
+    {
+      "name": "archive-007.enc.part",
+      "bytes": 34736208,
+      "sha256": "a73d8e186d542f93f733968d34c42dafa1be9de1f9e7ca85adad308e2aaa6003"
+    }
+  ],
+  "restore": "Concatenate archive-*.enc.part in numeric order; verify ciphertext SHA-256; decrypt with openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 -pass file:<key-path>; verify plaintext SHA-256; extract tar.gz; run git bundle verify on each bundle."
+}
