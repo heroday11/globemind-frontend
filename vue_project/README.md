@@ -9,7 +9,7 @@ Vue 3/Vite 主站，包含搜索、新闻、研究工作区、助手、治理、
 - `src/main.js` 创建 Vue 应用、Pinia 和 router。
 - `src/App.vue` 与 `src/router/` 组织页面；`src/config/api.js` 管理 API 地址。
 - `src/features/README.md` 是业务 feature、公共入口和聚焦测试索引。
-- `scripts/build-release.mjs` 构建主站并整合金融终端；`scripts/dev-all.mjs` 是未接入默认命令的历史编排器。
+- `scripts/build-release.mjs` 构建主站并整合金融终端。
 
 ## 依赖与环境
 

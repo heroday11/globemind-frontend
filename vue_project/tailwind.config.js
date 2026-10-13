@@ -1,4 +1,4 @@
-/** 主站 Tailwind 仅扫描活跃 Vue 源码；归档占位单元不参与生产样式构建。 */
+/** 主站 Tailwind 仅扫描主站 Vue 源文件。 */
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
