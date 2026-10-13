@@ -29,6 +29,7 @@ export {
   buildVisiblePages,
   calculateTotalPages,
   createSearchParams,
+  defaultNewsSearchMode,
   mergeFavoriteNewsIds,
   normalizeSearchParamsForType,
   normalizeDisplayNewsRows,

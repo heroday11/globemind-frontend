@@ -133,8 +133,8 @@
       <div class="search-condition" data-tour="search-form">
         <div class="search-heading-row">
           <div>
-            <h1>{{ searchParams.searchType === 'news' ? '跨语言全文搜索' : '事件脉络检索' }}</h1>
-            <p>{{ searchParams.searchType === 'news' ? '用你熟悉的语言描述想找的事件、观点或影响' : '在已归并的事件、走势和大事中查找' }}</p>
+            <h1>{{ searchParams.searchType === 'news' ? (searchParams.mode === 'smart' ? '跨语言全文搜索' : '新闻关键词搜索') : '事件脉络检索' }}</h1>
+            <p>{{ searchParams.searchType === 'news' ? (searchParams.mode === 'smart' ? '用你熟悉的语言描述想找的事件、观点或影响' : '输入事件、人物或地点关键词，优先检索新闻标题') : '在已归并的事件、走势和大事中查找' }}</p>
           </div>
           <div class="search-type-tabs" role="tablist" aria-label="搜索范围">
             <button
@@ -154,7 +154,7 @@
             id="search-topic"
             name="topic"
             type="search"
-            :placeholder="searchParams.searchType === 'news' ? '例如：日本央行加息对亚洲市场的影响' : '输入事件、参与方或地点'"
+            :placeholder="searchParams.mode === 'smart' ? '例如：日本央行加息对亚洲市场的影响' : '例如：特朗普、Ukraine，或用空格组合关键词'"
             v-model="searchParams.topic"
             autocomplete="off"
             @keyup.enter="performSearch"
@@ -164,8 +164,9 @@
           </button>
         </div>
         <div class="search-method-note" v-if="searchParams.searchType === 'news'">
-          <strong>智能检索</strong>
-          <span>自动扩展多语言查询 · 检索标题、摘要与正文 · 按语义相关度排序</span>
+          <strong>{{ searchParams.mode === 'smart' ? '智能检索' : '关键词检索' }}</strong>
+          <span v-if="searchParams.mode === 'smart'">自动扩展多语言查询 · 检索标题、摘要与正文 · 按语义相关度排序</span>
+          <span v-else>全文智能检索暂不可用，当前使用标题关键词检索；多个词需同时匹配，支持已有实体别名。</span>
         </div>
         <details class="advanced-search" data-tour="search-filters">
           <summary>筛选条件</summary>
@@ -1054,6 +1055,7 @@ import {
   createSearchListOperation,
   createSearchOperationRunner,
   createSearchParams,
+  defaultNewsSearchMode,
   createSearchQueryOperation,
   createSearchThemeName,
   createSearchThemeStorage,
@@ -1560,6 +1562,7 @@ const languages = ref([])
 const languageOptions = ref([])
 const sites = ref(['新闻网站', '博客', '社交媒体', '论坛'])
 const indexedSearchAvailable = ref(false)
+const newsSearchMode = ref(defaultNewsSearchMode(null))
 
 // 分页相关状态
 const currentPage = ref(1)
@@ -1715,7 +1718,7 @@ const resetSearch = async () => {
   isLoading.value = true
 
   // 1. 重置参数
-  Object.assign(searchParams, createSearchParams())
+  Object.assign(searchParams, createSearchParams({ mode: newsSearchMode.value }))
 
   // 2. 清空状态并退出搜索模式
   isSearchMode.value = false
@@ -1790,7 +1793,7 @@ const setSearchMode = (mode) => {
 }
 
 const setSearchType = (type) => {
-  const mode = type === 'news' ? 'smart' : 'exact'
+  const mode = type === 'news' ? newsSearchMode.value : 'exact'
   Object.assign(searchParams, normalizeSearchParamsForType({ ...searchParams, mode, page: 1 }, type))
   if (searchParams.topic.trim()) performSearch()
 }
@@ -2320,6 +2323,10 @@ const loadSearchCapabilities = async () => {
   const signal = auxiliaryRequestController.signal
   try {
     const capabilities = await searchApi.getCapabilities({ signal })
+    newsSearchMode.value = defaultNewsSearchMode(capabilities)
+    if (searchParams.searchType === 'news' && !isSearchMode.value && !isLoading.value) {
+      searchParams.mode = newsSearchMode.value
+    }
     indexedSearchAvailable.value = capabilities?.semantic === true && capabilities?.hybrid === true
   } catch (error) {
     if (!isSearchAbortError(error, signal)) {

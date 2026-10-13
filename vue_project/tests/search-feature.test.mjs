@@ -23,6 +23,7 @@ import {
   buildVisiblePages,
   calculateTotalPages,
   createSearchParams,
+  defaultNewsSearchMode,
   mergeFavoriteNewsIds,
   normalizeSearchParamsForType,
   normalizeDisplayNewsRows,
@@ -90,7 +91,7 @@ test('search query DTO preserves defaults, trimming, omission, and Chinese wire 
     pageSize: 10,
     sortBy: '',
     sortOrder: 'desc',
-    mode: 'smart',
+    mode: 'exact',
     searchType: 'news',
   })
   const input = createSearchParams({
@@ -132,18 +133,17 @@ test('search query DTO preserves defaults, trimming, omission, and Chinese wire 
     hit_location: '全文',
     page: 1,
     page_size: 10,
-    sort_by: 'similarity',
     sort_order: 'desc',
-    mode: 'smart',
+    mode: 'exact',
     search_type: 'news',
   })
   assert.equal(
     buildSearchRequestDto(createSearchParams({ sortBy: 'pub_time' }), '').sort_by,
-    'similarity',
+    'published_at',
   )
   assert.equal(
     buildSearchRequestDto(createSearchParams({ sortBy: 'time' }), '').sort_by,
-    'similarity',
+    undefined,
   )
   assert.equal(buildSearchHistoryKeyword(input), 'China risk')
   assert.equal(
@@ -1113,7 +1113,7 @@ test('data-search exposes one page heading and programmatic labels for search co
   const styles = await readFile(new URL('../src/views/DataService/data-search.less', import.meta.url), 'utf8')
 
   assert.equal(source.match(/<h1\b/g)?.length, 1)
-  assert.match(source, /<h1>\{\{ searchParams\.searchType === 'news' \? '跨语言全文搜索' : '事件脉络检索' \}\}<\/h1>/)
+  assert.match(source, /<h1>[^\n]*新闻关键词搜索[^\n]*事件脉络检索[^\n]*<\/h1>/)
 
   for (const id of [
     'search-folder-name',
@@ -1166,7 +1166,7 @@ test('data-search displays actual query, time-field semantics, and non-fabricate
 
   assert.match(source, /跨语言全文搜索/)
   assert.match(source, /const searchParams = reactive\(createSearchParams\(\)\)/)
-  assert.match(source, /const mode = type === 'news' \? 'smart' : 'exact'/)
+  assert.match(source, /const mode = type === 'news' \? newsSearchMode.value : 'exact'/)
   assert.doesNotMatch(source, />新闻发布日期<\/button>/)
   assert.match(source, /事件时间：\{\{ item\.start_date \|\| '—' \}\} 至 \{\{ item\.end_date \|\| '—' \}\}/)
   assert.match(source, /事件时间：\{\{ child\.start_date \|\| '—' \}\} 至 \{\{ child\.end_date \|\| '—' \}\}/)
@@ -1222,4 +1222,15 @@ test('data-search mobile pagination wraps without widening the page', async () =
     mobileStyles,
     /\.pagination-info,[\s\S]*\.pagination-jump\s*\{[^}]*min-width:\s*0;/,
   )
+})
+
+
+test('news search uses the database until a ready smart index is advertised', () => {
+  assert.equal(createSearchParams().mode, 'exact')
+  for (const capabilities of [null, {}, { smart: false }, { smart: 'true' }]) {
+    assert.equal(defaultNewsSearchMode(capabilities), 'exact')
+  }
+  assert.equal(defaultNewsSearchMode({ smart: true }), 'smart')
+  const params = createSearchParams({ mode: defaultNewsSearchMode({ smart: false }), topic: 'Ukraine' })
+  assert.equal(buildSearchRequestDto(params, '').mode, 'exact')
 })

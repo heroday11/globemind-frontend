@@ -28,7 +28,7 @@ export const SEARCH_PARAM_DEFAULTS = Object.freeze({
   pageSize: 10,
   sortBy: '',
   sortOrder: 'desc',
-  mode: 'smart',
+  mode: 'exact',
   searchType: 'news',
 })
 
@@ -617,4 +617,8 @@ export function buildVisiblePages(currentPage, totalPages, forwardCount = 8) {
 export function resolveJumpPage(value, currentPage, totalPages) {
   const page = parseInt(value)
   return page >= 1 && page <= totalPages ? page : currentPage
+}
+
+export function defaultNewsSearchMode(capabilities) {
+  return capabilities?.smart === true ? 'smart' : 'exact'
 }
