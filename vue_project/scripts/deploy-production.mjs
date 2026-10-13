@@ -9,9 +9,7 @@ const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const deployRoot = path.join(frontendRoot, '.deploy')
 const lockPath = path.join(deployRoot, 'lock')
 const buildId = process.env.VITE_BUILD_ID || new Date().toISOString().replaceAll(/[:.]/g, '-')
-const stagedDist = path.join(deployRoot, `dist-${buildId}`)
 const liveDist = path.join(frontendRoot, 'dist')
-const previousDist = path.join(frontendRoot, 'dist.previous')
 
 function run(command, args, extraEnv = {}) {
   const result = spawnSync(command, args, {
@@ -33,9 +31,13 @@ try {
   throw error
 }
 
-let liveMoved = false
+let transactionRoot
+let preserveTransaction = false
 try {
-  fs.rmSync(stagedDist, { recursive: true, force: true })
+  transactionRoot = fs.mkdtempSync(path.join(deployRoot, 'transaction-'))
+  const stagedDist = path.join(transactionRoot, 'staged')
+  const rollbackDist = path.join(transactionRoot, 'live')
+
   run('node', ['scripts/build-release.mjs'], {
     GLOBEMIND_FRONTEND_OUT_DIR: stagedDist,
     VITE_BUILD_ID: buildId,
@@ -48,20 +50,38 @@ try {
     if (!fs.statSync(required).isFile()) throw new Error(`missing deployment artifact: ${required}`)
   }
 
-  fs.rmSync(previousDist, { recursive: true, force: true })
+  let liveMoved = false
   if (fs.existsSync(liveDist)) {
-    fs.renameSync(liveDist, previousDist)
+    fs.renameSync(liveDist, rollbackDist)
     liveMoved = true
   }
-  fs.renameSync(stagedDist, liveDist)
-  console.log(`[deploy-production] active build: ${buildId}`)
-  console.log(`[deploy-production] rollback directory: ${previousDist}`)
-} catch (error) {
-  if (liveMoved && !fs.existsSync(liveDist) && fs.existsSync(previousDist)) {
-    fs.renameSync(previousDist, liveDist)
+
+  try {
+    fs.renameSync(stagedDist, liveDist)
+  } catch (error) {
+    if (liveMoved) {
+      try {
+        fs.renameSync(rollbackDist, liveDist)
+        liveMoved = false
+      } catch (restoreError) {
+        preserveTransaction = true
+        console.error(`[deploy-production] recovery files retained at: ${transactionRoot}`)
+        throw new AggregateError(
+          [error, restoreError],
+          'deployment failed and the previous dist could not be restored',
+        )
+      }
+    }
+    throw error
   }
-  throw error
+
+  console.log(`[deploy-production] active build: ${buildId}`)
 } finally {
-  fs.rmSync(stagedDist, { recursive: true, force: true })
-  fs.rmSync(lockPath, { recursive: true, force: true })
+  try {
+    if (transactionRoot && !preserveTransaction) {
+      fs.rmSync(transactionRoot, { recursive: true, force: true })
+    }
+  } finally {
+    fs.rmSync(lockPath, { recursive: true, force: true })
+  }
 }

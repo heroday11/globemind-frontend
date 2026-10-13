@@ -327,6 +327,7 @@ textarea:focus-visible,
 }
 
 .vault-hero,
+.featured-skills,
 .skill-library,
 .database-console,
 .source-panel {
@@ -345,6 +346,137 @@ textarea:focus-visible,
   border-radius: 18px;
   position: relative;
   overflow: hidden;
+}
+
+.featured-skills {
+  margin-bottom: 18px;
+  padding: 20px;
+  border-radius: 16px;
+}
+
+.curation-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(34, 95, 137, 0.14);
+  border-radius: 8px;
+  color: var(--vault-muted);
+  background: var(--vault-surface-2);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.featured-skill-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.featured-skill-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  min-height: 118px;
+  border: 1px solid rgba(34, 95, 137, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.featured-skill-card:hover,
+.featured-skill-card:focus-within,
+.featured-skill-card.selected {
+  border-color: rgba(34, 95, 137, 0.4);
+  box-shadow: 0 10px 24px rgba(25, 50, 72, 0.1);
+}
+
+.featured-skill-card.selected {
+  box-shadow: inset 3px 0 0 var(--vault-blue), 0 10px 24px rgba(25, 50, 72, 0.1);
+}
+
+.featured-skill-main {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+  padding: 14px 6px 14px 14px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.featured-skill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  color: var(--vault-blue-2);
+  background: rgba(34, 95, 137, 0.09);
+}
+
+.featured-skill-icon svg,
+.featured-skill-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.featured-skill-copy {
+  display: block;
+  min-width: 0;
+}
+
+.featured-skill-copy small,
+.featured-skill-copy strong,
+.featured-skill-copy span {
+  display: block;
+}
+
+.featured-skill-copy small {
+  margin-bottom: 3px;
+  color: var(--vault-cobalt);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.featured-skill-copy strong {
+  color: var(--vault-ink);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  font-weight: 900;
+}
+
+.featured-skill-copy span {
+  margin-top: 5px;
+  color: var(--vault-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.featured-skill-toggle {
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin: 10px 8px 0 0;
+  border: 1px solid rgba(34, 95, 137, 0.15);
+  border-radius: 7px;
+  color: var(--vault-blue-2);
+  background: var(--vault-surface-2);
+}
+
+.featured-skill-card.selected .featured-skill-toggle {
+  color: #fff;
+  background: var(--vault-blue-2);
 }
 
 .vault-hero::after {
@@ -945,6 +1077,12 @@ textarea:focus-visible,
   color: #2563eb;
 }
 
+.db-privacy-note.sync-error {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #b42318;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .catalog-spinner { animation: none; }
 }
@@ -1519,6 +1657,10 @@ textarea:focus-visible,
 }
 
 @media (max-width: 1500px) {
+  .featured-skill-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .skill-grid {
     grid-template-columns: repeat(2, minmax(230px, 1fr));
   }
@@ -1586,13 +1728,26 @@ textarea:focus-visible,
   }
 
   .domain-nav,
+  .featured-skill-grid,
   .skill-grid,
   .source-grid,
-  .hero-ledger,
   .form-row,
   .db-card dl,
   .modal-grid {
     grid-template-columns: 1fr;
+  }
+
+  .hero-ledger {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ledger-cell {
+    min-height: 88px;
+    padding: 14px;
+  }
+
+  .route-meaning-notice p {
+    display: none;
   }
 
   .vault-main {
@@ -1600,6 +1755,7 @@ textarea:focus-visible,
   }
 
   .vault-hero,
+  .featured-skills,
   .skill-library,
   .database-console,
   .source-panel {

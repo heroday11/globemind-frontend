@@ -20,6 +20,7 @@ declare module 'vue' {
     ElOption: typeof import('element-plus/es')['ElOption']
     ElSelect: typeof import('element-plus/es')['ElSelect']
     GuestAccessBanner: typeof import('./src/components/GuestAccessBanner.vue')['default']
+    LegacyAnalysisStatus: typeof import('./src/components/LegacyAnalysisStatus.vue')['default']
     LoginModal: typeof import('./src/components/LoginModal.vue')['default']
     NewUserGuide: typeof import('./src/components/NewUserGuide.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

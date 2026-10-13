@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 
 import {
   RESEARCH_ARTIFACT_DEFAULT_FIELDS,
@@ -20,6 +21,7 @@ import {
 import { getCurrentUser, getToken } from '@/utils/auth.js'
 
 const projects = ref([])
+const route = useRoute()
 const project = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -202,7 +204,8 @@ async function loadProjects() {
     const response = await researchWorkflowApi.listProjects()
     projects.value = response.projects || []
     if (!project.value && projects.value[0]) {
-      const next = await researchWorkflowApi.getProject(projects.value[0].id)
+      const requested = projects.value.find((item) => item.id === route.query.project)
+      const next = await researchWorkflowApi.getProject((requested || projects.value[0]).id)
       setProject(next)
       selectedProjectId = next.id
     }

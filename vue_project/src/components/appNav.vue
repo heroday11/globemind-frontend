@@ -2,16 +2,13 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  Activity,
   ChevronDown,
   CircleHelp,
   Crosshair,
   FileText,
   Folder,
   LogOut,
-  Network,
   Search,
-  ShieldCheck,
   User,
   X,
 } from 'lucide-vue-next'
@@ -159,27 +156,20 @@ const isShowcasePage = computed(() => route.name === 'ShowcaseOrbis')
 /** 数值分析预警：白色顶栏 */
 const isFinancialTerminal = computed(() => route.path === '/financial-terminal')
 
-// 检查数据服务系统下拉菜单是否应该高亮（不含报告中心）
+// 检查数据服务入口是否应该高亮
 const isDataServiceActive = computed(() => {
-  const dropdownRoutes = ['/data-service/data-search', '/data-service/pipeline-monitor']
-  return dropdownRoutes.some(p => route.path === p || route.path.startsWith(p + '/')) || route.path === '/data-service' || route.path === '/research-workspace' || route.path === '/model-assurance' || route.path === '/entity-governance' || route.path === '/country-profiles'
+  const dataServiceRoutes = ['/data-service/data-search']
+  return dataServiceRoutes.some(p => route.path === p || route.path.startsWith(p + '/')) || route.path === '/data-service'
 })
 
-// 数据服务系统下拉菜单状态
-const isDataServiceDropdownOpen = ref(false)
 // 用户中心下拉菜单状态
 const isUserCenterDropdownOpen = ref(false)
 
 // 定时器引用
-let dataServiceTimer = null
 let userCenterTimer = null
 let removeRouteAfterEach = null
 
 function clearDropdownTimers() {
-  if (dataServiceTimer) {
-    clearTimeout(dataServiceTimer)
-    dataServiceTimer = null
-  }
   if (userCenterTimer) {
     clearTimeout(userCenterTimer)
     userCenterTimer = null
@@ -188,7 +178,6 @@ function clearDropdownTimers() {
 
 function closeDropdowns() {
   clearDropdownTimers()
-  isDataServiceDropdownOpen.value = false
   isUserCenterDropdownOpen.value = false
 }
 
@@ -235,30 +224,9 @@ onUnmounted(() => {
   }
 })
 
-// 鼠标进入数据服务系统导航项
-const enterDataServiceDropdown = () => {
-  isDataServiceDropdownOpen.value = true
-  // 关闭用户中心下拉菜单
-  isUserCenterDropdownOpen.value = false
-  clearDropdownTimers()
-  preloadRoute('/data-service/data-search')
-}
-
-// 鼠标离开数据服务系统下拉菜单
-const leaveDataServiceDropdown = (event) => {
-  if (event?.relatedTarget && event.currentTarget?.contains?.(event.relatedTarget)) return
-  if (dataServiceTimer) clearTimeout(dataServiceTimer)
-  dataServiceTimer = setTimeout(() => {
-    isDataServiceDropdownOpen.value = false
-    dataServiceTimer = null
-  }, DROPDOWN_CLOSE_DELAY)
-}
-
 // 鼠标进入用户中心导航项
 const enterUserCenterDropdown = () => {
   isUserCenterDropdownOpen.value = true
-  // 关闭数据服务系统下拉菜单
-  isDataServiceDropdownOpen.value = false
   clearDropdownTimers()
   preloadRoute('/user-center/personal-center')
 }
@@ -344,106 +312,8 @@ const submitGlobalSearch = () => {
         <li class="nav-item"><router-link to="/data-service/ground-news" @pointerenter="preloadRoute('/data-service/ground-news')" @focus="preloadRoute('/data-service/ground-news')" @click="closeDropdowns">全球新闻观察台</router-link></li>
         <li class="nav-item"><router-link to="/sentiment-analysis" @pointerenter="preloadRoute('/sentiment-analysis')" @focus="preloadRoute('/sentiment-analysis')" @click="closeDropdowns">涉华舆情分析</router-link></li>
         <li class="nav-item"><router-link to="/data-service/story-graph" @pointerenter="preloadRoute('/data-service/story-graph')" @focus="preloadRoute('/data-service/story-graph')" @click="closeDropdowns">事件故事脉络</router-link></li>
-        <li
-          class="nav-item dropdown-item"
-          :class="{ 'nav-item-active': isDataServiceActive }"
-          @pointerenter="enterDataServiceDropdown"
-          @pointerleave="leaveDataServiceDropdown"
-          @focusin="enterDataServiceDropdown"
-          @focusout="leaveDataServiceDropdown"
-        >
-          <router-link
-            to="/data-service/data-search"
-            class="dropdown-trigger"
-            :aria-expanded="isDataServiceDropdownOpen"
-            aria-controls="desktop-data-service-menu"
-            aria-haspopup="true"
-            @click="closeDropdowns"
-          >
-            <span>数据服务</span>
-            <ChevronDown class="nav-icon dropdown-icon" :class="{ rotate: isDataServiceDropdownOpen }" :size="14" />
-          </router-link>
-          <div
-            id="desktop-data-service-menu"
-            class="dropdown-menu"
-            :class="{ show: isDataServiceDropdownOpen }"
-          >
-            <!-- 修改后 -->
-            <button
-              type="button"
-              class="dropdown-item-content"
-              @click="navigateTo('/data-service/data-search')"
-              style="--item-index: 0"
-            >
-              <FileText class="nav-icon dropdown-item-icon" :size="16" />
-              <span>数据搜索</span>
-            </button>
-
-            <button
-              type="button"
-              class="dropdown-item-content"
-              @click="navigateTo('/country-profiles')"
-              style="--item-index: 1"
-            >
-              <FileText class="nav-icon dropdown-item-icon" :size="16" />
-              <span>国家档案目录</span>
-            </button>
-
-            <button
-              v-if="hasToken"
-              type="button"
-              class="dropdown-item-content"
-              @click="navigateTo('/data-service/pipeline-monitor')"
-              style="--item-index: 2"
-            >
-              <Activity class="nav-icon dropdown-item-icon" :size="16" />
-              <span>管线监控</span>
-            </button>
-
-            <button
-              v-if="hasToken"
-              type="button"
-              class="dropdown-item-content"
-              @click="navigateTo('/research-workspace')"
-              style="--item-index: 3"
-            >
-              <Folder class="nav-icon dropdown-item-icon" :size="16" />
-              <span>研究工作台</span>
-            </button>
-
-            <button
-              v-if="hasToken"
-              type="button"
-              class="dropdown-item-content"
-              @click="navigateTo('/entity-governance')"
-              style="--item-index: 4"
-            >
-              <Network class="nav-icon dropdown-item-icon" :size="16" />
-              <span>实体治理</span>
-            </button>
-
-            <button
-              v-if="hasToken"
-              type="button"
-              class="dropdown-item-content"
-              @click="navigateTo('/model-assurance')"
-              style="--item-index: 5"
-            >
-              <ShieldCheck class="nav-icon dropdown-item-icon" :size="16" />
-              <span>模型评测与保障</span>
-            </button>
-
-            <button
-              type="button"
-              class="dropdown-item-content"
-              @click="navigateTo('/data-service/help-docs')"
-              style="--item-index: 6"
-            >
-              <CircleHelp class="nav-icon dropdown-item-icon" :size="16" />
-              <span>帮助文档</span>
-            </button>
-
-          </div>
+        <li class="nav-item" :class="{ 'nav-item-active': isDataServiceActive }">
+          <router-link to="/data-service/data-search" @pointerenter="preloadRoute('/data-service/data-search')" @focus="preloadRoute('/data-service/data-search')" @click="closeDropdowns">数据服务</router-link>
         </li>
         <li class="nav-item"><router-link to="/data-service/report-center" @pointerenter="preloadRoute('/data-service/report-center')" @focus="preloadRoute('/data-service/report-center')" @click="closeDropdowns">报告中心</router-link></li>
         <li class="nav-item"><router-link to="/data-assistant" @pointerenter="preloadRoute('/data-assistant')" @focus="preloadRoute('/data-assistant')" @click="closeDropdowns">数据助手</router-link></li>
@@ -617,49 +487,9 @@ const submitGlobalSearch = () => {
               <span>事件故事脉络</span>
             </router-link>
 
-            <!-- 数据服务（含子菜单） -->
-            <div class="mobile-nav-item mobile-nav-item--has-children">
-              <button
-                type="button"
-                class="mobile-nav-item-row"
-                :aria-expanded="Boolean(mobileExpandedMenus.dataService)"
-                aria-controls="mobile-data-service-submenu"
-                @click="toggleMobileSubmenu('dataService')"
-              >
-                <span>数据服务</span>
-                <ChevronDown class="nav-icon mobile-nav-arrow" :class="{ 'arrow-open': mobileExpandedMenus.dataService }" :size="14" />
-              </button>
-              <div id="mobile-data-service-submenu" v-if="mobileExpandedMenus.dataService" class="mobile-submenu">
-                <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/data-service/data-search')">
-                  <FileText class="nav-icon mobile-submenu-icon" :size="16" />
-                  <span>数据搜索</span>
-                </button>
-                <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/country-profiles')">
-                  <FileText class="nav-icon mobile-submenu-icon" :size="16" />
-                  <span>国家档案目录</span>
-                </button>
-                <button v-if="hasToken" type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/data-service/pipeline-monitor')">
-                  <Activity class="nav-icon mobile-submenu-icon" :size="16" />
-                  <span>管线监控</span>
-                </button>
-                <button v-if="hasToken" type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/research-workspace')">
-                  <Folder class="nav-icon mobile-submenu-icon" :size="16" />
-                  <span>研究工作台</span>
-                </button>
-                <button v-if="hasToken" type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/entity-governance')">
-                  <Network class="nav-icon mobile-submenu-icon" :size="16" />
-                  <span>实体治理</span>
-                </button>
-                <button v-if="hasToken" type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/model-assurance')">
-                  <ShieldCheck class="nav-icon mobile-submenu-icon" :size="16" />
-                  <span>模型评测与保障</span>
-                </button>
-                <button type="button" class="mobile-submenu-item" @click="mobileNavigateTo('/data-service/help-docs')">
-                  <CircleHelp class="nav-icon mobile-submenu-icon" :size="16" />
-                  <span>帮助文档</span>
-                </button>
-              </div>
-            </div>
+            <router-link class="mobile-nav-item" to="/data-service/data-search" @click="closeMobileMenuForNavigation">
+              <span>数据服务</span>
+            </router-link>
 
             <router-link class="mobile-nav-item" to="/data-service/report-center" @click="closeMobileMenuForNavigation">
               <span>报告中心</span>

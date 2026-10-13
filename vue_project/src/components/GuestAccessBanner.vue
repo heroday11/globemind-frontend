@@ -30,7 +30,7 @@ const actionStatus = ref('')
 
 const hidden = computed(() => {
   const authPage = ['/login', '/register', '/forgot-password', '/reset-password'].includes(route.path)
-  return hasToken.value || dismissed.value || authPage
+  return hasToken.value || dismissed.value || authPage || route.meta.hideGuestAccessBanner === true
 })
 
 function syncAuth() {

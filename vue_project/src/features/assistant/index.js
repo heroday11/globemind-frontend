@@ -1,4 +1,3 @@
-export { default as AssistantExperience } from './AssistantExperience.vue'
 export { default as AssistantDrawer } from './AssistantDrawer.vue'
 
 export {

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import DataAssistant from './AssistantExperience.vue'
+import DataAssistant from '@/views/DataAssistant.vue'
 
 const DRAWER_WIDTH_KEY = 'globemind_assistant_drawer_width_v1'
 const FLOATING_POSITION_KEY = 'globemind_assistant_drawer_float_position_v1'
@@ -148,10 +148,6 @@ const pageSkillActions = computed(() => {
 function closeDrawer() {
   emit('update:modelValue', false)
   emitLayout({ open: false })
-}
-
-function forwardPageAction(action) {
-  emit('page-action', action)
 }
 
 function handleWindowResize() {
@@ -344,8 +340,6 @@ watch(
             <DataAssistant
               :key="props.drawerKey"
               embedded
-              :page-skill="props.pageSkill"
-              @page-action="forwardPageAction"
             />
           </div>
         </aside>

@@ -10,6 +10,8 @@
       </div>
 
       <div class="intel-topbar__meta">
+        <LegacyAnalysisStatus />
+        <RouterLink class="intel-btn intel-btn--ghost" to="/data-service/decision-desk">决策研究</RouterLink>
         <div class="intel-mode-switch" data-tour="story-level-switch" role="tablist" aria-label="图谱层级">
           <button :class="{ 'is-active': graphMode === 'l3' }" @click="switchGraphMode('l3')">
             L3 大事件
@@ -22,8 +24,8 @@
         <span class="intel-badge" v-if="currentStory">
           {{ currentStory.story_title || `走势链 ${currentStory.story_id}` }}
         </span>
-        <span class="intel-badge intel-badge--soft" v-if="storyStatsText">
-          {{ storyStatsText }}
+        <span class="intel-badge intel-badge--soft" v-if="visibleStoryStatsText">
+          {{ visibleStoryStatsText }}
         </span>
         <button class="intel-btn intel-btn--ghost" :disabled="!graph" @click="fitCanvas">
           适配视图
@@ -79,19 +81,14 @@
                 @click="selectStory(story.id)"
               >
                 <div class="intel-story-card__top">
-                  <span class="intel-story-card__type">{{
-                    familyLabel(story.family_group || story.event_type)
-                  }}</span>
-                  <span class="intel-story-card__count">{{
-                    storyResearchMetric(story).valueLabel
-                  }}</span>
+                  <span v-if="storyFamilyLabel(story)" class="intel-story-card__type">
+                    {{ storyFamilyLabel(story) }}
+                  </span>
                 </div>
                 <strong>{{ displayStoryTitle(story) }}</strong>
                 <small>{{ storyResearchLine(story) }}</small>
-                <div class="intel-story-card__signals">
-                  <span>{{ storyResearchMetric(story).valueLabel }}</span>
-                  <span>{{ evidenceLevel(story.article_count) }}</span>
-                  <span>{{ formatRange(story.start_date, story.end_date) }}</span>
+                <div v-if="storySignalValues(story).length" class="intel-story-card__signals">
+                  <span v-for="signal in storySignalValues(story)" :key="signal">{{ signal }}</span>
                 </div>
               </button>
             </div>
@@ -100,30 +97,12 @@
           <section class="intel-section" v-if="currentStory">
             <div class="intel-section__title">
               <span>{{ currentLabel }}</span>
-              <span>{{ currentStory.story_id }}</span>
             </div>
             <div class="intel-summary-card">
               <strong>{{
                 displayStoryTitle(currentStory)
               }}</strong>
-              <p>{{ buildStorySummaryLine(currentStory) }}</p>
-              <div class="intel-research-strip">
-                <span v-for="signal in currentResearchSignals" :key="signal.label">
-                  <label>{{ signal.label }}</label>
-                  <strong>{{ signal.value }}</strong>
-                </span>
-              </div>
-              <div class="intel-chip-row">
-                <span class="intel-chip">{{
-                  familyLabel(currentStory.meta?.dominant_type || 'mixed')
-                }}</span>
-                <span class="intel-chip">{{
-                  graphMode === 'l3'
-                    ? `${graphMetrics.mainNodes} 个 L2 节点`
-                    : `${graphMetrics.mainNodes} 个走势节点`
-                }}</span>
-                <span class="intel-chip">{{ currentStory.meta?.article_count || 0 }} 条新闻</span>
-              </div>
+              <p v-if="currentStorySummary">{{ currentStorySummary }}</p>
             </div>
           </section>
 
@@ -140,11 +119,13 @@
                 @click="selectStory(item.story_id)"
               >
                 <div class="intel-related-card__meta">
-                  <span>{{ item.layer }}</span>
-                  <span>{{ relationLabel(item) }}</span>
+                  <span v-if="isMeaningfulDisplayValue(item.layer)">{{ item.layer }}</span>
+                  <span v-if="isMeaningfulDisplayValue(relationLabel(item))">{{ relationLabel(item) }}</span>
                 </div>
                 <strong>{{ item.title || `走势链 ${item.story_id}` }}</strong>
-                <small>{{ formatRange(item.start_date, item.end_date) }}</small>
+                <small v-if="isMeaningfulDisplayValue(formatRange(item.start_date, item.end_date))">
+                  {{ formatRange(item.start_date, item.end_date) }}
+                </small>
               </button>
             </div>
           </section>
@@ -232,21 +213,6 @@
               </span>
             </div>
 
-            <div class="intel-focus-sheet__metrics">
-              <div>
-                <label>类型</label>
-                <strong>{{ focusPrimaryType }}</strong>
-              </div>
-              <div>
-                <label>研究价值</label>
-                <strong>{{ focusResearchValueText }}</strong>
-              </div>
-              <div>
-                <label>证据</label>
-                <strong>{{ focusEvidenceText }}</strong>
-              </div>
-            </div>
-
             <div class="intel-focus-sheet__actions">
               <button
                 v-if="selectedInspector.kind === 'l3-chain' && selectedInspector.l2ChainId"
@@ -267,10 +233,9 @@
               </button>
             </div>
 
-            <section class="intel-focus-section">
+            <section v-if="focusDetailRows.length" class="intel-focus-section">
               <div class="intel-focus-section__title">
-                <span>结构化信息</span>
-                <span>{{ focusDetailRows.length }}</span>
+                <span>关键数据</span>
               </div>
               <div class="intel-focus-detail-grid">
                 <div v-for="row in focusDetailRows" :key="row.label">
@@ -280,25 +245,7 @@
               </div>
             </section>
 
-            <section v-if="focusInsightText" class="intel-focus-section">
-              <div class="intel-focus-section__title">
-                <span>研判线索</span>
-                <span>{{ focusKindLabel(selectedInspector.kind) }}</span>
-              </div>
-              <p class="intel-focus-insight">{{ focusInsightText }}</p>
-            </section>
-
-            <section v-if="focusResearchActions.length" class="intel-focus-section">
-              <div class="intel-focus-section__title">
-                <span>研究使用建议</span>
-                <span>{{ focusResearchActions.length }}</span>
-              </div>
-              <ul class="intel-research-actions">
-                <li v-for="action in focusResearchActions" :key="action">{{ action }}</li>
-              </ul>
-            </section>
-
-            <section class="intel-focus-news">
+            <section v-if="showFocusEvidence" class="intel-focus-news">
               <div class="intel-focus-news__title">
                 <span>相关新闻</span>
                 <span>{{ selectedEvidenceNews.length }}</span>
@@ -309,11 +256,11 @@
                   v-for="item in focusEvidenceNews"
                   :key="item.news_id"
                   class="intel-focus-news__item"
-                  :href="item.url || '#'"
+                  :href="item.safe_url"
                   target="_blank"
                   rel="noopener"
                 >
-                  <small>{{ evidenceNewsMeta(item) }}</small>
+                  <small v-if="evidenceNewsMeta(item)">{{ evidenceNewsMeta(item) }}</small>
                   <strong>{{ item.title || `新闻 ${item.news_id}` }}</strong>
                 </a>
               </div>
@@ -354,16 +301,13 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { getCurrentUser, getToken } from '@/utils/auth'
+import LegacyAnalysisStatus from '@/components/LegacyAnalysisStatus.vue'
 import { safeExternalHttpUrl } from '@/utils/externalUrl.js'
-import {
-  graphMetricExplanation,
-  graphMetricPresentation,
-} from '@/governance/graphMetrics.js'
+import { graphMetricPresentation } from '@/governance/graphMetrics.js'
 import {
   L2_RUN_ID as l2RunId,
   L3_RUN_ID as l3RunId,
   angleLabel,
-  buildStoryGraphAccessibleList,
   buildGraphMetrics,
   buildStoryGraphEvidenceParams,
   buildStoryGraphQueryStatus,
@@ -390,9 +334,7 @@ import {
   normalizeL3MacroSummary,
   relationEvidenceText,
   relationLabel,
-  relationResearchGuidance,
   relationStrengthLabel,
-  reportingCoverageGuidance,
   researchValueLabel,
   researchValueScore,
   sortRelatedStories,
@@ -470,17 +412,6 @@ const searchPlaceholder = computed(() =>
 const filteredStories = computed(() =>
   sortStorySummariesByResearchValue(filterStorySummaries(stories.value, storySearch.value)),
 )
-const libraryQueryMessage = computed(() => {
-  const query = String(storySearch.value || '').trim()
-  if (query && !filteredStories.value.length) {
-    return buildStoryGraphQueryStatus('search-empty', {
-      mode: graphMode.value,
-      query,
-    }).message
-  }
-  if (query) return `当前查询“${query}”匹配 ${filteredStories.value.length} 条。`
-  return `当前批次共 ${stories.value.length} 条。`
-})
 const queryStatusTitle = computed(() => ({
   error: '当前查询失败',
   'list-empty': '当前批次暂无结果',
@@ -492,23 +423,20 @@ const queryStatusTitle = computed(() => ({
 }[queryStatus.value.kind] || `请选择${graphMode.value === 'l3' ? '一个大事件' : '一条走势链'}`))
 const branchStories = computed(() => sortRelatedStories(currentStory.value?.related_stories))
 const graphMetrics = computed(() => buildGraphMetrics(currentStory.value, branchStories.value))
-const accessibleGraphList = computed(() => buildStoryGraphAccessibleList(currentStory.value, {
-  includeContext: showContextLinks.value,
-}))
 const storyStatsText = computed(() =>
   buildStoryStatsText(currentStory.value, graphMetrics.value, branchStories.value),
 )
+const visibleStoryStatsText = computed(() => (
+  isMeaningfulDisplayValue(storyStatsText.value) ? storyStatsText.value : ''
+))
 const samplingNotice = computed(() => graphSamplingNotice(currentStory.value))
+const currentStorySummary = computed(() => {
+  const summary = buildStorySummaryLine(currentStory.value)
+  return isMeaningfulDisplayValue(summary) ? summary : ''
+})
 const currentResearchSignals = computed(() => {
   const story = currentStory.value
   if (!story) return []
-  const metric = storyResearchMetric({
-    ...story,
-    article_count: story.meta?.article_count,
-    segment_count: story.meta?.segment_count,
-    l2_chain_count: story.meta?.l2_chain_count,
-    quality_score: story.meta?.quality_score,
-  })
   const visibleNodes = Number.isInteger(story.meta?.visible_node_count)
     ? story.meta.visible_node_count
     : graphMetrics.value.mainNodes
@@ -516,32 +444,16 @@ const currentResearchSignals = computed(() => {
     ? story.meta.total_node_count
     : null
   return [
-    { label: '研究价值', value: `${metric.valueLabel} · 公式/输入/证据未形成可发布合同` },
-    { label: '报道规模', value: evidenceLevel(story.meta?.article_count) },
-    {
+    hasCount(story.meta?.article_count)
+      ? { label: '报道规模', value: `${story.meta.article_count} 条新闻` }
+      : null,
+    totalNodes !== null ? {
       label: '结构覆盖',
-      value: totalNodes === null
-        ? `${visibleNodes} 个已加载节点 / 候选总数未知`
-        : `${visibleNodes}/${totalNodes} 个候选节点（非完整图）`,
-    },
-    { label: '运行批次', value: story.meta?.run_id || activeRunId.value },
-  ]
+      value: `${visibleNodes}/${totalNodes} 个候选节点（非完整图）`,
+    } : null,
+  ].filter(Boolean)
 })
 
-function storyResearchMetric(item = {}) {
-  const meta = item.meta || {}
-  return graphMetricPresentation('story_graph.research_value', {
-    value: item.research_value,
-    method_card: item.research_value_method_card,
-    evidence_locator: item.research_value_evidence_locator,
-    inputs: {
-      article_count: item.article_count ?? item.articleCount ?? meta.article_count,
-      segment_count: item.segment_count ?? item.segmentCount ?? meta.segment_count,
-      l2_chain_count: item.l2_chain_count ?? item.cluster_count ?? meta.l2_chain_count,
-      quality_score: item.quality_score ?? item.importance_score ?? meta.quality_score,
-    },
-  })
-}
 const assistantFabStyle = computed(() => {
   const position = assistantFabPosition.value
   if (!position) return {}
@@ -600,16 +512,28 @@ const selectedInspectorSubtitle = computed(() => {
       : '请选择一条走势链开始分析。'
   }
   if (selectedInspector.value.kind === 'l2-segment') {
-    return `${angleLabel(selectedInspector.value.storyAngle || selectedInspector.value.eventType)} · ${formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate)}`
+    return [
+      angleLabel(selectedInspector.value.storyAngle || selectedInspector.value.eventType),
+      formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate),
+    ].filter(isMeaningfulDisplayValue).join(' · ')
   }
   if (selectedInspector.value.kind === 'l3-chain') {
-    return `${familyLabel(selectedInspector.value.lane || selectedInspector.value.eventType)} · ${formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate)}`
+    return [
+      familyLabel(selectedInspector.value.lane || selectedInspector.value.eventType),
+      formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate),
+    ].filter(isMeaningfulDisplayValue).join(' · ')
   }
   if (selectedInspector.value.kind === 'cluster') {
-    return `${angleLabel(selectedInspector.value.eventType) || '未知类型'} · ${formatActorPair(selectedInspector.value.initiator, selectedInspector.value.target, '主体未知')}`
+    return [
+      angleLabel(selectedInspector.value.eventType),
+      formatActorPair(selectedInspector.value.initiator, selectedInspector.value.target, ''),
+    ].filter(isMeaningfulDisplayValue).join(' · ') || '事件节点'
   }
   if (selectedInspector.value.kind === 'branch-story') {
-    return `${relationLabel(selectedInspector.value.relation)} · ${formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate)}`
+    return [
+      relationLabel(selectedInspector.value.relation),
+      formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate),
+    ].filter(isMeaningfulDisplayValue).join(' · ')
   }
   if (selectedInspector.value.kind === 'edge') {
     return relationEvidenceText(selectedInspector.value)
@@ -621,17 +545,14 @@ const selectedInspectorChips = computed(() => {
   if (!selectedInspector.value) return []
   if (selectedInspector.value.kind === 'l2-segment') {
     return [
-      angleLabel(selectedInspector.value.storyAngle || selectedInspector.value.eventType),
       formatCountLabel(selectedInspector.value.articleCount, {
         unit: '条新闻',
         unknown: '新闻数未知',
       }),
-      formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate),
-    ].filter(Boolean)
+    ].filter(isMeaningfulDisplayValue)
   }
   if (selectedInspector.value.kind === 'l3-chain') {
     return [
-      familyLabel(selectedInspector.value.lane || selectedInspector.value.eventType),
       formatCountLabel(selectedInspector.value.segmentCount, {
         unit: '个 L1.5 片段',
         unknown: 'L1.5 片段数未知',
@@ -640,27 +561,25 @@ const selectedInspectorChips = computed(() => {
         unit: '条新闻',
         unknown: '新闻数未知',
       }),
-      formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate),
-    ].filter(Boolean)
+    ].filter(isMeaningfulDisplayValue)
   }
   if (selectedInspector.value.kind === 'cluster') {
     return [
-      angleLabel(selectedInspector.value.eventType) || '未知类型',
+      angleLabel(selectedInspector.value.eventType),
       formatCountLabel(selectedInspector.value.articleCount, {
         unit: '条新闻',
         unknown: '新闻数未知',
       }),
       formatRange(selectedInspector.value.startDate, selectedInspector.value.endDate),
-    ].filter(Boolean)
+    ].filter(isMeaningfulDisplayValue)
   }
   if (selectedInspector.value.kind === 'branch-story') {
     return [
       selectedInspector.value.relation?.layer || '关联',
-      relationLabel(selectedInspector.value.relation),
       selectedInspector.value.nodeCount == null
-        ? '节点数未知'
+        ? ''
         : `${selectedInspector.value.nodeCount} 个节点`,
-    ].filter(Boolean)
+    ].filter(isMeaningfulDisplayValue)
   }
   if (selectedInspector.value.kind === 'edge') {
     return [
@@ -669,13 +588,13 @@ const selectedInspectorChips = computed(() => {
       graphMetricPresentation('story_graph.edge_weight', {
         value: selectedInspector.value.weight,
       }).valueLabel,
-    ].filter(Boolean)
+    ].filter(isMeaningfulDisplayValue)
   }
   return [
     familyLabel(currentStory.value?.meta?.dominant_type || 'mixed'),
     `${graphMetrics.value.mainNodes} 个节点`,
     `${graphMetrics.value.branchStories} 个分支`,
-  ]
+  ].filter(isMeaningfulDisplayValue)
 })
 
 const selectedEvidenceNews = computed(() => {
@@ -685,59 +604,18 @@ const selectedEvidenceNews = computed(() => {
 const focusEvidenceNews = computed(() => selectedEvidenceNews.value.slice(0, 8).map((item) => ({
   ...item,
   safe_url: safeExternalHttpUrl(item.url),
-})))
+})).filter((item) => item.safe_url))
+
+const showFocusEvidence = computed(() => {
+  if (evidenceLoading.value || focusEvidenceNews.value.length) return true
+  return ['l2-segment', 'cluster'].includes(selectedInspector.value?.kind)
+})
 
 const focusArticleCount = computed(() => {
   return selectedClusterDetail.value?.article_count
     ?? selectedClusterDetail.value?.articleCount
     ?? selectedInspector.value?.articleCount
-    ?? selectedInspector.value?.segmentCount
     ?? null
-})
-
-const focusResearchScore = computed(() => {
-  const item = selectedClusterDetail.value || selectedInspector.value || currentStory.value
-  if (!item) return 0
-  return researchValueScore({
-    ...item,
-    article_count: focusArticleCount.value ?? item.article_count ?? item.articleCount,
-    segment_count: item.segment_count ?? item.segmentCount,
-    quality_score: item.quality_score ?? item.importanceScore ?? currentStory.value?.meta?.quality_score,
-    start_date: item.start_date || item.startDate,
-    end_date: item.end_date || item.endDate,
-  })
-})
-
-const focusResearchValueText = computed(() => {
-  if (selectedInspector.value?.kind === 'edge') return relationStrengthLabel(selectedInspector.value)
-  return `${graphMetricPresentation('story_graph.research_value', {
-    value: focusResearchScore.value,
-  }).valueLabel} · ${researchValueLabel(focusResearchScore.value)}`
-})
-
-const focusMetricExplanation = computed(() => {
-  const item = selectedInspector.value || currentStory.value || {}
-  if (selectedInspector.value?.kind === 'edge') {
-    return graphMetricExplanation('story_graph.relation_strength', {
-      inputs: {
-        edge_weight: item.weight ?? item.edge_weight,
-        shared_actor_count: item.sharedActorCount ?? item.shared_actor_count,
-        shared_topic_count: item.sharedTopicCount ?? item.shared_topic_count,
-        relation_reason: item.relationReason ?? item.relation_reason,
-      },
-    })
-  }
-  const meta = item.meta || currentStory.value?.meta || {}
-  return graphMetricExplanation('story_graph.research_value', {
-    inputs: {
-      article_count: focusArticleCount.value ?? item.article_count ?? item.articleCount,
-      segment_count: item.segment_count ?? item.segmentCount ?? meta.segment_count,
-      l2_chain_count: item.l2_chain_count ?? item.cluster_count ?? meta.l2_chain_count,
-      quality_score: item.quality_score ?? item.importanceScore ?? meta.quality_score,
-      actor_count: Object.keys(meta.actor_counts || {}).length,
-      topic_count: Object.keys(meta.topic_counts || {}).length,
-    },
-  })
 })
 
 const focusEvidenceText = computed(() => {
@@ -745,32 +623,8 @@ const focusEvidenceText = computed(() => {
   return evidenceLevel(focusArticleCount.value, { direct: isDirectEvidence })
 })
 
-const focusPrimaryType = computed(() => {
-  const item = selectedInspector.value
-  if (!item) return '未选择'
-  if (item.kind === 'edge') return edgeLabel(item.edgeType)
-  return (
-    angleLabel(item.storyAngle || item.eventType || selectedClusterDetail.value?.event_type) ||
-    familyLabel(item.lane || item.eventType || currentStory.value?.meta?.dominant_type || 'mixed')
-  )
-})
-
-const focusTimeRange = computed(() => {
-  const item = selectedInspector.value || {}
-  return formatRange(
-    item.startDate || item.start_date || selectedClusterDetail.value?.start_date,
-    item.endDate || item.end_date || selectedClusterDetail.value?.end_date,
-  )
-})
-
 const focusEmptyText = computed(() => {
-  if (selectedInspector.value?.kind === 'l3-chain') {
-    return '该节点是一条 L2 支线，可打开 L2 查看内部阶段和原文证据。'
-  }
-  if (selectedInspector.value?.kind === 'edge') {
-    return relationEvidenceText(selectedInspector.value)
-  }
-  return '当前焦点暂无可展示的新闻证据。'
+  return '暂无可展示的相关新闻。'
 })
 
 const focusDetailRows = computed(() => {
@@ -778,39 +632,23 @@ const focusDetailRows = computed(() => {
   if (!item) return []
 
   const detail = selectedClusterDetail.value || {}
-  const rows = [
-    ['焦点类型', focusKindLabel(item.kind)],
-    [
-      '关系主体',
-      formatActorPair(item.initiator || detail.initiator, item.target || detail.target, ''),
-    ],
-    ['时间范围', focusTimeRange.value],
-    ['分类角度', focusPrimaryType.value],
-    ['研究价值', focusResearchValueText.value],
-    ['报道量状态', focusEvidenceText.value],
-  ]
+  const rows = [[
+    '关系主体',
+    formatActorPair(item.initiator || detail.initiator, item.target || detail.target, ''),
+  ]]
 
   if (item.kind === 'l3-chain') {
-    rows.push(
-      ['L2 链 ID', item.l2ChainId],
-      ['片段规模', formatCountLabel(item.segmentCount, {
-        unit: '个 L1.5 片段',
-        unknown: 'L1.5 片段数未知',
-      })],
-      ['取证方式', '打开 L2 后查看阶段证据'],
-    )
+    return []
   } else if (item.kind === 'l2-segment') {
-    rows.push(['Segment ID', item.segmentId], ['Story Page', item.detailUrl ? '可打开' : '未提供'])
+    // The title, date, category and report count are already shown above.
   } else if (item.kind === 'cluster') {
-    rows.push(['Cluster ID', item.originalClusterId || item.l1ClusterId])
+    return []
   } else if (item.kind === 'edge') {
     rows.push(
       ['起点', findStoryNodeTitle(item.sourceId)],
       ['终点', findStoryNodeTitle(item.targetId)],
-      ['主张 ID', item.claimId || '不可用（旧载荷）'],
-      ['引用定位', item.citationLocator || '不可用'],
-      ['未知门禁', item.unknownGate || 'explicit_unknown'],
-      ['原因码', item.reasonCode || 'GRAPH_RELATION_CLAIM_CONTRACT_MISSING'],
+      ['主张 ID', item.claimId],
+      ['引用定位', item.citationLocator],
       ['关系强度', relationStrengthLabel(item)],
       ['判定依据', relationEvidenceText(item)],
     )
@@ -818,51 +656,7 @@ const focusDetailRows = computed(() => {
 
   return rows
     .map(([label, value]) => ({ label, value: displayValue(value) }))
-    .filter((row) => row.value !== '未标注')
-})
-
-const focusInsightText = computed(() => {
-  const item = selectedInspector.value
-  if (!item) return ''
-  if (item.kind === 'edge') {
-    return `该边表示“${edgeLabel(item.edgeType)}”。${relationEvidenceText(item)}；作为研究证据时应优先核验两端节点的原文、日期先后和共同主体，避免把单纯时间重叠解读为因果。`
-  }
-  if (item.kind === 'l3-chain') {
-    return `该支线承担“${familyLabel(item.lane || item.eventType)}”角色，当前显示${formatCountLabel(item.segmentCount, { unit: '个片段', unknown: '片段数未知' })}和${formatCountLabel(item.articleCount, { unit: '条新闻', unknown: '新闻数未知' })}。它可作为待核验研究子样本，但直接取证需要进入 L2。`
-  }
-  if (item.kind === 'l2-segment') {
-    return `该节点来自 L1 事件聚类，当前${formatCountLabel(item.articleCount, { unit: '条新闻', unknown: '新闻数未知' })}；适合核验其时间位置、主体关系、来源分布，以及是否构成走势拐点。`
-  }
-  if (item.kind === 'cluster') {
-    return buildStorySummaryLine(selectedClusterDetail.value || item) || selectedInspectorSubtitle.value
-  }
-  return selectedInspectorSubtitle.value
-})
-
-const focusResearchActions = computed(() => {
-  const item = selectedInspector.value
-  if (!item) return []
-  if (item.kind === 'edge') {
-    return relationResearchGuidance(item)
-  }
-  if (item.kind === 'l3-chain') {
-    return [
-      '作为宏观事件的子样本下钻到 L2，避免只凭 L3 聚合标题判断。',
-      '比较同一 L3 内其他支线，确认它是主线、支线还是背景变量。',
-      '记录 L2 链 ID 和 run_id，保证后续复现实验样本。',
-    ]
-  }
-  if (item.kind === 'l2-segment' || item.kind === 'cluster') {
-    return [
-      '优先打开相关新闻，核验标题、来源和发布时间。',
-      '检查该节点前后相邻节点，判断它是否是拐点或只是并行报道。',
-      reportingCoverageGuidance(focusArticleCount.value),
-    ]
-  }
-  return [
-    '先看研究价值和未核验报道覆盖，再决定是否下钻。',
-    '保留 run_id、时间范围和节点 ID，便于复现。',
-  ]
+    .filter((row) => isMeaningfulDisplayValue(row.value))
 })
 
 const focusAssistantQuestion = computed(() => {
@@ -1162,13 +956,27 @@ function storyResearchLine(story) {
       unit: '条新闻',
       unknown: '新闻数未知',
     }),
-  ].filter(Boolean)
+  ].filter(isMeaningfulDisplayValue)
   return parts.join(' · ')
 }
 
+function storyFamilyLabel(story) {
+  const label = familyLabel(story?.family_group || story?.event_type)
+  return isMeaningfulDisplayValue(label) ? label : ''
+}
+
+function storySignalValues(story) {
+  return [
+    hasCount(story?.article_count) ? `${story.article_count} 条新闻` : '',
+    formatRange(story?.start_date, story?.end_date),
+  ].filter(isMeaningfulDisplayValue)
+}
+
 function evidenceNewsMeta(item) {
-  const source = item?.source || item?.domain || item?.site_name || '未知来源'
-  return `${source} · ${formatNewsDate(item)}`
+  return [
+    item?.source || item?.domain || item?.site_name,
+    formatNewsDate(item),
+  ].filter(isMeaningfulDisplayValue).join(' · ')
 }
 
 async function renderWorkspaceGraph(requestToken = null, story = currentStory.value) {
@@ -1520,16 +1328,16 @@ function buildStoryGraphAssistantContext() {
         `焦点标题：${compactText(selectedInspectorTitle.value, 160)}`,
         `焦点说明：${compactText(selectedInspectorSubtitle.value, 220)}`,
         `焦点标签：${selectedInspectorChips.value.join(' / ') || '无'}`,
-        `焦点研究价值：${focusResearchValueText.value}`,
         `焦点报道覆盖（未核验）：${focusEvidenceText.value}`,
-        `研究使用建议：${focusResearchActions.value.join('；') || '无'}`,
       ]
     : ['当前未选择具体焦点。']
 
   const evidence = selectedEvidenceNews.value.slice(0, 8).map((item, index) => {
     const title = compactText(item.title || item.news_title || item.news_id, 150)
-    const source = item.source || item.domain || '未知来源'
-    return `${index + 1}. ${title}；${source}；${formatNewsDate(item)}`
+    const metadata = [item.source || item.domain, formatNewsDate(item)]
+      .filter(isMeaningfulDisplayValue)
+      .join('；')
+    return `${index + 1}. ${title}${metadata ? `；${metadata}` : ''}`
   })
 
   const lines = [
@@ -1584,6 +1392,16 @@ function compactText(value, max = 160) {
 function displayValue(value) {
   const text = String(value || '').replace(/\s+/g, ' ').trim()
   return text || '未标注'
+}
+
+function hasCount(value) {
+  return Number.isFinite(Number(value)) && Number(value) >= 0 && value !== '' && value != null
+}
+
+function isMeaningfulDisplayValue(value) {
+  const text = displayValue(value)
+  return text !== '未标注'
+    && !/(?:未知|不可用|未提供|explicit_unknown|CONTRACT_MISSING)/i.test(text)
 }
 
 function clampText(value, max = 11000) {
@@ -2288,10 +2106,10 @@ function clampText(value, max = 11000) {
   position: absolute;
   right: 18px;
   top: 72px;
-  bottom: 18px;
+  bottom: auto;
   z-index: 7;
   width: min(620px, calc(100% - 36px));
-  max-height: none;
+  max-height: calc(100% - 90px);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2344,33 +2162,6 @@ function clampText(value, max = 11000) {
   gap: 8px;
 }
 
-.intel-focus-sheet__metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.intel-focus-sheet__metrics div {
-  border: 1px solid rgba(52, 91, 128, 0.14);
-  border-radius: var(--panel-radius);
-  background: rgba(245, 250, 254, 0.88);
-  padding: 9px 10px;
-}
-
-.intel-focus-sheet__metrics label {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.intel-focus-sheet__metrics strong {
-  color: var(--text);
-  font-size: 13px;
-  line-height: 1.3;
-}
-
 .intel-focus-section {
   display: flex;
   flex-direction: column;
@@ -2414,48 +2205,6 @@ function clampText(value, max = 11000) {
   font-size: 12.5px;
   line-height: 1.35;
   overflow-wrap: anywhere;
-}
-
-.intel-focus-sheet .intel-focus-insight {
-  margin: 0;
-  border: 1px solid rgba(31, 123, 189, 0.18);
-  border-left: 3px solid rgba(31, 123, 189, 0.72);
-  border-radius: var(--panel-radius);
-  background: rgba(235, 247, 255, 0.72);
-  padding: 10px 12px;
-  color: #1b405c;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.intel-research-actions {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.intel-research-actions li {
-  position: relative;
-  border: 1px solid rgba(52, 91, 128, 0.14);
-  border-radius: var(--panel-radius);
-  background: rgba(252, 254, 255, 0.88);
-  padding: 8px 10px 8px 24px;
-  color: #24435e;
-  font-size: 12.5px;
-  line-height: 1.45;
-}
-
-.intel-research-actions li::before {
-  content: '';
-  position: absolute;
-  left: 10px;
-  top: 15px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
 }
 
 .intel-focus-news {

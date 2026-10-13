@@ -32,6 +32,7 @@ const ROUTE_TITLES = Object.freeze({
   '/register': '创建账号 · GlobeMind',
   '/forgot-password': '找回密码 · GlobeMind',
   '/reset-password': '重置密码 · GlobeMind',
+  '/verify-email': '验证邮箱 · GlobeMind',
   '/privacy': '隐私说明 · GlobeMind',
   '/terms': '服务条款 · GlobeMind',
   '/security': '安全报告 · GlobeMind',
@@ -44,6 +45,7 @@ const ROUTE_TITLES = Object.freeze({
   '/data-service/story-graph': '事件故事脉络 · GlobeMind',
   '/data-service/ground-news': '全球新闻观察台 · GlobeMind',
   '/data-service/ground-news-desk': '新闻分析工作台 · GlobeMind',
+  '/data-service/decision-desk': '决策研究台 · GlobeMind',
   '/data-service/ground-news-blindspot': '旧盲点入口迁移说明 · GlobeMind',
   '/data-service/ground-news-search': '旧新闻搜索入口迁移说明 · GlobeMind',
   '/data-service/report-center': '报告中心 · GlobeMind',
@@ -144,6 +146,12 @@ const router = createRouter({
       path: '/reset-password',
       name: 'ResetPassword',
       component: () => import('@/views/ResetPassword.vue'),
+      meta: { hideNavbar: true, public: true }
+    },
+    {
+      path: '/verify-email',
+      name: 'VerifyEmail',
+      component: () => import('@/views/VerifyEmail.vue'),
       meta: { hideNavbar: true, public: true }
     },
     {
@@ -262,6 +270,12 @@ const router = createRouter({
           path: 'ground-news',
           name: 'GroundNewsHome',
           component: routeViewLoaders.groundNewsHome
+        },
+        {
+          path: 'decision-desk',
+          name: 'DecisionDesk',
+          component: () => import('@/views/DecisionDesk.vue'),
+          meta: { public: true, hideGuestAccessBanner: true }
         },
         {
           path: 'ground-news-desk',

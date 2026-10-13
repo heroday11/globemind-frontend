@@ -11,6 +11,8 @@ import {
 } from '@/governance/identitySecurity'
 import { clearAuth, getToken, setCurrentUser } from '@/utils/auth'
 import DisplayPreferencesPanel from './DisplayPreferencesPanel.vue'
+import DshSoundPreferencesPanel from './DshSoundPreferencesPanel.vue'
+import DshEmailPreferencesPanel from './DshEmailPreferencesPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -22,6 +24,7 @@ const settingsTabs = Object.freeze([
   { id: 'assistant-memory', label: '助手记忆' },
   { id: 'privacy', label: '隐私权利' },
   { id: 'display', label: '显示设置' },
+  { id: 'report-delivery', label: '报告投递' },
 ])
 const settingsTabIds = new Set(settingsTabs.map((tab) => tab.id))
 
@@ -98,7 +101,14 @@ const deletionPlanBlockers = computed(() =>
   Array.isArray(deletionPlan.value?.external_blockers) ? deletionPlan.value.external_blockers : [],
 )
 const formData = reactive({ full_name: '', email: '', phone: '' })
-const profile = reactive({ username: '', full_name: '', email: '', phone: '', created_at: '' })
+const profile = reactive({
+  username: '',
+  full_name: '',
+  email: '',
+  email_verified: true,
+  phone: '',
+  created_at: '',
+})
 const passwordForm = reactive({ old_password: '', new_password: '', confirm_password: '' })
 const assistantMemory = reactive({ memory_summary: '', updated_at: '', created_at: '' })
 const apiConfig = reactive({
@@ -526,6 +536,7 @@ async function loadProfile() {
     profile.username = data.username || ''
     profile.full_name = data.full_name || ''
     profile.email = data.email || ''
+    profile.email_verified = data.email_verified !== false
     profile.phone = data.phone || ''
     profile.created_at = data.created_at ? data.created_at.replace('T', ' ').slice(0, 19) : ''
     formData.full_name = profile.full_name
@@ -567,7 +578,11 @@ async function handleSave() {
     if (!res.ok) {
       throw new Error(data.detail || '保存失败')
     }
-    ElMessage.success('资料更新成功')
+    if (data.email_verified === false) {
+      ElMessage.success('资料更新成功，请查收邮件验证新邮箱')
+    } else {
+      ElMessage.success('资料更新成功')
+    }
     await loadProfile()
   } catch (e) {
     ElMessage.error(e.message || '保存失败')
@@ -925,7 +940,12 @@ onBeforeUnmount(() => {
               <span class="pc-meta-icon pc-meta-icon--email" aria-hidden="true"></span>
               邮箱
             </dt>
-            <dd class="pc-meta-val">{{ profile.email || '—' }}</dd>
+            <dd class="pc-meta-val">
+              {{ profile.email || '—' }}
+              <span v-if="profile.email" class="pc-email-state">
+                {{ profile.email_verified ? '已验证' : '待验证' }}
+              </span>
+            </dd>
           </div>
           <div class="pc-meta-row">
             <dt class="pc-meta-key">
@@ -1020,7 +1040,16 @@ onBeforeUnmount(() => {
                 <span class="pc-btn-text">保存更改</span>
                 <span class="pc-btn-shimmer" aria-hidden="true"></span>
               </el-button>
-              <span class="pc-actions-hint">修改后点击保存即可生效</span>
+              <span class="pc-actions-hint">
+                {{ profile.email_verified ? '更换邮箱后需重新验证' : '当前邮箱尚未验证' }}
+              </span>
+              <router-link
+                v-if="!profile.email_verified"
+                class="pc-verify-email-link"
+                :to="{ path: '/verify-email', query: { email: profile.email } }"
+              >
+                前往验证
+              </router-link>
             </div>
           </el-form>
 
@@ -1769,6 +1798,8 @@ onBeforeUnmount(() => {
           </div>
 
           <DisplayPreferencesPanel v-if="activeTab === 'display'" />
+          <DshSoundPreferencesPanel v-if="activeTab === 'display'" />
+          <DshEmailPreferencesPanel v-if="activeTab === 'report-delivery'" />
         </div>
       </section>
     </div>
@@ -2126,6 +2157,15 @@ onBeforeUnmount(() => {
   font-size: 0.8rem;
   color: var(--pc-text-muted);
   font-weight: 460;
+}
+
+.pc-email-state {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--uc-accent, #5b72df);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 /* Bottom accent bar */
@@ -3090,6 +3130,12 @@ onBeforeUnmount(() => {
   font-size: 0.78rem;
   color: var(--pc-text-muted);
   font-weight: 440;
+}
+
+.pc-verify-email-link {
+  color: var(--uc-accent, #5b72df);
+  font-size: 0.8rem;
+  font-weight: 650;
 }
 
 /* ---- Button ---- */

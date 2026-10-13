@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 import {
@@ -128,18 +127,4 @@ test('briefing list loader is take-latest and supports invalidation', async () =
   loader.invalidate()
   pending[2]([{ id: 'invalidated' }])
   assert.equal((await invalidated).current, false)
-})
-
-
-test('assistant schedule surface avoids unverified execution and raw error claims', async () => {
-  const source = await readFile(
-    new URL('../src/features/assistant/AssistantExperience.vue', import.meta.url),
-    'utf8',
-  )
-
-  assert.doesNotMatch(source, /任务会在后端按到期时间执行/)
-  assert.match(source, /实际执行依赖后台调度器健康状态/)
-  assert.match(source, /计划记录/)
-  assert.doesNotMatch(source, /selectedBriefingSchedule\.last_error\s*}}/)
-  assert.match(source, /briefingRunStatusLabel\(run\.status\)/)
 })

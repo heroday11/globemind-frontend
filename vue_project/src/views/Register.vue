@@ -117,10 +117,10 @@ async function handleRegister() {
       await showError(formatApiErrorDetail(data))
       return
     }
-    success.value = '注册成功，正在跳转登录页...'
+    success.value = data.message || '注册成功，请查收验证邮件'
     await nextTick()
     successMessage.value?.focus()
-    setTimeout(() => router.replace('/login'), 900)
+    setTimeout(() => router.replace({ path: '/verify-email', query: { email: form.email } }), 700)
   } catch {
     await showError('网络错误，请稍后重试')
   } finally {

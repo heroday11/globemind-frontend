@@ -78,9 +78,9 @@
             <ShieldCheck />
             <span>给 Agent 装配可审查的专家能力与数据源</span>
           </div>
-          <h2>Skill 与数据库市场</h2>
+          <h2>高频 Skill 工作台</h2>
           <p>
-            选择专家 skill 并登记数据库连接说明；是否实际接通、来源许可与可用范围以数据目录和页内状态为准。
+            把文档、演示、论文检索与研究写作放在最顺手的位置，再按领域装配经过筛选的专家能力。
           </p>
         </div>
 
@@ -91,7 +91,7 @@
           </div>
           <div class="ledger-cell">
             <span>{{ catalogLoading ? '—' : totalSkills }}</span>
-            <p>已整理 skill</p>
+            <p>精选 skill</p>
           </div>
           <div class="ledger-cell">
             <span>{{ catalogLoading ? '—' : downloadedSources.length }}</span>
@@ -101,6 +101,46 @@
             <span>{{ databaseCards.length }}</span>
             <p>数据库卡片</p>
           </div>
+        </div>
+      </section>
+
+      <section v-if="!catalogLoading && !catalogError" class="featured-skills" aria-labelledby="featured-skills-title">
+        <header class="panel-header">
+          <div>
+            <p class="section-label">Essential Skills</p>
+            <h3 id="featured-skills-title">高频通用能力</h3>
+          </div>
+          <span class="curation-count">从 {{ rawTotalSkills }} 项中精选 {{ totalSkills }} 项</span>
+        </header>
+
+        <div class="featured-skill-grid">
+          <article
+            v-for="item in featuredSkills"
+            :key="item.skill.id"
+            class="featured-skill-card"
+            :class="{ selected: isSkillSelected(item.skill.id) }"
+          >
+            <button class="featured-skill-main" type="button" @click="openSkillDetail(item.skill)">
+              <span class="featured-skill-icon">
+                <component :is="domainIcon(item.skill.domainId)" />
+              </span>
+              <span class="featured-skill-copy">
+                <small>{{ item.eyebrow }}</small>
+                <strong>{{ skillName(item.skill) }}</strong>
+                <span>{{ item.summary }}</span>
+              </span>
+            </button>
+            <button
+              class="featured-skill-toggle"
+              type="button"
+              :aria-label="isSkillSelected(item.skill.id) ? `移除${skillName(item.skill)}` : `选择${skillName(item.skill)}`"
+              :title="isSkillSelected(item.skill.id) ? '移除 skill' : '选择使用'"
+              @click="toggleSkill(item.skill)"
+            >
+              <CheckCircle2 v-if="isSkillSelected(item.skill.id)" />
+              <Plus v-else />
+            </button>
+          </article>
         </div>
       </section>
 
@@ -224,6 +264,12 @@
               <span class="selected-count">{{ selectedSkills.length }}</span>
             </header>
 
+            <p class="db-privacy-note" :class="{ 'sync-error': capabilitySyncError }" aria-live="polite">
+              <RefreshCw v-if="capabilitySyncing" class="catalog-spinner" />
+              <PlugZap v-else />
+              {{ capabilitySyncMessage }}
+            </p>
+
             <div v-if="selectedSkills.length" class="selected-skill-list">
               <article v-for="skill in selectedSkills" :key="skill.id" class="selected-skill-item">
                 <button type="button" class="selected-skill-main" @click="openSkillDetail(skill)">
@@ -262,7 +308,7 @@
           </header>
 
           <p class="db-privacy-note">
-            <LockKeyhole /> 连接卡仅在当前浏览器保存连接说明，不保存密码，也不会自动连接外部数据库。
+            <LockKeyhole /> 登录后连接说明会同步到知识库和 DSH；不保存密码，也不会自动连接外部数据库。
           </p>
 
           <form class="db-form" data-tour="knowledge-databases" @submit.prevent="saveDatabaseCard">
@@ -522,10 +568,62 @@ import {
   X,
 } from 'lucide-vue-next'
 import { safeExpertSkillDocumentPath, safeExternalHttpUrl } from '@/utils/externalUrl.js'
+import { getToken } from '@/utils/auth.js'
 
 const CATALOG_URL = '/datasets/expert-skills/catalog.json'
 const DB_STORAGE_KEY = 'globemind_academic_data_database_cards_v1'
 const SELECTED_SKILLS_KEY = 'globemind_academic_data_selected_skills_v1'
+const CAPABILITIES_SYNC_KEY = 'globemind_assistant_capabilities_sync_v1'
+
+const FEATURED_SKILLS = [
+  { id: 'globemind-docx-processing', eyebrow: '文档工作', summary: '创建、编辑与检查 Word 文档' },
+  { id: 'ppt-master-ppt-master', eyebrow: '演示制作', summary: '从文档或模板生成可编辑 PPT' },
+  { id: 'alirez-litreview', eyebrow: '论文检索', summary: '制定检索式并系统综述文献' },
+  { id: 'nous-arxiv', eyebrow: '精准查论文', summary: '定向检索 arXiv 论文与元数据' },
+  { id: 'nous-research-paper-writing', eyebrow: '学术写作', summary: '组织论文结构、论证与引用' },
+  { id: 'orchestra-academic-plotting', eyebrow: '研究表达', summary: '生成适合论文发表的学术图表' },
+  { id: 'globemind-pdf-processing', eyebrow: '文献阅读', summary: '提取、整理与核对 PDF 内容' },
+  { id: 'globemind-xlsx-processing', eyebrow: '数据处理', summary: '分析、编辑与交付 Excel 工作簿' },
+]
+
+// Deliberate allow-list: broad, reusable workflows with clear outputs and maintained sources.
+const CURATED_SKILL_IDS = new Set([
+  ...FEATURED_SKILLS.map((item) => item.id),
+  'alirez-dossier', 'alirez-grants', 'alirez-patent', 'alirez-pulse', 'alirez-research',
+  'alirez-syllabus', 'alirez-ux-researcher-designer', 'nous-bioinformatics',
+  'nous-duckduckgo-search', 'nous-searxng-search', 'orchestra-ml-paper-writing',
+  'orchestra-systems-paper-writing', 'softaworks-perplexity',
+  'anthropic-claude-api', 'anthropic-skill-creator', 'nous-computer-use',
+  'nous-evaluating-llms-harness', 'nous-serving-llms-vllm', 'orchestra-dspy',
+  'orchestra-experiment-tracking-swanlab', 'orchestra-grpo-rl-training',
+  'orchestra-knowledge-distillation', 'orchestra-langchain', 'orchestra-long-context',
+  'orchestra-mlflow', 'orchestra-outlines', 'orchestra-qdrant-vector-search',
+  'orchestra-tensorboard', 'orchestra-weights-and-biases',
+  'web-quality-best-practices', 'addy-code-review-and-quality', 'addy-code-simplification',
+  'addy-deprecation-and-migration', 'addy-git-workflow-and-versioning',
+  'addy-shipping-and-launch', 'addy-test-driven-development', 'alirez-api-design-reviewer',
+  'alirez-senior-architect', 'alirez-senior-backend', 'anthropic-mcp-builder',
+  'nous-github-pr-workflow', 'nous-systematic-debugging', 'softaworks-mermaid-diagrams',
+  'softaworks-openapi-to-typescript', 'web-quality-accessibility',
+  'addy-browser-testing-with-devtools', 'web-quality-core-web-vitals',
+  'addy-debugging-and-error-recovery', 'addy-frontend-ui-engineering',
+  'addy-performance-optimization', 'web-quality-seo', 'web-quality-web-quality-audit',
+  'anthropic-frontend-design', 'anthropic-webapp-testing', 'softaworks-qa-test-planner',
+  'addy-ci-cd-and-automation', 'addy-security-and-hardening', 'alirez-cloud-security',
+  'alirez-incident-response', 'alirez-ai-security', 'alirez-clinical-research',
+  'alirez-eu-ai-act-specialist', 'alirez-information-security-manager-iso27001',
+  'alirez-iso42001-specialist', 'alirez-soc2-compliance', 'orchestra-ara-rigor-reviewer',
+  'alirez-analytics-tracking', 'alirez-database-designer', 'alirez-market-research',
+  'alirez-sql-database-assistant', 'nous-excel-author', 'softaworks-database-schema-designer',
+  'addy-context-engineering', 'alirez-research-summarizer',
+  'nous-subagent-driven-development', 'alirez-knowledge-ops',
+  'softaworks-requirements-clarity', 'addy-spec-driven-development',
+  'addy-documentation-and-adrs', 'nous-ocr-and-documents', 'softaworks-c4-architecture',
+  'softaworks-humanizer', 'globemind-pptx-processing',
+  'orchestra-presenting-conference-talks', 'softaworks-marp-slide',
+  'nous-concept-diagrams', 'softaworks-draw-io', 'softaworks-excalidraw',
+  'softaworks-professional-communication',
+])
 
 const catalog = ref({
   version: '',
@@ -542,6 +640,12 @@ const detailSkill = ref(null)
 const dbFormError = ref('')
 const catalogLoading = ref(true)
 const catalogError = ref('')
+const capabilitySyncing = ref(false)
+const capabilitySyncError = ref('')
+const capabilitySyncUnavailable = ref(false)
+const capabilityLastSyncedAt = ref('')
+const capabilityNeedsMigration = ref(false)
+let capabilitySyncGeneration = 0
 
 const dbTypes = [
   { name: 'PostgreSQL', port: '5432' },
@@ -592,7 +696,18 @@ const domainIcons = {
   knowledge: BookOpen,
 }
 
-const domains = computed(() => catalog.value.domains || [])
+const rawDomains = computed(() => catalog.value.domains || [])
+const rawTotalSkills = computed(() =>
+  rawDomains.value.reduce((sum, domain) => sum + (domain.skills?.length || 0), 0),
+)
+const domains = computed(() =>
+  rawDomains.value
+    .map((domain) => ({
+      ...domain,
+      skills: (domain.skills || []).filter((skill) => CURATED_SKILL_IDS.has(skill.id)),
+    }))
+    .filter((domain) => domain.skills.length),
+)
 const downloadedSources = computed(() => catalog.value.downloadedSources || [])
 const catalogPolicy = computed(() => catalog.value.policy || {})
 const catalogMeta = computed(() => {
@@ -615,12 +730,19 @@ const allSkills = computed(() =>
   ),
 )
 
+const featuredSkills = computed(() => {
+  const skillsById = new Map(allSkills.value.map((skill) => [skill.id, skill]))
+  return FEATURED_SKILLS
+    .map((item) => ({ ...item, skill: skillsById.get(item.id) }))
+    .filter((item) => item.skill)
+})
+
 const activeDomain = computed(() =>
   domains.value.find((domain) => domain.id === activeDomainId.value) || null,
 )
 
 const activeDomainTitle = computed(() => {
-  if (activeDomainId.value === 'all') return '全部专家 Skill'
+  if (activeDomainId.value === 'all') return '精选 Skill 目录'
   return activeDomain.value?.name || '专家 Skill'
 })
 
@@ -628,6 +750,7 @@ const filteredSkills = computed(() => {
   const q = searchKeyword.value.trim().toLowerCase()
   return allSkills.value.filter((skill) => {
     if (activeDomainId.value !== 'all' && skill.domainId !== activeDomainId.value) return false
+    if (!q && activeDomainId.value === 'all' && FEATURED_SKILLS.some((item) => item.id === skill.id)) return false
     if (!q) return true
     const haystack = [
       skill.name,
@@ -666,6 +789,15 @@ const selectedSkills = computed(() =>
     .map((id) => allSkills.value.find((skill) => skill.id === id))
     .filter(Boolean),
 )
+
+const capabilitySyncMessage = computed(() => {
+  if (!getToken()) return '访客选择仅保存在当前浏览器；登录后可同步到知识库和 DSH。'
+  if (capabilitySyncing.value) return '正在同步到知识库和 DSH...'
+  if (capabilitySyncUnavailable.value) return '已保存在当前浏览器；账户与 DSH 同步暂不可用。'
+  if (capabilitySyncError.value) return capabilitySyncError.value
+  if (capabilityLastSyncedAt.value) return `已同步到知识库和 DSH · ${capabilityLastSyncedAt.value}`
+  return '选择会同步到知识库，并作为原生 Skill 接入 DSH。'
+})
 
 function domainIcon(id) {
   return domainIcons[id] || BookOpen
@@ -772,6 +904,22 @@ function persistSelectedSkills() {
   } catch (error) {
     console.warn('保存已使用 skill 失败', error)
   }
+  void syncCapabilities()
+}
+
+function capabilityFingerprint(skillIds = selectedSkillIds.value, cards = databaseCards.value) {
+  return JSON.stringify({
+    skills: [...skillIds].sort(),
+    databases: cards.map((card) => card.id).filter(Boolean).sort(),
+  })
+}
+
+function readCapabilitySyncFingerprint() {
+  try { return localStorage.getItem(CAPABILITIES_SYNC_KEY) || '' } catch { /* Storage may be unavailable. */ return '' }
+}
+
+function markCapabilitiesSynced() {
+  try { localStorage.setItem(CAPABILITIES_SYNC_KEY, capabilityFingerprint()) } catch { /* Storage is optional. */ }
 }
 
 function loadSelectedSkills() {
@@ -857,6 +1005,7 @@ function persistDatabaseCards() {
   } catch (error) {
     console.warn('保存数据库卡片失败', error)
   }
+  void syncCapabilities()
 }
 
 function loadDatabaseCards() {
@@ -866,6 +1015,106 @@ function loadDatabaseCards() {
   } catch {
     databaseCards.value = []
   }
+}
+
+function authHeaders(extra = {}) {
+  const token = getToken()
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra
+}
+
+async function readSelectedSkillContent(skill) {
+  const target = safeExpertSkillDocumentPath(skill?.localPath)
+  if (!target) return ''
+  const response = await fetch(target, { cache: 'force-cache' })
+  if (!response.ok) return ''
+  return response.text()
+}
+
+async function syncCapabilities() {
+  const token = getToken()
+  if (!token || catalogLoading.value || capabilitySyncUnavailable.value) return
+  const generation = ++capabilitySyncGeneration
+  capabilitySyncing.value = true
+  capabilitySyncError.value = ''
+  try {
+    const skills = await Promise.all(selectedSkills.value.map(async (skill) => ({
+      id: skill.id,
+      name: skill.name || skill.id,
+      nameZh: skill.nameZh || '',
+      description: skill.description || '',
+      descriptionZh: skill.descriptionZh || '',
+      domain: skill.domainId || '',
+      source: skill.source || '',
+      runtime: skill.runtime || '',
+      content: await readSelectedSkillContent(skill),
+    })))
+    const response = await fetch('/api/assistant/capabilities', {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ skills, databaseCards: databaseCards.value }),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (response.status === 404 || response.status === 405) {
+      if (generation === capabilitySyncGeneration) {
+        capabilitySyncUnavailable.value = true
+        capabilitySyncError.value = ''
+      }
+      return
+    }
+    if (!response.ok) throw new Error(payload.detail || payload.error || '能力同步失败')
+    if (generation === capabilitySyncGeneration) {
+      markCapabilitiesSynced()
+      capabilityLastSyncedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    }
+  } catch (error) {
+    if (generation === capabilitySyncGeneration) {
+      capabilitySyncError.value = error instanceof Error ? error.message : '能力同步失败'
+    }
+  } finally {
+    if (generation === capabilitySyncGeneration) capabilitySyncing.value = false
+  }
+}
+
+async function loadAccountCapabilities() {
+  if (!getToken()) return
+  try {
+    const response = await fetch('/api/assistant/capabilities', { headers: authHeaders(), cache: 'no-store' })
+    const payload = await response.json().catch(() => ({}))
+    if (response.status === 404 || response.status === 405) {
+      capabilitySyncUnavailable.value = true
+      capabilitySyncError.value = ''
+      return
+    }
+    if (!response.ok) throw new Error(payload.detail || payload.error || '能力配置加载失败')
+    const profile = payload.data || {}
+    const hasAccountProfile = Boolean(profile.updatedAt)
+    const hasPendingLocalChanges = Boolean(
+      (selectedSkillIds.value.length || databaseCards.value.length)
+      && readCapabilitySyncFingerprint() !== capabilityFingerprint(),
+    )
+    if (hasAccountProfile && Array.isArray(profile.skills) && !hasPendingLocalChanges) {
+      selectedSkillIds.value = profile.skills.map((skill) => skill.id).filter(Boolean)
+    }
+    if (hasAccountProfile && Array.isArray(profile.databaseCards) && !hasPendingLocalChanges) {
+      databaseCards.value = profile.databaseCards
+    }
+    capabilityNeedsMigration.value = hasPendingLocalChanges
+      || (!hasAccountProfile && Boolean(selectedSkillIds.value.length || databaseCards.value.length))
+    capabilityLastSyncedAt.value = profile.updatedAt && !capabilityNeedsMigration.value ? '账号配置已加载' : ''
+    if (hasAccountProfile && !capabilityNeedsMigration.value) markCapabilitiesSynced()
+    persistSelectedSkillsLocally()
+    persistDatabaseCardsLocally()
+  } catch (error) {
+    capabilitySyncError.value = error instanceof Error ? error.message : '能力配置加载失败'
+  }
+}
+
+function persistSelectedSkillsLocally() {
+  try { localStorage.setItem(SELECTED_SKILLS_KEY, JSON.stringify(selectedSkillIds.value)) } catch { /* Storage is optional. */ }
+}
+
+function persistDatabaseCardsLocally() {
+  try { localStorage.setItem(DB_STORAGE_KEY, JSON.stringify(databaseCards.value)) } catch { /* Storage is optional. */ }
 }
 
 function openLocalSource(source) {
@@ -901,7 +1150,10 @@ function handleKeydown(event) {
 onMounted(() => {
   loadDatabaseCards()
   loadSelectedSkills()
-  loadCatalog()
+  void Promise.all([loadCatalog(), loadAccountCapabilities()]).then(() => {
+    pruneSelectedSkills()
+    if (capabilityNeedsMigration.value) void syncCapabilities()
+  })
   window.addEventListener('keydown', handleKeydown)
 })
 

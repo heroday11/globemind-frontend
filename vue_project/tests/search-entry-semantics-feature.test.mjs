@@ -59,19 +59,14 @@ test('search modes expose one versioned public term contract', () => {
   assert.doesNotMatch(JSON.stringify(unavailable), /vector-secret-mode/)
 })
 
-test('data search and assistant tool details consume the shared mode disclosure', async () => {
-  const [searchPage, assistantPage] = await Promise.all([
-    readFile(new URL('../src/views/DataService/data-search.vue', import.meta.url), 'utf8'),
-    readFile(new URL('../src/features/assistant/AssistantExperience.vue', import.meta.url), 'utf8'),
-  ])
+test('data search consumes the shared mode disclosure', async () => {
+  const searchPage = await readFile(
+    new URL('../src/views/DataService/data-search.vue', import.meta.url),
+    'utf8',
+  )
 
   assert.match(searchPage, /searchModeDisclosure\(preset\.mode\)\.label/)
   assert.match(searchPage, /searchModeDisclosure\(searchParams\.mode\)\.description/)
   assert.doesNotMatch(searchPage, /preset\.mode === ['"]fuzzy['"] \? ['"]主题扩展['"] : ['"]全部词['"]/)
 
-  assert.match(assistantPage, /from ['"]@\/governance\/searchQuerySemantics\.js['"]/)
-  assert.doesNotMatch(assistantPage, /from ['"]@\/features\/search\//)
-  assert.match(assistantPage, /searchModeDisclosure\(mode\)\.label/)
-  assert.match(assistantPage, /searchModeDisclosure\(tc\.invoke\.mode\)\.description/)
-  assert.doesNotMatch(assistantPage, /exact:\s*['"]精确['"]|fuzzy:\s*['"]语义['"]/)
 })

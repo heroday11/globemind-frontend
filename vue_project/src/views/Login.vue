@@ -69,6 +69,9 @@
         >
           {{ error }}
         </p>
+        <p v-if="needsEmailVerification" class="verification-link">
+          <router-link :to="verificationRoute">验证邮箱或重新发送验证邮件</router-link>
+        </p>
         <p
           v-if="success"
           ref="successMessage"
@@ -101,7 +104,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { API_PREFIX } from '@/config/api'
 import { formatApiErrorDetail } from '@/utils/apiError'
@@ -127,6 +130,14 @@ const mfaChallenge = ref('')
 const mfaMethod = ref('totp')
 const mfaValue = ref('')
 const mfaField = ref(null)
+const needsEmailVerification = ref(false)
+
+const verificationRoute = computed(() => {
+  const loginId = String(username.value || '').trim()
+  return loginId.includes('@')
+    ? { path: '/verify-email', query: { email: loginId } }
+    : { path: '/verify-email' }
+})
 
 async function showError(message) {
   error.value = message
@@ -137,6 +148,7 @@ async function showError(message) {
 async function handleLogin() {
   error.value = ''
   success.value = ''
+  needsEmailVerification.value = false
   loading.value = true
   try {
     const completingMfa = Boolean(mfaChallenge.value)
@@ -162,6 +174,7 @@ async function handleLogin() {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
+      needsEmailVerification.value = data?.detail?.code === 'EMAIL_NOT_VERIFIED'
       await showError(formatApiErrorDetail(data))
       return
     }
@@ -308,6 +321,14 @@ onMounted(() => {
   color: #1f7a39;
   font-size: 0.95rem;
   margin: 4px 0 12px;
+}
+.verification-link {
+  margin: -4px 0 12px;
+  font-size: 0.92rem;
+}
+.verification-link a {
+  color: #1257ad;
+  font-weight: 650;
 }
 .login-form .error:focus,
 .login-form .success:focus {

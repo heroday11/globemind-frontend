@@ -21,7 +21,7 @@ test('guided tour owns cross-route steps and real spotlight targets', async () =
   const groundDesk = await source('../src/views/GroundNewsDesk.vue')
   const knowledge = await source('../src/views/AcademicData.vue')
   const financial = await source('../src/views/FinancialTerminal.vue')
-  const assistant = await source('../src/features/assistant/AssistantExperience.vue')
+  const assistant = await source('../src/views/DataAssistant.vue')
   const report = await source('../src/views/DataService/report-center.vue')
 
   assert.match(guide, /globemind_new_user_guide_v3/)
@@ -51,16 +51,16 @@ test('guided tour owns cross-route steps and real spotlight targets', async () =
   assert.match(sentiment, /data-tour="sentiment-chart"/)
   assert.match(knowledge, /data-tour="knowledge-skills"/)
   assert.match(financial, /data-tour="financial-terminal"/)
-  assert.match(assistant, /data-tour="assistant-auth-gate"/)
+  assert.match(assistant, /\/api\/assistant\/dsh-launch/)
   assert.match(report, /data-tour="report-auth-gate"/)
   assert.doesNotMatch(guide, /先判断今天|最新快讯回答|本周多源/)
-  assert.doesNotMatch(assistant, /今日研判队列|>Live<\/span>/)
+  assert.doesNotMatch(assistant, /AssistantExperience|研究工作台|智能体模式/)
 })
 
 test('logged-out users receive persistent and page-specific access explanations', async () => {
   const app = await source('../src/App.vue')
   const guest = await source('../src/components/GuestAccessBanner.vue')
-  const assistant = await source('../src/features/assistant/AssistantExperience.vue')
+  const assistant = await source('../src/views/DataAssistant.vue')
   const report = await source('../src/views/DataService/report-center.vue')
 
   assert.match(app, /<GuestAccessBanner \/>/)
@@ -72,7 +72,7 @@ test('logged-out users receive persistent and page-specific access explanations'
   assert.match(guest, /正在打开登录窗口/)
   assert.match(guest, /globemind:guest-access-banner:dismissed:v1/)
   assert.match(guest, /sessionStorage\.setItem/)
-  assert.match(assistant, /免费注册/)
+  assert.match(assistant, /请先登录后使用数据助手/)
   assert.match(report, /登录后管理你的报告/)
   assert.match(report, /v-if="!hasToken"/)
 })

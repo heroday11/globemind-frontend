@@ -16,7 +16,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit --skipLibCheck --module ESNext --moduleResolution Bundler --target ES2022 --lib ES2022,DOM auto-imports.d.ts components.d.ts",
     "test": "npm run test:features",
-    "test:assistant": "node --test tests/assistant-feature.test.mjs",
+    "test:assistant": "node --test tests/assistant-capability-sync-feature.test.mjs tests/assistant-schedule-security-feature.test.mjs tests/dsh-assistant-shell-feature.test.mjs",
     "test:display-preferences": "node --test tests/display-preferences-feature.test.mjs",
     "test:ground-news": "node --test tests/ground-news-feature.test.mjs",
     "test:governance": "node --test tests/public-governance-feature.test.mjs",

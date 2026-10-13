@@ -4,6 +4,7 @@
       <span>Ground News</span>
       <RouterLink to="/data-service/ground-news">事件总览</RouterLink>
       <RouterLink to="/data-service/ground-news-desk">分析工作台</RouterLink>
+      <RouterLink to="/data-service/decision-desk">决策研究</RouterLink>
     </nav>
 
     <header class="desk-topbar">
@@ -15,6 +16,7 @@
         </div>
       </div>
       <div class="topbar-metrics">
+        <LegacyAnalysisStatus />
         <span>{{ totalStories.toLocaleString('zh-CN') }} 张故事卡</span>
         <span>{{ activeStory?.article_count || 0 }} 条新闻</span>
         <span>{{ sourceCount }} 个信源</span>
@@ -719,6 +721,7 @@
 <script setup>
 import { computed, defineComponent, h, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import LegacyAnalysisStatus from '@/components/LegacyAnalysisStatus.vue'
 import { ElMessage } from 'element-plus'
 import { restoreDialogFocus, trapDialogTab } from '@/utils/dialogFocus'
 import atlasImage from '@/assets/ground-news/coverage-atlas.webp'
