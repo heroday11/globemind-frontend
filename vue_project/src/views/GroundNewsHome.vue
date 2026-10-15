@@ -32,31 +32,6 @@
         >
         <span>{{ historicalMode ? '按数据截止时间呈现历史新闻' : '按已收录事件时间排序' }}</span>
       </div>
-      <div class="home-hero__metrics" role="group" aria-label="Ground News 当前快照指标">
-        <article>
-          <span class="metric-icon"><FileText :size="24" /></span>
-          <div>
-            <strong>{{ formatNumber(metrics.total_stories) }}</strong
-            ><span>收录事件</span>
-          </div>
-        </article>
-        <article>
-          <span class="metric-icon"><Newspaper :size="24" /></span>
-          <div>
-            <strong>{{ formatNumber(metrics.total_articles) }}</strong
-            ><span>聚合新闻</span>
-          </div>
-        </article>
-        <article>
-          <span class="metric-icon"><Calendar :size="24" /></span>
-          <div>
-            <strong class="metric-date">{{
-              formatDate(metrics.latest_valid_story_date || metrics.latest_story_date)
-            }}</strong
-            ><span>多源数据截止</span>
-          </div>
-        </article>
-      </div>
     </section>
 
     <nav v-if="sectionNavItems.length" class="section-nav" aria-label="新闻栏目">
@@ -540,7 +515,6 @@ import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref
 import { RouterLink } from 'vue-router'
 import {
   ArrowRight,
-  Calendar,
   ChevronDown,
   Clock,
   Database,
@@ -1130,48 +1104,6 @@ function inferLanguageLabel(text) {
 .freshness-banner > span {
   color: var(--muted);
   margin-left: 8px;
-}
-.home-hero__metrics {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-}
-.home-hero__metrics article {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  padding: 20px 28px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-}
-.metric-icon {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
-  background: #eff4ff;
-  color: var(--blue);
-  flex: 0 0 auto;
-}
-.home-hero__metrics strong {
-  display: block;
-  font-size: 30px;
-  font-weight: 750;
-  color: var(--blue);
-  line-height: 1.25;
-  font-variant-numeric: tabular-nums;
-}
-.home-hero__metrics .metric-date {
-  font-size: clamp(20px, 1.7vw, 30px);
-}
-.home-hero__metrics div > span {
-  display: block;
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 3px;
 }
 .section-nav {
   position: sticky;
@@ -2174,10 +2106,6 @@ function inferLanguageLabel(text) {
   :deep(.event-cover--large) {
     min-height: 240px;
   }
-  .home-hero__metrics article {
-    padding: 18px;
-    gap: 14px;
-  }
   .story-card__top {
     flex-direction: column;
   }
@@ -2288,27 +2216,6 @@ function inferLanguageLabel(text) {
   .freshness-banner > span {
     width: 100%;
     margin-left: 26px;
-  }
-  .home-hero__metrics {
-    gap: 8px;
-  }
-  .home-hero__metrics article {
-    padding: 12px 8px;
-    gap: 0;
-    justify-content: center;
-  }
-  .metric-icon {
-    display: none;
-  }
-  .home-hero__metrics strong {
-    font-size: 22px;
-  }
-  .home-hero__metrics .metric-date {
-    font-size: 13px;
-    line-height: 28px;
-  }
-  .home-hero__metrics div > span {
-    font-size: 10px;
   }
   .section-nav {
     top: 56px;
