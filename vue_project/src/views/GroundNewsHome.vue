@@ -1271,7 +1271,7 @@ function inferLanguageLabel(text) {
 .lead-title {
   display: block;
   margin: 14px 0 10px;
-  font-size: clamp(23px, 1.65vw, 32px);
+  font-size: clamp(25px, calc(1.65vw + 2px), 34px);
   line-height: 1.3;
   font-weight: 750;
   overflow-wrap: anywhere;
@@ -1388,7 +1388,7 @@ function inferLanguageLabel(text) {
 }
 .lead-brief__item strong {
   color: var(--ink);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 550;
 }
 .coverage-panel {
@@ -1488,7 +1488,7 @@ function inferLanguageLabel(text) {
   -webkit-line-clamp: 2;
   overflow: hidden;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.55;
   font-weight: 650;
 }
@@ -1547,7 +1547,7 @@ function inferLanguageLabel(text) {
   box-shadow: 0 0 0 3px #f0f4ff;
 }
 .overview-chains strong {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.55;
   font-weight: 650;
   overflow-wrap: anywhere;
@@ -1711,7 +1711,7 @@ function inferLanguageLabel(text) {
 }
 .story-card h3 {
   margin: 9px 0 7px;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 650;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -1932,7 +1932,7 @@ function inferLanguageLabel(text) {
 .blindspot-list strong,
 .chain-list strong,
 .latest-list strong {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.6;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -2141,7 +2141,7 @@ function inferLanguageLabel(text) {
 }
 @media (min-width: 1800px) {
   .story-card h3 {
-    font-size: 17px;
+    font-size: 19px;
   }
   .story-card__meta {
     font-size: 11px;
@@ -2169,7 +2169,7 @@ function inferLanguageLabel(text) {
     grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   }
   .lead-title {
-    font-size: 23px;
+    font-size: 25px;
   }
   :deep(.event-cover--large) {
     min-height: 240px;
@@ -2333,7 +2333,7 @@ function inferLanguageLabel(text) {
     height: auto;
   }
   .lead-title {
-    font-size: 25px;
+    font-size: 27px;
     margin-top: 10px;
   }
   .lead-brief {
@@ -2357,7 +2357,7 @@ function inferLanguageLabel(text) {
     gap: 12px;
   }
   .story-card h3 {
-    font-size: 15px;
+    font-size: 17px;
   }
   .section-title {
     gap: 10px;
