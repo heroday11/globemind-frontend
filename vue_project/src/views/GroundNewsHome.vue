@@ -1271,7 +1271,7 @@ function inferLanguageLabel(text) {
 .lead-title {
   display: block;
   margin: 14px 0 10px;
-  font-size: clamp(28px, calc(1.65vw + 5px), 37px);
+  font-size: clamp(27px, calc(1.65vw + 4px), 36px);
   line-height: 1.3;
   font-weight: 750;
   overflow-wrap: anywhere;
@@ -1286,7 +1286,7 @@ function inferLanguageLabel(text) {
   gap: 8px;
   align-items: center;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 .story-kicker > span {
   display: inline-flex;
@@ -1298,7 +1298,7 @@ function inferLanguageLabel(text) {
   align-items: center;
   padding: 4px 8px;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
   background: var(--blue);
   color: #fff;
@@ -1311,7 +1311,7 @@ function inferLanguageLabel(text) {
 .lead-entity {
   margin: 8px 0;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -1326,7 +1326,7 @@ function inferLanguageLabel(text) {
   padding: 4px 9px;
   background: #f0f4fb;
   color: #607493;
-  font-size: 14px;
+  font-size: 13px;
 }
 .lead-stats {
   display: grid;
@@ -1340,7 +1340,7 @@ function inferLanguageLabel(text) {
   display: grid;
   gap: 3px;
   text-align: center;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--muted);
   border-left: 1px solid #e0e7f3;
 }
@@ -1355,11 +1355,11 @@ function inferLanguageLabel(text) {
 }
 .story-link {
   padding: 9px 14px;
-  font-size: 15px;
+  font-size: 14px;
 }
 .lead-brief,
 .lead-directory {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 12px;
 }
@@ -1388,7 +1388,7 @@ function inferLanguageLabel(text) {
 }
 .lead-brief__item strong {
   color: var(--ink);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 550;
 }
 .coverage-panel {
@@ -1475,7 +1475,7 @@ function inferLanguageLabel(text) {
   border-radius: 7px;
   padding: 9px 7px;
   flex: 0 0 auto;
-  font-size: 14px;
+  font-size: 13px;
   max-width: 64px;
   text-align: center;
 }
@@ -1488,7 +1488,7 @@ function inferLanguageLabel(text) {
   -webkit-line-clamp: 2;
   overflow: hidden;
   color: var(--ink);
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.55;
   font-weight: 650;
 }
@@ -1497,13 +1497,13 @@ function inferLanguageLabel(text) {
 }
 .front-headline small {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.7;
   color: var(--muted);
   margin-top: 5px;
 }
 .front-headline__summary {
-  font-size: 14px;
+  font-size: 13px;
   color: #637797;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1547,7 +1547,7 @@ function inferLanguageLabel(text) {
   box-shadow: 0 0 0 3px #f0f4ff;
 }
 .overview-chains strong {
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.55;
   font-weight: 650;
   overflow-wrap: anywhere;
@@ -1558,7 +1558,7 @@ function inferLanguageLabel(text) {
 }
 .overview-chains small {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
 }
 .directory-metrics {
@@ -1584,7 +1584,7 @@ function inferLanguageLabel(text) {
 .directory-note {
   margin: 12px 0 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.8;
 }
 .workspace-cta {
@@ -1706,12 +1706,12 @@ function inferLanguageLabel(text) {
   gap: 6px 8px;
   align-items: center;
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
 }
 .story-card h3 {
   margin: 9px 0 7px;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 650;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -1725,7 +1725,7 @@ function inferLanguageLabel(text) {
 .story-card__sources {
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -1749,7 +1749,7 @@ function inferLanguageLabel(text) {
   padding-top: 4px;
 }
 .card-directory > span {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
   flex: 0 0 auto;
 }
@@ -1770,7 +1770,7 @@ function inferLanguageLabel(text) {
   align-items: center;
   gap: 4px;
   color: #657a9b;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.5;
 }
 .bias-mini span::before,
@@ -1797,7 +1797,7 @@ function inferLanguageLabel(text) {
   align-items: center;
   gap: 5px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 .story-card__foot svg {
   color: var(--blue);
@@ -1899,7 +1899,7 @@ function inferLanguageLabel(text) {
 }
 .directory-help p {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.8;
 }
 .bias-help-legend {
@@ -1908,7 +1908,7 @@ function inferLanguageLabel(text) {
   gap: 9px 12px;
 }
 .bias-help-legend span {
-  font-size: 13px;
+  font-size: 12px;
 }
 .blindspot-list,
 .chain-list,
@@ -1932,7 +1932,7 @@ function inferLanguageLabel(text) {
 .blindspot-list strong,
 .chain-list strong,
 .latest-list strong {
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.6;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -1946,7 +1946,7 @@ function inferLanguageLabel(text) {
 .chain-list small,
 .latest-list small,
 .latest-list > a > span {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.6;
 }
@@ -1962,7 +1962,7 @@ function inferLanguageLabel(text) {
   background: #f0f4fb;
   border-radius: 6px;
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: 12px;
 }
 .source-leaders strong {
   color: var(--blue);
@@ -2030,12 +2030,12 @@ function inferLanguageLabel(text) {
 :deep(.event-cover__label span),
 :deep(.event-cover__label small) {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
 }
 :deep(.event-cover__label strong) {
   display: block;
-  font-size: 26px;
+  font-size: 25px;
   margin: 5px 0;
 }
 :deep(.event-cover.image-loaded .event-cover__label) {
@@ -2051,7 +2051,7 @@ function inferLanguageLabel(text) {
   padding: 7px;
 }
 :deep(.event-cover--card .event-cover__label strong) {
-  font-size: 15px;
+  font-size: 14px;
 }
 :deep(.event-cover--card .event-cover__label small) {
   display: none;
@@ -2061,7 +2061,7 @@ function inferLanguageLabel(text) {
 }
 :deep(.event-cover--card.image-loaded .event-cover__label small) {
   display: block;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.3;
 }
 :deep(.bias-meter__bar) {
@@ -2085,7 +2085,7 @@ function inferLanguageLabel(text) {
   flex-wrap: wrap;
   gap: 7px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   margin-top: 7px;
 }
 .home-loading,
@@ -2141,10 +2141,10 @@ function inferLanguageLabel(text) {
 }
 @media (min-width: 1800px) {
   .story-card h3 {
-    font-size: 22px;
+    font-size: 21px;
   }
   .story-card__meta {
-    font-size: 14px;
+    font-size: 13px;
   }
   .story-card {
     padding: 18px;
@@ -2169,7 +2169,7 @@ function inferLanguageLabel(text) {
     grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   }
   .lead-title {
-    font-size: 28px;
+    font-size: 27px;
   }
   :deep(.event-cover--large) {
     min-height: 240px;
@@ -2333,7 +2333,7 @@ function inferLanguageLabel(text) {
     height: auto;
   }
   .lead-title {
-    font-size: 30px;
+    font-size: 29px;
     margin-top: 10px;
   }
   .lead-brief {
@@ -2357,7 +2357,7 @@ function inferLanguageLabel(text) {
     gap: 12px;
   }
   .story-card h3 {
-    font-size: 20px;
+    font-size: 19px;
   }
   .section-title {
     gap: 10px;
