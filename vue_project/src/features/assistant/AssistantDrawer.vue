@@ -340,6 +340,7 @@ watch(
             <DataAssistant
               :key="props.drawerKey"
               embedded
+              @page-action="emit('page-action', $event)"
             />
           </div>
         </aside>

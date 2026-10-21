@@ -1234,3 +1234,19 @@ test('news search uses the database until a ready smart index is advertised', ()
   const params = createSearchParams({ mode: defaultNewsSearchMode({ smart: false }), topic: 'Ukraine' })
   assert.equal(buildSearchRequestDto(params, '').mode, 'exact')
 })
+
+test('smart assistant searches preserve explicit publication ordering through DTO normalization', () => {
+  for (const direction of ['asc', 'desc']) {
+    const state = createSearchParams({ topic: '南海', mode: 'smart', sortBy: 'published_at', sortOrder: direction })
+    const normalized = normalizeSearchParamsForType(state)
+    const dto = buildSearchRequestDto(normalized, '')
+    assert.equal(dto.keyword, '南海')
+    assert.equal(dto.mode, 'smart')
+    assert.equal(dto.sort_by, 'published_at')
+    assert.equal(dto.sort_order, direction)
+  }
+  assert.equal(buildSearchRequestDto(createSearchParams({ mode: 'smart' }), '').sort_by, 'similarity')
+  for (const mode of ['semantic', 'hybrid']) {
+    assert.equal(buildSearchRequestDto(createSearchParams({ mode, sortBy: 'published_at' }), '').sort_by, 'similarity')
+  }
+})

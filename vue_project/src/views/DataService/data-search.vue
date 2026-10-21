@@ -2225,16 +2225,24 @@ async function runAssistantPageAction(action) {
   let searchType = pickAssistantInputValue(input, ['search_type', 'searchType', 'type'])
   if (!searchType && tool === 'event_cluster_search') searchType = 'l1'
   if (!searchType && tool === 'macro_event_search') searchType = level === 'l3' ? 'l3' : 'l2'
-  if (!searchType && tool === 'news_search') searchType = 'news'
+  if (!searchType && ['news_search', 'globemind_search'].includes(tool)) searchType = 'news'
   if (['news', 'l1', 'l2', 'l3'].includes(searchType)) searchParams.searchType = searchType
-  const hitLocation = pickAssistantInputValue(input, ['hit_location', 'hitLocation'])
-  if (hitLocation) searchParams.hitLocation = hitLocation
-  const dataSource = pickAssistantInputValue(input, ['data_source', 'dataSource'])
-  if (dataSource) searchParams.dataSource = dataSource
-  const language = pickAssistantInputValue(input, ['language', 'lang'])
-  if (language) searchParams.language = language
-  const site = pickAssistantInputValue(input, ['site', 'domain'])
-  if (site) searchParams.site = site
+  const requestedMode = pickAssistantInputValue(input, ['mode'])
+  searchParams.mode = searchParams.searchType === 'news' && requestedMode === 'smart' && newsSearchMode.value === 'smart'
+    ? 'smart' : 'keyword'
+  searchParams.language = pickAssistantInputValue(input, ['language', 'lang']) || ''
+  searchParams.dataSource = pickAssistantInputValue(input, ['data_source', 'dataSource']) || ''
+  searchParams.site = pickAssistantInputValue(input, ['site', 'domain']) || ''
+  searchParams.publishTime = ''
+  searchParams.eventCountries = ''
+  searchParams.mentionedCountries = ''
+  searchParams.category = ''
+  searchParams.sentiment = ''
+  searchParams.sortBy = searchParams.searchType === 'news' ? 'published_at' : undefined
+  searchParams.sortOrder = 'desc'
+  searchParams.startTime = input.time_policy === 'strict' ? (input.start_time || '') : ''
+  searchParams.endTime = input.time_policy === 'strict' ? (input.end_time || '') : ''
+  searchParams.hitLocation = pickAssistantInputValue(input, ['hit_location', 'hitLocation']) || '全文'
 
   await performSearch()
   if (searchError.value) {

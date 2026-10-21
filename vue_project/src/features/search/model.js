@@ -262,8 +262,11 @@ export function normalizeSearchParamsForType(searchParams, searchType = searchPa
     if (!['asc', 'desc'].includes(normalized.sortOrder)) normalized.sortOrder = 'desc'
     if (normalized.sortBy !== 'published_at') normalized.sortOrder = 'desc'
     if (['smart', 'semantic', 'hybrid'].includes(normalized.mode)) {
-      normalized.sortBy = 'similarity'
-      normalized.sortOrder = 'desc'
+      // Smart search applies relevance constraints before chronological ordering.
+      if (normalized.mode !== 'smart' || normalized.sortBy !== 'published_at') {
+        normalized.sortBy = 'similarity'
+        normalized.sortOrder = 'desc'
+      }
     } else {
       normalized.eventCountries = ''
       normalized.mentionedCountries = ''
