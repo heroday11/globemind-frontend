@@ -35,7 +35,8 @@ test('data assistant migrates pending browser skills before launching DSH', asyn
   assert.match(view, /await syncPendingCapabilities\(token\)[\s\S]{0,120}requestDshLaunch\(token\)/)
   assert.match(bootstrap, /syncPendingCapabilities\(token\)/)
   assert.match(bootstrap, /method: 'PUT'/)
-  assert.match(bootstrap, /syncPendingCapabilities\(token\)[\s\S]{0,120}fetch\('\/api\/assistant\/dsh-launch'/)
+  assert.doesNotMatch(bootstrap, /createDshFrame|__GLOBEMIND_DSH_PRELAUNCH__/)
+  assert.match(bootstrap, /void loadApplication\(\)/)
 })
 
 test('academic skill catalog promotes essential workflows and filters the long tail', async () => {

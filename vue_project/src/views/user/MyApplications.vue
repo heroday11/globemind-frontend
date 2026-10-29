@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { loadReportArchive, saveLocalReportArchive } from '@/utils/reportArchive'
+import { downloadReportFile, loadReportArchive, saveLocalReportArchive } from '@/utils/reportArchive'
 import { AssistantDrawer } from '@/features/assistant/index.js'
 
 const router = useRouter()
@@ -41,12 +41,12 @@ const myReportsAssistantSkill = computed(() => ({
   sections: [
     '报告类型筛选',
     '个人报告卡片',
-    '报告查看和删除操作',
+    '报告查看、下载和删除操作',
     '报告中心跳转入口',
   ],
   actions: [
     '按类型筛选报告',
-    '查看报告并继续编辑',
+    '查看或下载报告并继续编辑',
     '删除本地归档报告',
     '跳转报告中心',
   ],
@@ -93,6 +93,14 @@ function viewReport(report) {
   }
   assistantDrawerKey.value += 1
   assistantDrawerOpen.value = true
+}
+
+async function downloadReport(report) {
+  try {
+    await downloadReportFile(report)
+  } catch (error) {
+    window.alert(error?.message || '下载报告失败')
+  }
 }
 
 function removeReport(id) {
@@ -196,6 +204,9 @@ onMounted(() => {
           </p>
         </div>
         <div class="mr-card-actions">
+          <button type="button" class="mr-card-action" title="下载报告" aria-label="下载报告" :disabled="!report.downloadPath" @click="downloadReport(report)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
+          </button>
           <button type="button" class="mr-card-action" title="查看报告" @click="viewReport(report)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -585,8 +596,8 @@ onMounted(() => {
   padding: 0;
 }
 
-.mr-card-action:first-child {
-  border-bottom: 1px solid var(--mr-border-light);
+.mr-card-action + .mr-card-action {
+  border-top: 1px solid var(--mr-border-light);
 }
 
 .mr-card-action svg {
@@ -597,6 +608,11 @@ onMounted(() => {
 .mr-card-action:hover {
   background: var(--mr-accent-soft);
   color: var(--uc-accent, #5b72df);
+}
+
+.mr-card-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .mr-card-action--danger:hover {
@@ -642,9 +658,9 @@ onMounted(() => {
     padding: 10px;
   }
 
-  .mr-card-action:first-child {
-    border-bottom: none;
-    border-right: 1px solid var(--mr-border-light);
+  .mr-card-action + .mr-card-action {
+    border-top: none;
+    border-left: 1px solid var(--mr-border-light);
   }
 }
 </style>

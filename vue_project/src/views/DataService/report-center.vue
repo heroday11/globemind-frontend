@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { loadReportArchive, saveLocalReportArchive } from '@/utils/reportArchive'
+import { downloadReportFile, loadReportArchive, saveLocalReportArchive } from '@/utils/reportArchive'
 import { AssistantDrawer } from '@/features/assistant/index.js'
 import { getAuthChangedEventName, getToken } from '@/utils/auth'
 
@@ -44,11 +44,11 @@ const reportCenterAssistantSkill = computed(() => ({
     '报告统计',
     '报告类型筛选',
     '报告卡片列表',
-    '报告查看和删除操作',
+    '报告查看、下载和删除操作',
   ],
   actions: [
     '按报告类型筛选',
-    '查看报告并继续编辑',
+    '查看或下载报告并继续编辑',
     '删除报告',
     '打开数据助手新建报告',
   ],
@@ -93,6 +93,14 @@ function register() {
 function syncAuth() {
   hasToken.value = Boolean(getToken())
   if (hasToken.value) loadReports()
+}
+
+async function downloadReport(report) {
+  try {
+    await downloadReportFile(report)
+  } catch (error) {
+    window.alert(error?.message || '下载报告失败')
+  }
 }
 
 function removeReport(id) {
@@ -229,6 +237,9 @@ onUnmounted(() => window.removeEventListener(getAuthChangedEventName(), syncAuth
           </p>
         </div>
         <div class="mr-card-actions">
+          <button type="button" class="mr-card-action" title="下载报告" aria-label="下载报告" :disabled="!report.downloadPath" @click="downloadReport(report)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
+          </button>
           <button type="button" class="mr-card-action" title="查看报告" @click="viewReport(report)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -644,8 +655,8 @@ onUnmounted(() => window.removeEventListener(getAuthChangedEventName(), syncAuth
   padding: 0;
 }
 
-.mr-card-action:first-child {
-  border-bottom: 1px solid var(--mr-border-light);
+.mr-card-action + .mr-card-action {
+  border-top: 1px solid var(--mr-border-light);
 }
 
 .mr-card-action svg {
@@ -656,6 +667,11 @@ onUnmounted(() => window.removeEventListener(getAuthChangedEventName(), syncAuth
 .mr-card-action:hover {
   background: var(--mr-accent-soft);
   color: var(--uc-accent, #5b72df);
+}
+
+.mr-card-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .mr-card-action--danger:hover {
@@ -701,9 +717,9 @@ onUnmounted(() => window.removeEventListener(getAuthChangedEventName(), syncAuth
     padding: 10px;
   }
 
-  .mr-card-action:first-child {
-    border-bottom: none;
-    border-right: 1px solid var(--mr-border-light);
+  .mr-card-action + .mr-card-action {
+    border-top: none;
+    border-left: 1px solid var(--mr-border-light);
   }
 }
 </style>
