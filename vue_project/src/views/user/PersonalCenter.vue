@@ -109,6 +109,8 @@ const profile = reactive({
   phone: '',
   created_at: '',
 })
+const quota = ref(null)
+const quotaLoading = ref(false)
 const passwordForm = reactive({ old_password: '', new_password: '', confirm_password: '' })
 const assistantMemory = reactive({ memory_summary: '', updated_at: '', created_at: '' })
 const apiConfig = reactive({
@@ -566,6 +568,31 @@ async function loadProfile() {
   }
 }
 
+async function loadQuota() {
+  quotaLoading.value = true
+  try {
+    const res = await fetch(`${API_PREFIX}/billing/quota`, { headers: authHeaders() })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.detail || '获取额度失败')
+    quota.value = data
+  } catch (error) {
+    quota.value = null
+    ElMessage.error(error.message || '获取额度失败')
+  } finally {
+    quotaLoading.value = false
+  }
+}
+
+function formatQuotaMoney(value) {
+  if (value === null || value === undefined) return '不限'
+  return `${Number(value).toFixed(4)} 元`
+}
+
+function formatQuotaDate(value) {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
+}
+
 async function handleSave() {
   savingProfile.value = true
   try {
@@ -854,6 +881,7 @@ watch(activeTab, (tab) => {
 
 onMounted(async () => {
   await loadProfile()
+  await loadQuota()
   await loadAssistantMemory()
   if (activeTab.value === 'privacy') await loadPrivacyOverview()
   if (activeTab.value === 'security') await loadSecurity()
@@ -962,6 +990,26 @@ onBeforeUnmount(() => {
             <dd class="pc-meta-val pc-meta-val--date">{{ profile.created_at || '—' }}</dd>
           </div>
         </dl>
+
+        <section class="pc-quota-card" aria-labelledby="pc-quota-title">
+          <div class="pc-quota-head">
+            <span id="pc-quota-title">模型额度</span>
+            <span v-if="quota?.is_platform_admin" class="pc-quota-tag">平台管理员</span>
+            <span v-else class="pc-quota-tag">7 天周期</span>
+          </div>
+          <div v-if="quotaLoading" class="pc-quota-muted">正在读取额度…</div>
+          <template v-else-if="quota">
+            <div class="pc-quota-values">
+              <div><small>已用</small><strong>{{ formatQuotaMoney(quota.used_cny) }}</strong></div>
+              <div><small>剩余</small><strong>{{ formatQuotaMoney(quota.remaining_cny) }}</strong></div>
+            </div>
+            <div v-if="!quota.is_platform_admin" class="pc-quota-reset">
+              下次重置：{{ formatQuotaDate(quota.period_end) }}（北京时间）
+            </div>
+            <div v-else class="pc-quota-reset">调用量和成本持续记录，不受个人额度限制</div>
+          </template>
+          <div v-else class="pc-quota-muted">额度信息暂时不可用</div>
+        </section>
 
         <!-- Decorative bottom accent -->
         <div class="pc-card-accent" aria-hidden="true"></div>
@@ -3708,4 +3756,14 @@ onBeforeUnmount(() => {
     text-align: center;
   }
 }
+</style>
+<style scoped>
+.pc-quota-card { margin: 18px 18px 0; padding: 14px; border: 1px solid var(--pc-border-light, #e5eaf2); border-radius: 12px; background: rgba(247, 250, 255, .72); }
+.pc-quota-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 700; color: var(--pc-text, #1f2937); }
+.pc-quota-tag { padding: 3px 7px; border-radius: 999px; background: #e8f0ff; color: #3166b1; font-size: 11px; font-weight: 600; }
+.pc-quota-values { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.pc-quota-values div { display: flex; flex-direction: column; gap: 3px; }
+.pc-quota-values small { color: var(--pc-muted, #728096); font-size: 11px; }
+.pc-quota-values strong { color: var(--pc-text, #1f2937); font-size: 14px; }
+.pc-quota-reset, .pc-quota-muted { margin-top: 10px; color: var(--pc-muted, #728096); font-size: 11px; line-height: 1.5; }
 </style>
