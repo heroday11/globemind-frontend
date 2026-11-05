@@ -9,14 +9,15 @@ import {
   normalizeIdentitySecuritySnapshot,
   securityFailureMessage,
 } from '@/governance/identitySecurity'
-import { clearAuth, getToken, setCurrentUser } from '@/utils/auth'
+import { clearAuth, getCurrentUser, getToken, setCurrentUser } from '@/utils/auth'
 import DisplayPreferencesPanel from './DisplayPreferencesPanel.vue'
 import DshSoundPreferencesPanel from './DshSoundPreferencesPanel.vue'
 import DshEmailPreferencesPanel from './DshEmailPreferencesPanel.vue'
+import QuotaAdminPanel from './QuotaAdminPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
-const settingsTabs = Object.freeze([
+const baseSettingsTabs = Object.freeze([
   { id: 'basic-info', label: '基本资料' },
   { id: 'password', label: '修改密码' },
   { id: 'security', label: '登录安全' },
@@ -26,11 +27,19 @@ const settingsTabs = Object.freeze([
   { id: 'display', label: '显示设置' },
   { id: 'report-delivery', label: '报告投递' },
 ])
-const settingsTabIds = new Set(settingsTabs.map((tab) => tab.id))
+const isAdmin = computed(
+  () => String(getCurrentUser()?.role || '').trim().toLowerCase() === 'admin',
+)
+const settingsTabs = computed(() =>
+  isAdmin.value
+    ? [...baseSettingsTabs, { id: 'quota-admin', label: '额度管理' }]
+    : baseSettingsTabs,
+)
+const settingsTabIds = computed(() => new Set(settingsTabs.value.map((tab) => tab.id)))
 
 function normalizeSettingsTab(value) {
   const tab = Array.isArray(value) ? value[0] : value
-  return settingsTabIds.has(tab) ? tab : 'basic-info'
+  return settingsTabIds.value.has(tab) ? tab : 'basic-info'
 }
 const loading = ref(false)
 const savingProfile = ref(false)
@@ -70,7 +79,7 @@ const activeTab = ref(normalizeSettingsTab(route.query.tab))
 const activeTabIndex = computed(() =>
   Math.max(
     0,
-    settingsTabs.findIndex((tab) => tab.id === activeTab.value),
+    settingsTabs.value.findIndex((tab) => tab.id === activeTab.value),
   ),
 )
 const deletionDispositionLabels = Object.freeze({
@@ -1848,6 +1857,7 @@ onBeforeUnmount(() => {
           <DisplayPreferencesPanel v-if="activeTab === 'display'" />
           <DshSoundPreferencesPanel v-if="activeTab === 'display'" />
           <DshEmailPreferencesPanel v-if="activeTab === 'report-delivery'" />
+          <QuotaAdminPanel v-if="activeTab === 'quota-admin' && isAdmin" />
         </div>
       </section>
     </div>
