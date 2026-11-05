@@ -27,11 +27,12 @@ const baseSettingsTabs = Object.freeze([
   { id: 'display', label: '显示设置' },
   { id: 'report-delivery', label: '报告投递' },
 ])
-const isAdmin = computed(
-  () => String(getCurrentUser()?.role || '').trim().toLowerCase() === 'admin',
-)
+// Quota administration is a dedicated permission, not the admin role: every
+// account may hold the admin role (unlimited quota) while only named operators
+// can manage other accounts.
+const canManageQuota = computed(() => getCurrentUser()?.can_manage_quota === true)
 const settingsTabs = computed(() =>
-  isAdmin.value
+  canManageQuota.value
     ? [...baseSettingsTabs, { id: 'quota-admin', label: '额度管理' }]
     : baseSettingsTabs,
 )
@@ -1857,7 +1858,7 @@ onBeforeUnmount(() => {
           <DisplayPreferencesPanel v-if="activeTab === 'display'" />
           <DshSoundPreferencesPanel v-if="activeTab === 'display'" />
           <DshEmailPreferencesPanel v-if="activeTab === 'report-delivery'" />
-          <QuotaAdminPanel v-if="activeTab === 'quota-admin' && isAdmin" />
+          <QuotaAdminPanel v-if="activeTab === 'quota-admin' && canManageQuota" />
         </div>
       </section>
     </div>
