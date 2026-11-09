@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { EvidenceImpactPanel } from '@/features/research-workflow/components.js'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import {
@@ -22,12 +23,26 @@ import { getCurrentUser, getToken } from '@/utils/auth.js'
 
 const projects = ref([])
 const route = useRoute()
+let accountGeneration = 0
 const project = ref(null)
+function clearAccountProject() {
+  accountGeneration += 1
+  currentUsername.value = String(getCurrentUser()?.username || '')
+  projects.value = []
+  project.value = null
+  comparison.value = null
+  monitoringGeneration += 1
+  savedSearchMonitoring.value = normalizeSavedSearchMonitoring(null, '')
+  notice.value = ''
+  error.value = '登录状态已变化，请重新载入研究项目。'
+}
+onMounted(() => window.addEventListener('auth-changed', clearAccountProject))
+onBeforeUnmount(() => window.removeEventListener('auth-changed', clearAccountProject))
 const loading = ref(false)
 const error = ref('')
 const notice = ref('')
 const changeReason = ref('')
-const currentUsername = computed(() => String(getCurrentUser()?.username || ''))
+const currentUsername = ref(String(getCurrentUser()?.username || ''))
 const role = computed(() => projectRole(project.value, currentUsername.value))
 const permissions = computed(() => workflowPermissions(role.value))
 const stages = computed(() => workflowStageStates(project.value))
@@ -170,16 +185,19 @@ async function loadSavedSearchMonitoring(projectId) {
 }
 
 async function run(action, success) {
+  const actorGeneration = accountGeneration
   error.value = ''
   notice.value = ''
   loading.value = true
   try {
     const next = await action()
+    if (actorGeneration !== accountGeneration) return null
     if (next?.schema_version === 'research-project-v1') setProject(next)
     notice.value = success
     changeReason.value = ''
     return next
   } catch (cause) {
+    if (actorGeneration !== accountGeneration) return null
     const codes = cause?.detail?.reason_codes
     error.value = codes?.length
       ? `当前仍有门禁未满足：${codes.join('、')}`
@@ -195,6 +213,7 @@ function mutation(values) {
 }
 
 async function loadProjects() {
+  const actorGeneration = accountGeneration
   if (!getToken()) {
     error.value = '请先登录后使用研究项目。'
     return
@@ -202,10 +221,12 @@ async function loadProjects() {
   let selectedProjectId = null
   await run(async () => {
     const response = await researchWorkflowApi.listProjects()
+    if (actorGeneration !== accountGeneration) return null
     projects.value = response.projects || []
     if (!project.value && projects.value[0]) {
       const requested = projects.value.find((item) => item.id === route.query.project)
       const next = await researchWorkflowApi.getProject((requested || projects.value[0]).id)
+      if (actorGeneration !== accountGeneration) return null
       setProject(next)
       selectedProjectId = next.id
     }
@@ -893,6 +914,8 @@ onMounted(loadProjects)
             </details>
           </template>
         </section>
+
+        <EvidenceImpactPanel :project-id="project.id" :project-version="project.version" :can-capture="permissions.canEdit" />
 
         <section class="panel evidence-index">
           <h2>可引用资源 ID</h2>

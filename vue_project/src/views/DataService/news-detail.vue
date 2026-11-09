@@ -4,6 +4,7 @@
     <div v-else-if="error" class="error-state">{{ error }}</div>
     <template v-else-if="news">
       <div class="floating-actions">
+        <ArticleProjectEvidence :article-id="Number(news.id)" :article-title="news.title || ''" />
         <button class="floating-action-btn analysis" @click="toggleAnalysisDrawer">
           {{ showAnalysisDrawer ? '收起分析' : '分析面板' }}
         </button>
@@ -382,6 +383,7 @@
 </template>
 
 <script setup>
+import { ArticleProjectEvidence } from '@/features/research-workflow/components.js'
 import { ref, computed, onMounted, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { API_PREFIX } from '@/config/api'

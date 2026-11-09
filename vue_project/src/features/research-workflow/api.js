@@ -408,6 +408,26 @@ export function createResearchWorkflowApi({
     addEvidence(projectId, payload) {
       return request(projectPath(projectId, '/evidence'), { method: 'POST', body: payload })
     },
+    addArticleEvidence(projectId, articleId, payload) {
+      return request(projectPath(projectId, `/articles/${encodeURIComponent(articleId)}/evidence`), {
+        method: 'POST', body: payload, fallback: '文章加入研究项目失败',
+      })
+    },
+    evidenceImpacts(projectId, signal) {
+      return request(projectPath(projectId, '/evidence-impacts'), {
+        signal, fallback: '读取正文差异与研判影响失败',
+      })
+    },
+    articleEvidenceHistory(articleId, signal) {
+      return request(`/evidence-ledger/articles/${encodeURIComponent(articleId)}/history`, {
+        signal, fallback: '读取正文版本历史失败',
+      })
+    },
+    captureArticleEvidence(articleId, payload) {
+      return request(`/evidence-ledger/articles/${encodeURIComponent(articleId)}/captures`, {
+        method: 'POST', body: payload, fallback: '检查数据库当前正文失败',
+      })
+    },
     addInformationGap(projectId, payload) {
       return request(projectPath(projectId, '/information-gaps'), { method: 'POST', body: payload })
     },
