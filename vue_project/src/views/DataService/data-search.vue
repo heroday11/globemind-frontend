@@ -375,6 +375,8 @@
         </p>
       </details>
 
+      <SearchSnapshotPanel :request-params="lastSuccessfulSnapshotParams" />
+
       <!-- 搜索结果区 -->
       <div class="search-results">
         <!-- 加载状态 -->
@@ -1039,6 +1041,7 @@ import { safeExternalHttpUrl } from '@/utils/externalUrl.js'
 import {
   DEFAULT_SEARCH_FOLDER_NAME as DEFAULT_FOLDER_NAME,
   SEARCH_DATA_OPERATION_KINDS,
+  SearchSnapshotPanel,
   SEARCH_HIT_LOCATIONS as hitLocations,
   SEARCH_MODES as searchModes,
   SEARCH_SITUATION_PRESETS as situationPresets,
@@ -1144,6 +1147,7 @@ const searchError = ref('')
 const searchResults = ref([])
 const queryExplain = ref(null)
 const queryReceipt = ref(null)
+const lastSuccessfulSnapshotParams = ref(null)
 const newsList = ref([])
 const isSearchMode = ref(false) // 核心状态：是否处于搜索结果展示模式
 const favoriteNewsIds = ref([])
@@ -1611,6 +1615,7 @@ const prepareDataOperation = (operation) => {
   searchError.value = ''
   queryExplain.value = null
   queryReceipt.value = null
+  lastSuccessfulSnapshotParams.value = null
   if (operation.kind === SEARCH_DATA_OPERATION_KINDS.LIST) {
     isSearchMode.value = false
     clusterTree.value = []
@@ -1655,6 +1660,9 @@ const settleDataOperation = (outcome) => {
     searchResults.value = normalized.searchResults
     queryExplain.value = normalized.queryExplain
     queryReceipt.value = normalized.queryReceipt
+    lastSuccessfulSnapshotParams.value = operation.searchType === 'news'
+      ? JSON.parse(JSON.stringify(operation.params))
+      : null
     if (operation.searchType === 'news') syncFavoriteIdsFromList(searchResults.value)
     totalItems.value = normalized.total
     currentPage.value = normalized.page

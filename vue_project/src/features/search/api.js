@@ -24,6 +24,8 @@ export function createSearchEndpoints(apiPrefix = API_PREFIX) {
     favoriteRemove: `${apiPrefix}/user/favorites/remove`,
     searchHistory: `${apiPrefix}/user/search-history`,
     searchSnapshots: `${apiPrefix}/search-snapshots`,
+    executeSearchSnapshot: `${apiPrefix}/search-snapshots/execute`,
+    compareSearchSnapshots: (fromId, toId) => `${apiPrefix}/search-snapshots/${encodeURIComponent(fromId)}/comparison?to_snapshot_id=${encodeURIComponent(toId)}`,
     searchSnapshot: (id) => `${apiPrefix}/search-snapshots/${encodeURIComponent(id)}`,
     searchSnapshotReplay: (id) => `${apiPrefix}/search-snapshots/${encodeURIComponent(id)}/replay`,
     v11Children: (id, level) => `${apiPrefix}/dashboard/search/v11-clusters/${encodeURIComponent(id)}/children?level=${encodeURIComponent(level)}&page=1&page_size=50`,
@@ -139,6 +141,21 @@ export function createSearchApi({
         body: JSON.stringify(params),
         signal,
       }, '搜索失败')
+    },
+
+    async executeSearchSnapshot(params, expectedPreviousSnapshotId = null, { signal } = {}) {
+      return requestJson('execute-search-snapshot', endpoints.executeSearchSnapshot, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ params, expected_previous_snapshot_id: expectedPreviousSnapshotId }),
+        signal,
+      }, '重新检索并保存失败')
+    },
+
+    async compareSearchSnapshots(fromId, toId, { signal } = {}) {
+      return requestJson('compare-search-snapshots', endpoints.compareSearchSnapshots(fromId, toId), {
+        headers: { ...authHeaders() }, signal,
+      }, '比较查询快照失败')
     },
 
     async captureSearchSnapshot(receipt, expectedPreviousSnapshotId = null, { signal } = {}) {

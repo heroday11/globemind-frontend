@@ -1,3 +1,5 @@
+import { defineAsyncComponent } from 'vue'
+
 export {
   SEARCH_HIT_SCHEMA_VERSION,
   buildHighlightedSegments,
@@ -65,3 +67,5 @@ export {
   normalizeSearchThemeList,
   renameSearchThemeList,
 } from './storage.js'
+
+export const SearchSnapshotPanel = defineAsyncComponent(() => import('./SearchSnapshotPanel.vue'))
