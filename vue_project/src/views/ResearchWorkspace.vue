@@ -1,5 +1,6 @@
 <script setup>
-import { EvidenceImpactPanel } from '@/features/research-workflow/components.js'
+import { workflowClosureError, workflowGateReason } from '@/features/research-workflow/impact-resolution.js'
+import { EvidenceImpactPanel, JudgmentRevisionPanel, ReportReadinessPanel } from '@/features/research-workflow/components.js'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -139,6 +140,11 @@ const exportForm = reactive({
   uncertainty: '',
 })
 
+function revisionCreated(judgment) {
+  decisionForm.judgment_id = judgment.id
+  decisionForm.decision = judgment.lineage?.status === 'withdrawn' ? 'reject' : 'confirm'
+  notice.value = '后续研判已创建，请为新版本记录人工决定，再由同行审阅并由负责人批准。'
+}
 function idList(value) {
   return String(value || '')
     .split(',')
@@ -200,8 +206,8 @@ async function run(action, success) {
     if (actorGeneration !== accountGeneration) return null
     const codes = cause?.detail?.reason_codes
     error.value = codes?.length
-      ? `当前仍有门禁未满足：${codes.join('、')}`
-      : cause?.message || '操作失败'
+      ? `当前仍有门禁未满足：${[...new Set(codes.map(workflowGateReason))].join('、')}`
+      : workflowClosureError(cause)
     return null
   } finally {
     loading.value = false
@@ -533,8 +539,8 @@ onMounted(loadProjects)
             <p>{{ project.description || '未填写范围说明。' }}</p>
           </div>
           <div class="gate" :class="{ ready: readiness.ready }">
-            <strong>{{ readiness.ready ? '导出门禁已满足' : '导出门禁未满足' }}</strong>
-            <span v-if="!readiness.ready">{{ readiness.reasonCodes.length }} 项待完成</span>
+            <strong>{{ readiness.ready ? '基础步骤已记录' : '研究步骤待完成' }}</strong>
+            <span v-if="!readiness.ready">{{ readiness.reasonCodes.length }} 项待完成</span><span v-else>创建报告时重新核查正文影响与当前研判批准</span>
           </div>
         </section>
 
@@ -714,7 +720,7 @@ onMounted(loadProjects)
 
           <form class="panel" @submit.prevent="addDecision">
             <h3>人工决定</h3>
-            <label>判断 ID<input v-model="decisionForm.judgment_id" required /></label>
+            <label>判断<select v-model="decisionForm.judgment_id" required><option value="" disabled>请选择研判版本</option><option v-for="item in project.judgments" :key="item.id" :value="item.id">{{ item.statement.slice(0, 80) }} · {{ item.id }}</option></select></label>
             <label
               >决定<select v-model="decisionForm.decision">
                 <option>confirm</option>
@@ -742,7 +748,7 @@ onMounted(loadProjects)
             <template v-else>
               <p><strong>记录类型：</strong>approval · decision</p>
             </template>
-            <label>目标 ID<input v-model="reviewForm.target_id" required /></label>
+            <label>待审人工决定<select v-model="reviewForm.target_id" required><option value="" disabled>请选择决定</option><option v-for="item in project.human_decisions" :key="item.id" :value="item.id">{{ item.decision }} · {{ item.judgment_id }} · {{ item.id }}</option></select></label>
             <label
               >结果<select v-model="reviewForm.outcome">
                 <option>approved</option>
@@ -758,6 +764,7 @@ onMounted(loadProjects)
 
           <form v-if="permissions.canEdit" class="panel" @submit.prevent="createExport">
             <h3>版本化导出清单</h3>
+            <ReportReadinessPanel :project-id="project.id" :project-version="project.version" />
             <label>报告标题<input v-model="exportForm.report_title" required /></label>
             <label
               >数据截止时间<input v-model="exportForm.cutoff_at" type="datetime-local" required
@@ -769,7 +776,7 @@ onMounted(loadProjects)
             <label
               >不确定性<textarea v-model="exportForm.uncertainty" required rows="3"></textarea>
             </label>
-            <button :disabled="loading || !readiness.ready">创建 manifest</button>
+            <button :disabled="loading">核查并创建新报告 manifest</button>
           </form>
         </section>
 
@@ -915,7 +922,8 @@ onMounted(loadProjects)
           </template>
         </section>
 
-        <EvidenceImpactPanel :project-id="project.id" :project-version="project.version" :can-capture="permissions.canEdit" />
+        <EvidenceImpactPanel :project-id="project.id" :project-version="project.version" :can-capture="permissions.canEdit" :project="project" :can-resolve="permissions.canEdit || permissions.canPeerReview" @project-updated="setProject" />
+        <JudgmentRevisionPanel :project="project" :can-edit="permissions.canEdit" @project-updated="setProject" @revision-created="revisionCreated" />
 
         <section class="panel evidence-index">
           <h2>可引用资源 ID</h2>

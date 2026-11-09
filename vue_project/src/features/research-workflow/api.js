@@ -132,6 +132,10 @@ function errorMetadata(payload, fallback) {
         safeDetail[field] = detail[field]
       }
     }
+    if (Array.isArray(detail.reason_codes)) {
+      safeDetail.reason_codes = detail.reason_codes.filter((value) =>
+        typeof value === 'string' && /^[A-Z][A-Z0-9_]{1,127}$/.test(value)).slice(0, 100)
+    }
     return {
       message: fallback,
       code,
@@ -411,6 +415,21 @@ export function createResearchWorkflowApi({
     addArticleEvidence(projectId, articleId, payload) {
       return request(projectPath(projectId, `/articles/${encodeURIComponent(articleId)}/evidence`), {
         method: 'POST', body: payload, fallback: '文章加入研究项目失败',
+      })
+    },
+    addImpactResolution(projectId, payload) {
+      return request(projectPath(projectId, '/impact-resolutions'), {
+        method: 'POST', body: payload, fallback: '保存影响处置失败',
+      })
+    },
+    addJudgmentRevision(projectId, payload) {
+      return request(projectPath(projectId, '/judgment-revisions'), {
+        method: 'POST', body: payload, fallback: '创建研判后续版本失败',
+      })
+    },
+    reportReadiness(projectId, signal) {
+      return request(projectPath(projectId, '/report-readiness'), {
+        signal, fallback: '报告准备状态暂不可用',
       })
     },
     evidenceImpacts(projectId, signal) {

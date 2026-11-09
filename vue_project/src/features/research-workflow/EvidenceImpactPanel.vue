@@ -1,8 +1,11 @@
 <script setup>
 import { ref, watch, computed, onBeforeUnmount, onMounted } from 'vue'
+import ImpactDispositionForm from './ImpactDispositionForm.vue'
+import { resolutionProgressLabel } from './impact-resolution.js'
 import { researchWorkflowApi } from './index.js'
 import { normalizeEvidenceImpacts, evidenceImpactLabel, evidenceImpactReason } from './evidence-impacts.js'
-const props = defineProps({ projectId: { type: String, required: true }, projectVersion: { type: Number, required: true }, canCapture: Boolean })
+const props = defineProps({ projectId: { type: String, required: true }, projectVersion: { type: Number, required: true }, canCapture: Boolean, project: { type: Object, default: null }, canResolve: Boolean })
+const emit = defineEmits(['project-updated'])
 const state = ref({ available: false, impact: null })
 const loading = ref(false)
 const error = ref('')
@@ -83,9 +86,10 @@ watch(() => [props.projectId, props.projectVersion], () => {
         <p v-if="row.diff?.changes_truncated || row.diff?.alignment === 'coarse' || row.diff?.changes?.some((change) => change.old_text_truncated || change.new_text_truncated)" class="diff-limited">差异已摘要或采用受限对齐，请核查完整正文后判断。</p>
         <details v-if="row.diff?.changes?.length"><summary>查看 {{ row.diff.changes.length }} 处正文差异</summary><div v-for="(change, index) in row.diff.changes" :key="index" class="change"><div><small>原文 [{{ change.old_start }}, {{ change.old_end }})</small><pre>{{ change.old_text || '（空）' }}</pre><small v-if="change.old_text_truncated">原文片段已截断</small></div><div><small>新文 [{{ change.new_start }}, {{ change.new_end }})</small><pre>{{ change.new_text || '（空）' }}</pre><small v-if="change.new_text_truncated">新文片段已截断</small></div></div></details>
         <small v-if="row.reason_codes?.length" :title="row.reason_codes.join('、')">核查原因：{{ [...new Set(row.reason_codes.map(evidenceImpactReason))].join('、') }}</small>
+        <ImpactDispositionForm v-if="project" :project="project" :row="row" :can-resolve="canResolve" @project-updated="emit('project-updated', $event)" />
       </article>
-      <details v-if="impact.judgment_impacts.length"><summary>研判影响链（{{ impact.judgment_impacts.length }}）</summary><p v-for="row in impact.judgment_impacts" :key="row.judgment_id">{{ row.judgment_id }} · {{ evidenceImpactLabel(row.status) }} · 证据 {{ row.evidence_ids?.join('、') }}</p></details>
-      <details v-if="impact.manifest_impacts.length"><summary>历史报告影响链（{{ impact.manifest_impacts.length }}）</summary><p v-for="row in impact.manifest_impacts" :key="row.manifest_id">{{ row.manifest_id }} · v{{ row.export_version }} · {{ evidenceImpactLabel(row.status) }}</p></details>
+      <details v-if="impact.judgment_impacts.length"><summary>研判影响链（{{ impact.judgment_impacts.length }}）</summary><p v-for="row in impact.judgment_impacts" :key="row.judgment_id">{{ row.judgment_id }} · {{ evidenceImpactLabel(row.status) }} · {{ resolutionProgressLabel(row.processing_status) }}<span v-if="row.successor_id"> · 后续版本 {{ row.successor_id }}</span> · 证据 {{ row.evidence_ids?.join('、') }}</p></details>
+      <details v-if="impact.manifest_impacts.length"><summary>历史报告影响链（{{ impact.manifest_impacts.length }}）</summary><p v-for="row in impact.manifest_impacts" :key="row.manifest_id">{{ row.manifest_id }} · v{{ row.export_version }} · {{ evidenceImpactLabel(row.status) }}<span v-if="row.processing_status"> · {{ resolutionProgressLabel(row.processing_status) }}</span></p></details>
       <small v-for="(item, index) in impact.limitations" :key="index" class="limitation">{{ item }}</small>
     </template>
   </section>
