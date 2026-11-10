@@ -838,3 +838,26 @@ test('research workspace artifact selector remains a valid Vue SFC', async () =>
   })
   assert.deepEqual(compiledTemplate.errors, [])
 })
+
+test('expired research sessions give an actionable auth error for reads, creation, and downloads', async () => {
+  const api = createResearchWorkflowApi({
+    getAccessToken: () => 'expired-token',
+    fetchImpl: async () => response(
+      { detail: 'internal-secret-canary' },
+      { ok: false, status: 401 },
+    ),
+  })
+  for (const operation of [
+    () => api.listProjects(),
+    () => api.createProject({ title: 'Test project', reason: 'Test reason' }),
+    () => api.downloadExportArtifact('1'.repeat(32), 1, 'json'),
+  ]) {
+    await assert.rejects(operation, (error) => {
+      assert.equal(error.status, 401)
+      assert.equal(error.code, 'AUTH_REQUIRED')
+      assert.match(error.message, /重新登录/)
+      assert.equal(JSON.stringify(error).includes('secret-canary'), false)
+      return true
+    })
+  }
+})

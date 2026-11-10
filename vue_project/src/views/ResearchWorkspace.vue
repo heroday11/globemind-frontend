@@ -3,6 +3,7 @@ import { workflowClosureError, workflowGateReason } from '@/features/research-wo
 import { EvidenceImpactPanel, JudgmentRevisionPanel, ReportReadinessPanel } from '@/features/research-workflow/components.js'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import LoginModal from '@/components/LoginModal.vue'
 
 import {
   RESEARCH_ARTIFACT_DEFAULT_FIELDS,
@@ -20,14 +21,17 @@ import {
   workflowPermissions,
   workflowStageStates,
 } from '@/features/research-workflow/index.js'
-import { getCurrentUser, getToken } from '@/utils/auth.js'
+import { clearAuth, getCurrentUser, getToken } from '@/utils/auth.js'
 
+const loginRequired = ref(!getToken())
+const showLoginModal = ref(false)
 const projects = ref([])
 const route = useRoute()
 let accountGeneration = 0
 const project = ref(null)
 function clearAccountProject() {
   accountGeneration += 1
+  loginRequired.value = !getToken()
   currentUsername.value = String(getCurrentUser()?.username || '')
   projects.value = []
   project.value = null
@@ -204,6 +208,13 @@ async function run(action, success) {
     return next
   } catch (cause) {
     if (actorGeneration !== accountGeneration) return null
+    if (cause?.status === 401) {
+      clearAuth()
+      loginRequired.value = true
+      showLoginModal.value = true
+      error.value = '登录状态已失效，请重新登录后继续。已填写的新建项目内容会保留。'
+      return null
+    }
     const codes = cause?.detail?.reason_codes
     error.value = codes?.length
       ? `当前仍有门禁未满足：${[...new Set(codes.map(workflowGateReason))].join('、')}`
@@ -239,6 +250,12 @@ async function loadProjects() {
     return null
   }, '')
   if (selectedProjectId) await loadSavedSearchMonitoring(selectedProjectId)
+}
+
+async function resumeAfterLogin() {
+  showLoginModal.value = false
+  loginRequired.value = false
+  await loadProjects()
 }
 
 async function selectProject(id) {
@@ -498,10 +515,16 @@ onMounted(loadProjects)
     <p v-if="error" class="message error" role="alert">{{ error }}</p>
     <p v-if="notice" class="message success" aria-live="polite">{{ notice }}</p>
 
-    <section v-if="!getToken()" class="panel auth-gate">
+    <LoginModal
+      :visible="showLoginModal"
+      @close="showLoginModal = false"
+      @login-success="resumeAfterLogin"
+    />
+
+    <section v-if="loginRequired" class="panel auth-gate">
       <h2>需要登录</h2>
       <p>项目、版本记录和审计事件只保存在认证账户可访问的持久化空间中。</p>
-      <a href="/login" class="button-link">前往登录</a>
+      <button type="button" @click="showLoginModal = true">重新登录并继续</button>
     </section>
 
     <template v-else>

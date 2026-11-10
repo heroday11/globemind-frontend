@@ -120,7 +120,14 @@ async function responsePayload(response) {
   return {}
 }
 
-function errorMetadata(payload, fallback) {
+function errorMetadata(payload, fallback, status) {
+  if (status === 401) {
+    return {
+      message: '登录状态已失效，请重新登录后继续。',
+      code: 'AUTH_REQUIRED',
+      detail: null,
+    }
+  }
   const detail = payload?.detail
   if (detail && typeof detail === 'object') {
     const code = /^[A-Z][A-Z0-9_]{1,63}$/.test(String(detail.code || ''))
@@ -193,7 +200,7 @@ export function createResearchWorkflowApi({
     }
     const payload = await responsePayload(response)
     if (!response.ok) {
-      const metadata = errorMetadata(payload, fallback)
+      const metadata = errorMetadata(payload, fallback, response.status)
       throw new ResearchWorkflowApiError(metadata.message, {
         status: response.status,
         code: metadata.code,
@@ -252,7 +259,7 @@ export function createResearchWorkflowApi({
     }
     if (!response.ok) {
       const payload = await responsePayload(response)
-      const metadata = errorMetadata(payload, '下载报告 artifact 失败')
+      const metadata = errorMetadata(payload, '下载报告 artifact 失败', response.status)
       throw new ResearchWorkflowApiError(metadata.message, {
         status: response.status,
         code: metadata.code,
