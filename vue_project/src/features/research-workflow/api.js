@@ -143,6 +143,12 @@ function errorMetadata(payload, fallback, status) {
       safeDetail.reason_codes = detail.reason_codes.filter((value) =>
         typeof value === 'string' && /^[A-Z][A-Z0-9_]{1,127}$/.test(value)).slice(0, 100)
     }
+    if (
+      typeof detail.reason_code === 'string' &&
+      /^[A-Z][A-Z0-9_]{1,127}$/.test(detail.reason_code)
+    ) {
+      safeDetail.reason_code = detail.reason_code
+    }
     return {
       message: fallback,
       code,

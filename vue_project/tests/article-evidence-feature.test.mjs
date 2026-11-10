@@ -17,6 +17,24 @@ test('binding uses latest optimistic project version and exposes conflict recove
   assert.equal(body.expected_version,12)
   assert.match(articleBindingError({status:409}), /冲突/)
 })
+test('binding maps service unavailability to actionable errors with safe reason codes', () => {
+  assert.match(articleBindingError({
+    status: 503,
+    code: 'EVIDENCE_SNAPSHOT_VERIFICATION_UNAVAILABLE',
+    detail: { reason_code: 'ARTICLE_CAPTURE_UNAVAILABLE' },
+  }), /ARTICLE_CAPTURE_UNAVAILABLE/)
+  assert.match(articleBindingError({
+    status: 503,
+    code: 'RESEARCH_STORAGE_UNAVAILABLE',
+    detail: { reason_code: 'RESEARCH_STORE_UNSAFE' },
+  }), /RESEARCH_STORE_UNSAFE/)
+  assert.match(articleBindingError({ status: 503 }), /503/)
+  assert.doesNotMatch(articleBindingError({
+    status: 503,
+    code: 'RESEARCH_STORAGE_UNAVAILABLE',
+      detail: { reason_code: '<secret>' },
+  }), /secret/)
+})
 test('article binding, capture and impact API preserve token, URLs and optimistic predecessors', async () => {
   const calls = []
   const api = createResearchWorkflowApi({apiPrefix:'/api',getAccessToken:()=> 'token',fetchImpl:async(url,options)=>{
