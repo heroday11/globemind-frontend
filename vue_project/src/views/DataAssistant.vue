@@ -1,5 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import ImageStudio from '@/features/assistant/ImageStudio.vue'
 import LoginModal from '@/components/LoginModal.vue'
 import { assistantErrorText } from '@/features/assistant/api.js'
 import { syncPendingCapabilities } from '@/bootstrap.js'
@@ -8,6 +9,8 @@ import { getToken, clearAuth, getAuthChangedEventName } from '@/utils/auth.js'
 
 const props = defineProps({ embedded: { type: Boolean, default: false } })
 const emit = defineEmits(['page-action'])
+const showImageStudio = ref(false), imageInitial = ref(null)
+const imageDelivery = ref('')
 const dshFrame = ref(null)
 const bridgeNonce = ref('')
 const bridgeStatus = ref('')
@@ -29,7 +32,6 @@ function bridgePost(type, payload = {}) {
 }
 function connectBridge() {
   window.clearInterval(bridge.timer)
-  if (!props.embedded) return
   const deadline = Date.now() + 30000
   bridgePost('connect')
   bridge.timer = window.setInterval(() => {
@@ -42,7 +44,7 @@ function connectBridge() {
 }
 function onBridgeMessage(event) {
   const data = event.data
-  if (!props.embedded || event.origin !== location.origin || event.source !== dshFrame.value?.contentWindow
+  if (event.origin !== location.origin || event.source !== dshFrame.value?.contentWindow
       || data?.channel !== BRIDGE_CHANNEL || data.nonce !== bridgeNonce.value) return
   if (data.type === 'ready') {
     window.clearInterval(bridge.timer)
@@ -50,6 +52,8 @@ function onBridgeMessage(event) {
     bridge.sessionId = data.sessionId || ''
     bridgeStatus.value = '助手已连接，检索会同步到本页'
     if (bridge.context) bridgePost('context', { requestId: bridge.requestId, prompt: bridge.context.prompt })
+  } else if (data.type === 'image-job-ack') {
+    imageDelivery.value = data.ok ? '图片任务已发送到助手对话' : '发送到对话失败，可在图片归档中重新发送'
   } else if (data.type === 'session') {
     bridge.sessionId = data.sessionId
   } else if (data.type === 'context-ack' && data.requestId === bridge.requestId) {
@@ -68,6 +72,13 @@ function onBridgeMessage(event) {
   } else if (data.type === 'search-result' && data.sessionId === bridge.sessionId && bridge.seen.has(data.callId)) {
     bridgeStatus.value = data.failed ? '助手检索失败，请查看对话中的错误说明' : '助手检索已完成，关键词已同步到本页'
   }
+}
+function deliverImage(job) {
+  bridgePost('image-job', { jobId: job.id, requestId: crypto.randomUUID() })
+  imageDelivery.value = '图片任务已提交，可在任务归档中查看进度'
+}
+function openImageEditor() {
+  showImageStudio.value = true
 }
 function loadPageContext() {
   if (!props.embedded) return
@@ -152,11 +163,17 @@ function reconnect() {
   void loadDsh()
 }
 function authChanged() {
+  showImageStudio.value = false
+  imageInitial.value = null
   if (getToken()) showLoginModal.value = false
   void loadDsh()
 }
 onMounted(() => {
   loadPageContext()
+  try {
+    const initial = JSON.parse(sessionStorage.getItem('assistant_image_edit') || 'null')
+    if (initial) { imageInitial.value = initial; showImageStudio.value = true; sessionStorage.removeItem('assistant_image_edit') }
+  } catch { /* Ignore invalid handoff data. */ }
   window.addEventListener('message', onBridgeMessage)
   window.addEventListener(getAuthChangedEventName(), authChanged)
   void loadDsh()
@@ -177,6 +194,11 @@ onBeforeUnmount(() => {
       {{ bridgeStatus }}
       <button v-if="bridgeFailed" type="button" @click="reconnect">重新连接</button>
     </p>
+    <div v-if="frameUrl && !loading" class="image-entry">
+      <button type="button" @click="openImageEditor">图片生成与编辑</button>
+      <span v-if="imageDelivery" role="status">{{ imageDelivery }}</span>
+    </div>
+    <ImageStudio v-if="showImageStudio" :initial="imageInitial" :session-id="bridge.sessionId" @close="showImageStudio = false; imageInitial = null" @submitted="deliverImage" />
     <iframe
       ref="dshFrame"
       v-if="frameUrl"
@@ -202,6 +224,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .assistant-page {
+  display: flex;
+  flex-direction: column;
   position: relative;
   width: 100%;
   height: calc(100vh - 64px);
@@ -211,10 +235,14 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: #f6f8fb;
 }
+.image-entry { display: flex; align-items: center; gap: 14px; padding: 6px 12px; font-size: 12px; background: white; border-bottom: 1px solid #e2e8f0; }
+.image-entry button { border: 1px solid #cbd5e1; border-radius: 6px; background: white; padding: 6px 12px; color: #1d4ed8; cursor: pointer; }
 .bridge-status { margin: 0; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
 .assistant-page--embedded { display: flex; flex-direction: column; }
 .assistant-page--embedded .dsh-frame { flex: 1; min-height: 0; }
 .dsh-frame {
+  flex: 1;
+  min-height: 0;
   display: block;
   width: 100%;
   height: 100%;

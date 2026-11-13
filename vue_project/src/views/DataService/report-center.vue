@@ -2,9 +2,14 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { downloadReportFile, loadReportArchive, saveLocalReportArchive } from '@/utils/reportArchive'
+import ImageJobs from '@/features/assistant/ImageJobs.vue'
+import ImageStudio from '@/features/assistant/ImageStudio.vue'
+import { imageJson } from '@/features/assistant/imageApi'
 import { AssistantDrawer } from '@/features/assistant/index.js'
 import { getAuthChangedEventName, getToken } from '@/utils/auth'
 
+const retryBusy = ref(false)
+const imageInitial = ref(null), imageEditorOpen = ref(false), imageNotice = ref('')
 const reports = ref([])
 const activeFilter = ref('all')
 const assistantDrawerOpen = ref(false)
@@ -15,6 +20,7 @@ const router = useRouter()
 const hasToken = ref(Boolean(getToken()))
 
 const reportTypes = [
+  { key: 'image', label: '图片', icon: 'M3 3h18v18H3zM3 17l5-5 4 4 4-6 5 7', color: '#2563eb' },
   { key: 'policy', label: '政策分析', icon: 'M12 22C17.523 22 22 17.523 22 12S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z', color: '#5b72df' },
   { key: 'risk', label: '风险评估', icon: 'M12 2L2 22h20L12 2z', color: '#f59e0b' },
   { key: 'trend', label: '趋势监测', icon: 'M3 17l6-6 4 4 8-8', color: '#06b6d4' },
@@ -27,8 +33,9 @@ const filters = [
 ]
 
 const filteredReports = computed(() => {
-  if (activeFilter.value === 'all') return reports.value
-  return reports.value.filter((r) => r.type === activeFilter.value)
+  const documents = reports.value.filter(r => !r.filePath?.startsWith('reports/images/'))
+  if (activeFilter.value === 'all') return documents
+  return documents.filter((r) => r.type === activeFilter.value)
 })
 
 const reportCenterAssistantSkill = computed(() => ({
@@ -64,7 +71,7 @@ async function loadReports() {
 }
 
 function getTypeMeta(type) {
-  return reportTypes.find((t) => t.key === type) || reportTypes[0]
+  return reportTypes.find((t) => t.key === type) || reportTypes.find(t => t.key === 'risk')
 }
 
 function formatDate(iso) {
@@ -72,6 +79,25 @@ function formatDate(iso) {
   return iso.replace('T', ' ').slice(0, 16)
 }
 
+function editImage(initial) { imageInitial.value = initial; imageEditorOpen.value = true }
+function deliverImage(job) {
+  sessionStorage.setItem('data_assistant_autorun_context_v1', JSON.stringify({
+    prompt: '请使用 image_status 查询图片任务 ' + job.id + '，完成后用 present 展示 present_files，说明实际模型、回退、费用及失败项。不要重复生成。'
+  }))
+  assistantDrawerKey.value += 1
+  assistantDrawerOpen.value = true
+}
+async function retryImage(job) {
+  if (retryBusy.value) return
+  retryBusy.value = true
+  try {
+    const request = { ...job.request }; delete request.request_id
+    const result = await imageJson('jobs', { ...request, request_id: crypto.randomUUID(), retry_of: job.id })
+    imageNotice.value = '已提交 eco 重试，成功图片自动归档。'
+    deliverImage(result)
+  } catch (e) { imageNotice.value = e.message }
+  finally { retryBusy.value = false }
+}
 function goToAssistant() {
   if (!hasToken.value) {
     requestLogin()
@@ -182,6 +208,9 @@ onUnmounted(() => window.removeEventListener(getAuthChangedEventName(), syncAuth
       </button>
     </nav>
 
+    <p v-if="imageNotice" role="status">{{ imageNotice }}</p>
+    <ImageJobs :busy="retryBusy" v-if="activeFilter === 'all' || activeFilter === 'image'" @edit="editImage" @retry="retryImage" @deliver="deliverImage" />
+    <ImageStudio v-if="imageEditorOpen" :initial="imageInitial" @close="imageEditorOpen = false" @submitted="deliverImage" />
     <!-- Empty state -->
     <div v-if="reports.length === 0" class="mr-empty">
       <div class="mr-empty-card">
@@ -202,7 +231,7 @@ onUnmounted(() => window.removeEventListener(getAuthChangedEventName(), syncAuth
     </div>
 
     <!-- Report list -->
-    <div v-else class="mr-list">
+    <div v-if="filteredReports.length" class="mr-list">
       <article
         v-for="report in filteredReports"
         :key="report.id"
