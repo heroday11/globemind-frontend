@@ -30,7 +30,8 @@ const baseSettingsTabs = Object.freeze([
 // Quota administration is a dedicated permission, not the admin role: every
 // account may hold the admin role (unlimited quota) while only named operators
 // can manage other accounts.
-const canManageQuota = computed(() => getCurrentUser()?.can_manage_quota === true)
+const quotaPermission = ref(getCurrentUser()?.can_manage_quota === true)
+const canManageQuota = computed(() => quotaPermission.value)
 const settingsTabs = computed(() =>
   canManageQuota.value
     ? [...baseSettingsTabs, { id: 'quota-admin', label: '额度管理' }]
@@ -567,6 +568,7 @@ async function loadProfile() {
     replaceApiKeyStatus(data.api_key_status)
     syncImageApiDraftFromConfig(data.api_config_public)
     setCurrentUser(data)
+    quotaPermission.value = data.can_manage_quota === true
   } catch (e) {
     ElMessage.error(e.message || '获取个人资料失败')
     if ((e.message || '').includes('未登录')) {
@@ -677,6 +679,7 @@ async function handleSaveApi() {
     replaceApiKeyStatus(data.api_key_status)
     syncImageApiDraftFromConfig(data.api_config_public)
     setCurrentUser(data)
+    quotaPermission.value = data.can_manage_quota === true
     ElMessage.success('API 配置已保存，数据助手下一次提问会立即使用')
   } catch (e) {
     ElMessage.error(e.message || '保存失败')

@@ -1,8 +1,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { API_PREFIX } from '@/config/api'
-import { getToken } from '@/utils/auth'
+import { getCurrentUser, getToken } from '@/utils/auth'
 
+const canGrantQuota = getCurrentUser()?.can_grant_quota === true
+const savingPermission = ref(false)
 const loading = ref(false)
 const error = ref('')
 const users = ref([])
@@ -140,6 +142,32 @@ async function submitAdjustment() {
   }
 }
 
+async function setQuotaPermission() {
+  const target = selectedUser.value
+  if (!target || !canGrantQuota || target.can_grant_quota || savingPermission.value) return
+  const granted = !target.can_manage_quota
+  savingPermission.value = true
+  announce('')
+  try {
+    const response = await fetch(
+      `${API_PREFIX}/billing/users/${target.user_id}/quota-permission`,
+      {
+        method: 'PUT',
+        headers: headers(),
+        body: JSON.stringify({ can_manage_quota: granted }),
+      },
+    )
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.detail || '额度管理授权失败')
+    target.can_manage_quota = payload.can_manage_quota
+    announce(`已${granted ? '授予' : '撤销'} ${target.username} 的额度管理权限`)
+  } catch (reason) {
+    announce(reason?.message || '额度管理授权失败', 'error')
+  } finally {
+    savingPermission.value = false
+  }
+}
+
 async function submitSubscription() {
   if (!selectedUser.value) return
   const planId = Number(subscription.plan_id)
@@ -183,14 +211,14 @@ onMounted(async () => {
       <div>
         <span class="qam-kicker">PLATFORM QUOTA</span>
         <h2 class="qam-title">用户额度管理</h2>
-        <p class="qam-desc">查看每位用户的本周期额度与用量，调整额度或开通套餐。仅平台管理员可操作。</p>
+        <p class="qam-desc">查看每位用户的本周期额度与用量，调整额度或开通套餐。获授权账号可调整其他账号额度。</p>
       </div>
       <div class="qam-head-actions">
         <input
           v-model="search"
           class="qam-input"
           type="search"
-          placeholder="按用户名搜索"
+          placeholder="按用户名或邮箱搜索"
           @keyup.enter="loadUsers"
         />
         <button type="button" class="qam-btn" :disabled="loading" @click="loadUsers">
@@ -210,6 +238,7 @@ onMounted(async () => {
           <tr>
             <th>用户</th>
             <th>角色</th>
+            <th>额度管理权限</th>
             <th>额度</th>
             <th>已用</th>
             <th>剩余</th>
@@ -226,19 +255,20 @@ onMounted(async () => {
           >
             <td>
               <strong>{{ item.username }}</strong>
-              <small>#{{ item.user_id }}</small>
+              <small>{{ item.email || '#' + item.user_id }}</small>
             </td>
             <td>
               <span v-if="item.is_platform_admin" class="qam-tag">管理员</span>
               <span v-else class="qam-tag qam-tag--plain">{{ item.role }}</span>
             </td>
+            <td>{{ item.can_manage_quota ? '已授权' : '未授权' }}</td>
             <td>{{ moneyText(item.allowance_cny) }}</td>
             <td>{{ moneyText(item.used_cny) }}</td>
             <td>{{ moneyText(item.remaining_cny) }}</td>
             <td class="qam-muted">{{ item.period_end ? item.period_end.slice(0, 19).replace('T', ' ') : '—' }}</td>
           </tr>
           <tr v-if="!loading && !users.length">
-            <td colspan="6" class="qam-empty">没有匹配的账户</td>
+            <td colspan="7" class="qam-empty">没有匹配的账户</td>
           </tr>
         </tbody>
       </table>
@@ -247,6 +277,18 @@ onMounted(async () => {
     <section v-if="selectedUser" class="qam-detail">
       <h3>调整 {{ selectedUser.username }} 的额度</h3>
       <div class="qam-forms">
+        <div v-if="canGrantQuota" class="qam-form">
+          <span class="qam-label">调整其他账号额度</span>
+          <p class="qam-desc">授权后，该账号可与您一样调整其他账号的额度限制。</p>
+          <button
+            type="button"
+            class="qam-btn"
+            :disabled="savingPermission || selectedUser.can_grant_quota"
+            @click="setQuotaPermission"
+          >
+            {{ savingPermission ? '保存中…' : selectedUser.can_grant_quota ? '指定管理员' : selectedUser.can_manage_quota ? '撤销额度管理权限' : '授予额度管理权限' }}
+          </button>
+        </div>
         <div class="qam-form">
           <label class="qam-label">额度增减（元，可为负数）</label>
           <input v-model="adjustment.amount_cny" class="qam-input" type="number" step="0.01" placeholder="例如 20 或 -5" />
