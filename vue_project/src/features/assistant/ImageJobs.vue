@@ -36,7 +36,7 @@ onBeforeUnmount(() => { stopped = true; clearTimeout(timer) })
     <p v-if="!jobs.length && !error">生成的图片会自动保存在这里。</p>
     <article v-for="job in jobs" :key="job.id" class="image-job">
       <div class="image-job-title"><strong>{{ job.request.prompt }}</strong><span>{{ imageStateText(job.state) }}</span></div>
-      <p class="image-job-meta">{{ job.request.size }} · {{ job.request.quality }} · {{ job.outputs.length }}/{{ job.request.count }} 张 · 额度 ¥{{ job.quota_cny }} · 供应商记录 ${{ job.provider_cost_usd }}{{ job.provider_cost_complete ? '' : '（部分费用待确认）' }}</p>
+      <p class="image-job-meta">{{ job.request.size }} · 请求画质 {{ job.request.quality }} · {{ job.outputs.length }}/{{ job.request.count }} 张 · 额度 ¥{{ job.quota_cny }} · 供应商记录 ${{ job.provider_cost_usd }}{{ job.provider_cost_complete ? '' : '（部分费用待确认）' }}</p>
       <p v-if="job.error && job.state !== 'done'" class="image-job-error">{{ job.error }}</p>
       <div class="image-job-grid">
         <ImagePreview v-for="output in job.outputs" :key="output.index" :output="output">
@@ -47,6 +47,8 @@ onBeforeUnmount(() => { stopped = true; clearTimeout(timer) })
       <details><summary>{{ job.fallback_used ? '已使用回退，查看原因和调用记录' : '查看模型与调用记录' }}</summary>
         <ol><li v-for="(attempt, index) in job.attempts" :key="index">
           第 {{ attempt.index + 1 }} 张：{{ attempt.provider }} / {{ attempt.model }} · {{ attempt.state }}
+          <span v-if="attempt.quality"> · 实际画质 {{ attempt.quality }}</span>
+          <span v-if="attempt.quality_notice"> · {{ attempt.quality_notice }}</span>
           <span v-if="attempt.reason"> · 回退原因：{{ attempt.reason }}</span>
           <span v-if="attempt.error"> · {{ attempt.error_code }}：{{ attempt.error }}</span>
           <span v-if="attempt.task_id"> · 任务 {{ attempt.task_id }}</span>
@@ -55,7 +57,7 @@ onBeforeUnmount(() => { stopped = true; clearTimeout(timer) })
       </details>
       <div class="image-job-actions">
         <button type="button" @click="emit('deliver', job)">发送到助手回复</button>
-        <button v-if="job.outputs.some(o => o.model === 'gpt-image-2.5-sunburst') && ['done','partial'].includes(job.state)" type="button" :disabled="props.busy" @click="emit('retry', job)">结果不符合要求，使用 eco 重试（再次计费）</button>
+        <button v-if="job.outputs.some(o => o.model === 'gpt-image-2.5-sunburst') && ['done','partial'].includes(job.state)" type="button" :disabled="props.busy" @click="emit('retry', job)">结果不符合要求，使用 native 重试（再次计费，高画质降为中画质）</button>
       </div>
     </article>
     <button v-if="hasMore" type="button" :disabled="moreBusy" @click="loadMore">加载更早的图片</button>

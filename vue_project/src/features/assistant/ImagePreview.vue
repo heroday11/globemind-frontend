@@ -21,12 +21,16 @@ onBeforeUnmount(() => { serial++; if (url.value) URL.revokeObjectURL(url.value) 
   <figure class="image-preview">
     <a v-if="url" :href="url" target="_blank" rel="noopener" title="查看大图"><img :src="url" :alt="output.name" loading="lazy" /></a>
     <p v-else role="status">{{ error || '正在加载图片…' }}</p>
+    <p v-if="output.quality" class="image-quality">{{ output.model }} · 实际画质 {{ output.quality }}</p>
+    <p v-if="output.quality_notice" class="image-quality-notice" role="status">{{ output.quality_notice }}</p>
     <figcaption><a v-if="url" :href="url" :download="output.name">下载图片</a><slot /></figcaption>
   </figure>
 </template>
 <style scoped>
 .image-preview { margin: 0; min-width: 0; }
 img { display: block; width: 100%; max-height: 360px; object-fit: contain; border-radius: 8px; background: repeating-conic-gradient(#e5e7eb 0% 25%, white 0% 50%) 50% / 20px 20px; }
+.image-quality { margin: 8px 0; color: #475569; font-size: 12px; }
+.image-quality-notice { color: #92400e; font-weight: 600; }
 figcaption { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 0; }
 a { color: #2563eb; }
 </style>

@@ -22,7 +22,7 @@ try {
     }
     if (path==='/api/assistant/images/jobs' && req.method()==='POST') {
       const body=req.postDataJSON(); requests.push(body)
-      job={id:'a'.repeat(32),state:'done',created_at:Date.now()/1000,request:body,outputs:Array.from({length:body.count},(_,index)=>({index,name:'image-'+index+'.png',url:'/api/assistant/images/jobs/'+ 'a'.repeat(32)+'/files/'+index,model:'gpt-image-2.5-sunburst',provider:'65535'})),attempts:[{index:0,model:'gpt-image-2.5-sunburst',provider:'65535',state:'done',cost_usd:.038}],quota_cny:'0.8',provider_cost_usd:'0.152',provider_cost_complete:true,notice:'已自动存入报告',error:''}
+      job={id:'a'.repeat(32),state:'done',created_at:Date.now()/1000,request:body,outputs:Array.from({length:body.count},(_,index)=>({index,name:'image-'+index+'.png',url:'/api/assistant/images/jobs/'+ 'a'.repeat(32)+'/files/'+index,model:index===0?'gpt-image-2-native':'gpt-image-2.5-sunburst',provider:'65535',requested_quality:body.quality,quality:index===0?'medium':body.quality,quality_notice:index===0?'已降档：gpt-image-2-native 使用 medium，原请求为 high。':''})),fallback_used:true,attempts:[{index:0,model:'gpt-image-2.5-sunburst',provider:'65535',state:'done',cost_usd:.038}],quota_cny:'0.8',provider_cost_usd:'0.152',provider_cost_complete:true,notice:'已自动存入报告',error:''}
       return route.fulfill({status:202,json:job})
     }
     if (path==='/api/assistant/images/jobs') return route.fulfill({json:job?[job]:[]})
@@ -30,11 +30,12 @@ try {
     if (path==='/api/assistant/reports') return route.fulfill({json:{data:[]}})
     return route.fulfill({json:{id:7,user_id:7,username:'image-test',role:'user',is_active:true,data:[],items:[]}})
   })
-  await page.route('**/dsh/**',route=>route.fulfill({contentType:'text/html',body:'<html><body><p>测试助手会话</p><script>window.__DSH_BOOT__={};addEventListener("message",e=>{if(e.data.type==="connect")parent.postMessage({...e.data,type:"ready",sessionId:"test-session"},location.origin);if(e.data.type==="image-job")parent.postMessage({...e.data,type:"image-job-ack",ok:true},location.origin)})</script></body></html>'}))
+  await page.route('**/dsh/**',route=>route.fulfill({contentType:'text/html',body:'<html><body><p>测试助手会话</p><script>window.__DSH_BOOT__={};window.imageRequests=[];addEventListener("message",e=>{if(e.data.type==="connect")window.releaseReady=()=>parent.postMessage({...e.data,type:"ready",sessionId:"test-session"},location.origin);if(e.data.type==="image-job"){window.imageRequests.push(e.data);parent.postMessage({...e.data,type:"image-job-ack",ok:true},location.origin)}})</script></body></html>'}))
   await page.goto(base+'/data-assistant')
   await page.getByRole('button',{name:'图片生成与编辑',exact:true}).click()
   await page.locator('textarea').fill('把选区中的红色方块改成绿色')
   await page.locator('input[type=file]').setInputFiles([{name:'source.png',mimeType:'image/png',buffer:fixture},{name:'reference.png',mimeType:'image/png',buffer:fixture}])
+  await page.getByLabel('画质',{exact:true}).selectOption('high')
   await page.locator('select').nth(3).selectOption('4')
   await page.getByLabel('鼠标涂抹选区，只修改选中的区域').check()
   const canvas=page.locator('canvas[aria-label]')
@@ -47,8 +48,17 @@ try {
   await page.screenshot({path:'/tmp/globemind-image-editor.png',fullPage:true})
   await page.getByRole('button',{name:'生成图片',exact:true}).click()
   await page.getByRole('link',{name:'下载图片',exact:true}).first().waitFor()
+  const assistantFrame=page.frames().find(frame=>frame.url().includes('/dsh/'))
+  assert.equal(await assistantFrame.evaluate(()=>window.imageRequests.length),0)
+  await page.getByText('正在连接助手，连接就绪后自动发送图片任务',{exact:true}).waitFor({state:'attached'})
+  await assistantFrame.evaluate(()=>window.releaseReady())
+  await page.getByText('图片任务已发送到助手对话',{exact:true}).waitFor({state:'attached'})
+  assert.equal(await assistantFrame.evaluate(()=>window.imageRequests.length),1)
   assert.equal(requests.length,1)
   assert.equal(requests[0].count,4)
+  assert.equal(requests[0].quality,'high')
+  assert.equal(await page.locator('.image-quality-notice').count(),1)
+  assert.match(await page.locator('.image-quality-notice').innerText(),/已降档.*medium.*high/)
   assert.equal(requests[0].references.length,2)
   assert.ok(requests[0].mask)
   const mask=uploads.find(row=>row.mask)
@@ -66,8 +76,9 @@ try {
   assert.equal(await page.getByRole('link',{name:'下载图片',exact:true}).count(),4)
   await page.getByRole('button',{name:'继续编辑',exact:true}).first().click()
   await page.getByRole('dialog').waitFor()
+  assert.equal(await page.getByLabel('画质',{exact:true}).inputValue(),'medium')
   await page.setViewportSize({width:390,height:844})
   await page.screenshot({path:'/tmp/globemind-image-editor-mobile.png',fullPage:true})
   assert.equal(errors.length,0,errors.join('\n'))
-  console.log(JSON.stringify({passed:true,checks:['mouse selection alpha','two references','batch4','preview','download','report archive','continue edit','mobile dialog','no page errors']}))
+  console.log(JSON.stringify({passed:true,checks:['mouse selection alpha','two references','batch4','preview','download','report archive','continue edit','mobile dialog','no page errors','queued delivery before assistant ready','per-image downgrade disclosure','continue edit uses delivered quality']}))
 } finally { await browser.close() }

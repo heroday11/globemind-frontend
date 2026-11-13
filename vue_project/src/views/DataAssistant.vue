@@ -15,7 +15,7 @@ const dshFrame = ref(null)
 const bridgeNonce = ref('')
 const bridgeStatus = ref('')
 const bridgeFailed = ref(false)
-const bridge = { timer: 0, context: null, requestId: '', seen: new Set(), sessionId: '' }
+const bridge = { timer: 0, context: null, requestId: '', seen: new Set(), sessionId: '', ready: false, imageRequests: new Map() }
 const frameUrl = ref(''), loading = ref(true), error = ref('')
 const loginRequired = ref(false), showLoginModal = ref(false)
 // Capability migration remains centralized in bootstrap: CAPABILITIES_SYNC_KEY,
@@ -47,12 +47,16 @@ function onBridgeMessage(event) {
   if (event.origin !== location.origin || event.source !== dshFrame.value?.contentWindow
       || data?.channel !== BRIDGE_CHANNEL || data.nonce !== bridgeNonce.value) return
   if (data.type === 'ready') {
+    bridge.ready = true
+    for (const request of bridge.imageRequests.values()) bridgePost('image-job', request)
     window.clearInterval(bridge.timer)
     bridgeFailed.value = false
     bridge.sessionId = data.sessionId || ''
     bridgeStatus.value = '助手已连接，检索会同步到本页'
     if (bridge.context) bridgePost('context', { requestId: bridge.requestId, prompt: bridge.context.prompt })
   } else if (data.type === 'image-job-ack') {
+    if (!bridge.imageRequests.has(data.requestId)) return
+    bridge.imageRequests.delete(data.requestId)
     imageDelivery.value = data.ok ? '图片任务已发送到助手对话' : '发送到对话失败，可在图片归档中重新发送'
   } else if (data.type === 'session') {
     bridge.sessionId = data.sessionId
@@ -74,8 +78,11 @@ function onBridgeMessage(event) {
   }
 }
 function deliverImage(job) {
-  bridgePost('image-job', { jobId: job.id, requestId: crypto.randomUUID() })
-  imageDelivery.value = '图片任务已提交，可在任务归档中查看进度'
+  const existing = [...bridge.imageRequests.values()].find(request => request.jobId === job.id)
+  const request = existing || { jobId: job.id, requestId: crypto.randomUUID() }
+  bridge.imageRequests.set(request.requestId, request)
+  if (bridge.ready) bridgePost('image-job', request)
+  imageDelivery.value = bridge.ready ? '正在发送图片任务到助手对话…' : '正在连接助手，连接就绪后自动发送图片任务'
 }
 function openImageEditor() {
   showImageStudio.value = true
@@ -121,6 +128,7 @@ function onFrameError() {
 }
 async function loadDsh({ retry = false } = {}) {
   const current = ++generation
+  bridge.ready = false
   clearFrameTimeout()
   window.clearInterval(bridge.timer)
   bridgeFailed.value = false
@@ -163,6 +171,8 @@ function reconnect() {
   void loadDsh()
 }
 function authChanged() {
+  bridge.imageRequests.clear()
+  bridge.ready = false
   showImageStudio.value = false
   imageInitial.value = null
   if (getToken()) showLoginModal.value = false

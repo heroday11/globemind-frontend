@@ -109,7 +109,7 @@ async function edit({ job, output }) {
   busy.value = true; error.value = ''
   try {
     references.value.forEach(ref => URL.revokeObjectURL(ref.url)); references.value = []
-    tab.value = 'create'; prompt.value = ''; size.value = job.request.size; quality.value = job.request.quality
+    tab.value = 'create'; prompt.value = ''; size.value = job.request.size; quality.value = output.quality || job.request.quality
     const response = await imageRequest(output.url)
     await addBlob(await response.blob())
     maskEnabled.value = true
@@ -155,7 +155,7 @@ onBeforeUnmount(() => { references.value.forEach(ref => URL.revokeObjectURL(ref.
               </div>
             </div>
           </template>
-          <footer><span>sunburst 主用，明确失败后 eco 兜底 · 每张交付图片计额度 ¥0.2</span><button type="submit" class="studio-submit" :disabled="busy">{{ busy ? '正在提交…' : '生成图片' }}</button></footer>
+          <footer><span>sunburst 主用，明确失败后 native 兜底；高画质回退为中画质并标注 · 每张交付图片计额度 ¥0.2</span><button type="submit" class="studio-submit" :disabled="busy">{{ busy ? '正在提交…' : '生成图片' }}</button></footer>
         </form>
         <ImageJobs v-if="tab==='jobs'" :busy="busy" @edit="edit" @retry="retry" @deliver="emit('submitted',$event)" />
       </section>
