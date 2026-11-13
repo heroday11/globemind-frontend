@@ -31,6 +31,7 @@ const baseSettingsTabs = Object.freeze([
 // account may hold the admin role (unlimited quota) while only named operators
 // can manage other accounts.
 const quotaPermission = ref(getCurrentUser()?.can_manage_quota === true)
+const quotaGrantPermission = ref(getCurrentUser()?.can_grant_quota === true)
 const canManageQuota = computed(() => quotaPermission.value)
 const settingsTabs = computed(() =>
   canManageQuota.value
@@ -569,6 +570,7 @@ async function loadProfile() {
     syncImageApiDraftFromConfig(data.api_config_public)
     setCurrentUser(data)
     quotaPermission.value = data.can_manage_quota === true
+    quotaGrantPermission.value = data.can_grant_quota === true
   } catch (e) {
     ElMessage.error(e.message || '获取个人资料失败')
     if ((e.message || '').includes('未登录')) {
@@ -680,6 +682,7 @@ async function handleSaveApi() {
     syncImageApiDraftFromConfig(data.api_config_public)
     setCurrentUser(data)
     quotaPermission.value = data.can_manage_quota === true
+    quotaGrantPermission.value = data.can_grant_quota === true
     ElMessage.success('API 配置已保存，数据助手下一次提问会立即使用')
   } catch (e) {
     ElMessage.error(e.message || '保存失败')
@@ -1861,7 +1864,7 @@ onBeforeUnmount(() => {
           <DisplayPreferencesPanel v-if="activeTab === 'display'" />
           <DshSoundPreferencesPanel v-if="activeTab === 'display'" />
           <DshEmailPreferencesPanel v-if="activeTab === 'report-delivery'" />
-          <QuotaAdminPanel v-if="activeTab === 'quota-admin' && canManageQuota" />
+          <QuotaAdminPanel v-if="activeTab === 'quota-admin' && canManageQuota" :can-grant-quota="quotaGrantPermission" />
         </div>
       </section>
     </div>

@@ -12,12 +12,12 @@ function panel(canGrant, fetch) {
     reactive: (value) => value,
     computed: (getter) => ({ get value() { return getter() } }),
     onMounted: () => {},
-    getCurrentUser: () => ({ can_grant_quota: canGrant }),
+    defineProps: () => ({ canGrantQuota: canGrant }),
     getToken: () => 'test-token',
     API_PREFIX: '/api',
     fetch,
   })
-  vm.runInContext(setup + '\nglobalThis.panel = { users, selectedUserId, setQuotaPermission, notice, noticeKind, savingPermission }', context)
+  vm.runInContext(setup + '\nglobalThis.panel = { props, users, selectedUserId, setQuotaPermission, notice, noticeKind, savingPermission }', context)
   context.panel.users.value = [{ user_id: 2, username: 'target', can_manage_quota: false }]
   context.panel.selectedUserId.value = 2
   return context.panel
@@ -56,4 +56,28 @@ test('delegate cannot authorize and owner permission cannot be revoked in the pa
   owner.users.value[0].can_grant_quota = true
   await owner.setQuotaPermission()
   assert.equal(requests, 0)
+})
+
+
+test('permission arriving after the panel mounts enables authorization', async () => {
+  let requests = 0
+  const state = panel(false, async (_url, options) => {
+    requests += 1
+    return { ok: true, json: async () => JSON.parse(options.body) }
+  })
+  await state.setQuotaPermission()
+  assert.equal(requests, 0)
+  state.props.canGrantQuota = true
+  await state.setQuotaPermission()
+  assert.equal(requests, 1)
+  assert.equal(state.users.value[0].can_manage_quota, true)
+})
+
+test('row action authorizes the clicked account without selecting its detail', async () => {
+  const state = panel(true, async (_url, options) => ({
+    ok: true, json: async () => JSON.parse(options.body),
+  }))
+  state.selectedUserId.value = null
+  await state.setQuotaPermission(state.users.value[0])
+  assert.equal(state.users.value[0].can_manage_quota, true)
 })

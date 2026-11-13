@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { API_PREFIX } from '@/config/api'
-import { getCurrentUser, getToken } from '@/utils/auth'
+import { getToken } from '@/utils/auth'
 
-const canGrantQuota = getCurrentUser()?.can_grant_quota === true
+const props = defineProps({ canGrantQuota: { type: Boolean, default: false } })
+const canGrantQuota = computed(() => props.canGrantQuota)
 const savingPermission = ref(false)
 const loading = ref(false)
 const error = ref('')
@@ -142,9 +143,8 @@ async function submitAdjustment() {
   }
 }
 
-async function setQuotaPermission() {
-  const target = selectedUser.value
-  if (!target || !canGrantQuota || target.can_grant_quota || savingPermission.value) return
+async function setQuotaPermission(target = selectedUser.value) {
+  if (!target || !canGrantQuota.value || target.can_grant_quota || savingPermission.value) return
   const granted = !target.can_manage_quota
   savingPermission.value = true
   announce('')
@@ -243,6 +243,7 @@ onMounted(async () => {
             <th>已用</th>
             <th>剩余</th>
             <th>周期重置</th>
+            <th v-if="canGrantQuota">权限操作</th>
           </tr>
         </thead>
         <tbody>
@@ -266,9 +267,19 @@ onMounted(async () => {
             <td>{{ moneyText(item.used_cny) }}</td>
             <td>{{ moneyText(item.remaining_cny) }}</td>
             <td class="qam-muted">{{ item.period_end ? item.period_end.slice(0, 19).replace('T', ' ') : '—' }}</td>
+            <td v-if="canGrantQuota">
+              <button
+                type="button"
+                class="qam-btn"
+                :disabled="savingPermission || item.can_grant_quota"
+                @click.stop="setQuotaPermission(item)"
+              >
+                {{ item.can_grant_quota ? '指定管理员' : item.can_manage_quota ? '撤销额度管理权限' : '授予额度管理权限' }}
+              </button>
+            </td>
           </tr>
           <tr v-if="!loading && !users.length">
-            <td colspan="7" class="qam-empty">没有匹配的账户</td>
+            <td :colspan="canGrantQuota ? 8 : 7" class="qam-empty">没有匹配的账户</td>
           </tr>
         </tbody>
       </table>
@@ -284,7 +295,7 @@ onMounted(async () => {
             type="button"
             class="qam-btn"
             :disabled="savingPermission || selectedUser.can_grant_quota"
-            @click="setQuotaPermission"
+            @click="setQuotaPermission(selectedUser)"
           >
             {{ savingPermission ? '保存中…' : selectedUser.can_grant_quota ? '指定管理员' : selectedUser.can_manage_quota ? '撤销额度管理权限' : '授予额度管理权限' }}
           </button>
