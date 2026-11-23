@@ -39,8 +39,8 @@ onBeforeUnmount(() => { stopped = true; clearTimeout(timer) })
       <p class="image-job-meta">{{ job.request.size }} · 请求画质 {{ job.request.quality }} · {{ job.outputs.length }}/{{ job.request.count }} 张 · 额度 ¥{{ job.quota_cny }} · 供应商记录 ${{ job.provider_cost_usd }}{{ job.provider_cost_complete ? '' : '（部分费用待确认）' }}</p>
       <p v-if="job.error && job.state !== 'done'" class="image-job-error">{{ job.error }}</p>
       <div class="image-job-grid">
-        <ImagePreview v-for="output in job.outputs" :key="output.index" :output="output">
-          <button type="button" @click="emit('edit', { job, output })">继续编辑</button>
+        <ImagePreview v-for="output in job.outputs" :key="output.index" :output="output" v-slot="{ blob }">
+          <button type="button" :disabled="props.busy" @click="emit('edit', { job, output, blob })">继续编辑</button>
         </ImagePreview>
       </div>
       <p>{{ job.notice }}</p>

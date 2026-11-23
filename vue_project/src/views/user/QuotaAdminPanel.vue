@@ -11,10 +11,15 @@ const error = ref('')
 const users = ref([])
 const plans = ref([])
 const search = ref('')
+const appliedSearch = ref('')
+const page = ref(1)
+const hasNext = ref(false)
+const PAGE_SIZE = 5
 const selectedUserId = ref(null)
 const usage = ref([])
 const usageLoading = ref(false)
 const usageError = ref('')
+let usageRequest = 0
 
 const adjustment = reactive({ amount_cny: '', reason: '' })
 const subscription = reactive({ plan_id: '', days: '' })
@@ -45,28 +50,37 @@ function announce(message, kind = 'status') {
   noticeKind.value = kind
 }
 
-async function loadUsers() {
+async function loadUsers(targetPage = page.value, needle = appliedSearch.value) {
+  if (loading.value) return
   loading.value = true
   error.value = ''
   try {
-    const query = new URLSearchParams({ limit: '200' })
-    if (search.value.trim()) query.set('q', search.value.trim())
+    const query = new URLSearchParams({ limit: String(PAGE_SIZE + 1), offset: String((targetPage - 1) * PAGE_SIZE) })
+    if (needle) query.set('q', needle)
     const response = await fetch(`${API_PREFIX}/billing/admin/users?${query}`, {
       headers: headers(),
       cache: 'no-store',
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.detail || '读取额度账户失败')
-    users.value = Array.isArray(payload) ? payload : []
+    const rows = Array.isArray(payload) ? payload : []
+    users.value = rows.slice(0, PAGE_SIZE)
+    hasNext.value = rows.length > PAGE_SIZE
+    page.value = targetPage
+    appliedSearch.value = needle
     if (selectedUserId.value && !users.value.some((item) => item.user_id === selectedUserId.value)) {
-      selectedUserId.value = null
-      usage.value = []
+      selectUser(selectedUserId.value)
     }
   } catch (reason) {
     error.value = reason?.message || '读取额度账户失败'
   } finally {
     loading.value = false
   }
+}
+
+function refreshUsers() {
+  const needle = search.value.trim()
+  void loadUsers(needle === appliedSearch.value ? page.value : 1, needle)
 }
 
 async function loadPlans() {
@@ -81,35 +95,43 @@ async function loadPlans() {
 }
 
 async function loadUsage(userId) {
+  const request = ++usageRequest
+  usage.value = []
+  usageError.value = ''
+  usageLoading.value = Boolean(userId)
   if (!userId) {
-    usage.value = []
     return
   }
-  usageLoading.value = true
-  usageError.value = ''
   try {
     const response = await fetch(`${API_PREFIX}/billing/users/${userId}/usage`, {
       headers: headers(),
       cache: 'no-store',
     })
     const payload = await response.json().catch(() => ({}))
+    if (request !== usageRequest) return
     if (!response.ok) throw new Error(payload.detail || '读取用量失败')
     usage.value = Array.isArray(payload) ? payload : []
   } catch (reason) {
+    if (request !== usageRequest) return
     usageError.value = reason?.message || '读取用量失败'
     usage.value = []
   } finally {
-    usageLoading.value = false
+    if (request === usageRequest) usageLoading.value = false
   }
 }
 
 function selectUser(userId) {
   selectedUserId.value = userId === selectedUserId.value ? null : userId
+  adjustment.amount_cny = ''
+  adjustment.reason = ''
+  subscription.plan_id = ''
+  subscription.days = ''
   void loadUsage(selectedUserId.value)
 }
 
 async function submitAdjustment() {
-  if (!selectedUser.value) return
+  const target = selectedUser.value
+  if (!target) return
   const amount = Number(adjustment.amount_cny)
   if (!Number.isFinite(amount) || amount === 0) {
     announce('请输入非零的调整金额', 'error')
@@ -123,7 +145,7 @@ async function submitAdjustment() {
   announce('')
   try {
     const response = await fetch(
-      `${API_PREFIX}/billing/users/${selectedUser.value.user_id}/adjustments`,
+      `${API_PREFIX}/billing/users/${target.user_id}/adjustments`,
       {
         method: 'POST',
         headers: headers(),
@@ -132,9 +154,11 @@ async function submitAdjustment() {
     )
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.detail || '额度调整失败')
-    announce(`已为 ${selectedUser.value.username} 调整额度 ${amount.toFixed(4)} 元`)
-    adjustment.amount_cny = ''
-    adjustment.reason = ''
+    announce(`已为 ${target.username} 调整额度 ${amount.toFixed(4)} 元`)
+    if (selectedUserId.value === target.user_id) {
+      adjustment.amount_cny = ''
+      adjustment.reason = ''
+    }
     await loadUsers()
   } catch (reason) {
     announce(reason?.message || '额度调整失败', 'error')
@@ -169,7 +193,8 @@ async function setQuotaPermission(target = selectedUser.value) {
 }
 
 async function submitSubscription() {
-  if (!selectedUser.value) return
+  const target = selectedUser.value
+  if (!target) return
   const planId = Number(subscription.plan_id)
   if (!Number.isInteger(planId) || planId <= 0) {
     announce('请选择套餐', 'error')
@@ -185,13 +210,13 @@ async function submitSubscription() {
   announce('')
   try {
     const response = await fetch(
-      `${API_PREFIX}/billing/users/${selectedUser.value.user_id}/subscriptions`,
+      `${API_PREFIX}/billing/users/${target.user_id}/subscriptions`,
       { method: 'POST', headers: headers(), body: JSON.stringify(body) },
     )
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(payload.detail || '套餐开通失败')
-    announce(`已为 ${selectedUser.value.username} 开通套餐`)
-    subscription.days = ''
+    announce(`已为 ${target.username} 开通套餐`)
+    if (selectedUserId.value === target.user_id) subscription.days = ''
     await loadUsers()
   } catch (reason) {
     announce(reason?.message || '套餐开通失败', 'error')
@@ -219,9 +244,9 @@ onMounted(async () => {
           class="qam-input"
           type="search"
           placeholder="按用户名或邮箱搜索"
-          @keyup.enter="loadUsers"
+          @keyup.enter="refreshUsers"
         />
-        <button type="button" class="qam-btn" :disabled="loading" @click="loadUsers">
+        <button type="button" class="qam-btn" :disabled="loading" @click="refreshUsers">
           {{ loading ? '读取中…' : '刷新' }}
         </button>
       </div>
@@ -284,6 +309,11 @@ onMounted(async () => {
         </tbody>
       </table>
     </div>
+    <nav v-if="page > 1 || hasNext" class="qam-pagination" aria-label="额度账户分页">
+      <button type="button" class="qam-btn" :disabled="loading || page === 1" @click="loadUsers(page - 1)">上一页</button>
+      <span role="status">第 {{ page }} 页</span>
+      <button type="button" class="qam-btn" :disabled="loading || !hasNext" @click="loadUsers(page + 1)">下一页</button>
+    </nav>
 
     <section v-if="selectedUser" class="qam-detail">
       <h3>调整 {{ selectedUser.username }} 的额度</h3>
@@ -360,6 +390,7 @@ onMounted(async () => {
 .qam-btn { padding: 9px 16px; border: 1px solid #d8dfec; border-radius: 9px; background: #fff; color: #33415f; font-size: 13px; font-weight: 600; cursor: pointer; }
 .qam-btn:hover:not(:disabled) { border-color: #b9c5ff; }
 .qam-btn:disabled { opacity: .6; cursor: default; }
+.qam-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px; }
 .qam-btn--primary { border-color: transparent; background: #5b72df; color: #fff; }
 .qam-table-wrap { overflow-x: auto; border: 1px solid #e4e8f2; border-radius: 12px; background: #fff; }
 .qam-table { width: 100%; border-collapse: collapse; font-size: 13px; }

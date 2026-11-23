@@ -4,8 +4,9 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const base = process.env.IMAGE_TEST_ORIGIN || 'http://127.0.0.1:4318'
 const fixture = await sharp({ create: { width:1024,height:1024,channels:4,background:'#df3333' } }).png().toBuffer()
 const requests = [], errors = [], uploads = []
+let imageReads = 0, assistantLaunches = 0
 let job
-const browser = await chromium.launch({ headless:true, args:['--no-sandbox'] })
+const browser = await chromium.launch({ headless:true, args:['--no-sandbox'], executablePath:process.env.CHROMIUM_EXECUTABLE })
 try {
   const page = await browser.newPage({ viewport:{ width:1280,height:1000 } })
   page.on('pageerror', e => errors.push(e.message))
@@ -15,7 +16,10 @@ try {
   })
   await page.route('**/api/**', async route => {
     const req=route.request(), url=new URL(req.url()), path=url.pathname
-    if (path==='/api/assistant/dsh-launch') return route.fulfill({json:{url:'/dsh/'}})
+    if (path==='/api/assistant/dsh-launch') {
+      assistantLaunches++
+      return route.fulfill({json:{url:'/dsh/'}})
+    }
     if (path==='/api/assistant/images/assets') {
       uploads.push({mask:url.searchParams.has('mask'),data:req.postDataBuffer()})
       return route.fulfill({json:{id:'asset-'+uploads.length,width:1024,height:1024}})
@@ -26,7 +30,8 @@ try {
       return route.fulfill({status:202,json:job})
     }
     if (path==='/api/assistant/images/jobs') return route.fulfill({json:job?[job]:[]})
-    if (path.includes('/files/')) return route.fulfill({contentType:'image/png',body:fixture})
+    if (path.endsWith('/reference')) return route.fulfill({json:{id:'archived-source',width:1024,height:1024}})
+    if (path.includes('/files/')) { imageReads++; return route.fulfill({contentType:'image/png',body:fixture}) }
     if (path==='/api/assistant/reports') return route.fulfill({json:{data:[]}})
     return route.fulfill({json:{id:7,user_id:7,username:'image-test',role:'user',is_active:true,data:[],items:[]}})
   })
@@ -48,6 +53,13 @@ try {
   await page.screenshot({path:'/tmp/globemind-image-editor.png',fullPage:true})
   await page.getByRole('button',{name:'生成图片',exact:true}).click()
   await page.getByRole('link',{name:'下载图片',exact:true}).first().waitFor()
+  await page.getByRole('link',{name:'下载图片',exact:true}).last().waitFor()
+  const beforePreview = imageReads
+  await page.getByRole('link',{name:'查看大图',exact:true}).first().click()
+  await page.locator('dialog[open] img').evaluate(img => img.decode())
+  assert.equal(await page.locator('dialog[open] img').evaluate(img => img.naturalWidth),1024)
+  assert.equal(imageReads,beforePreview)
+  await page.getByRole('button',{name:'关闭预览'}).click()
   const assistantFrame=page.frames().find(frame=>frame.url().includes('/dsh/'))
   assert.equal(await assistantFrame.evaluate(()=>window.imageRequests.length),0)
   await page.getByText('正在连接助手，连接就绪后自动发送图片任务',{exact:true}).waitFor({state:'attached'})
@@ -77,7 +89,29 @@ try {
   await page.getByRole('button',{name:'继续编辑',exact:true}).first().click()
   await page.getByRole('dialog').waitFor()
   assert.equal(await page.getByLabel('画质',{exact:true}).inputValue(),'medium')
+  assert.equal(await page.getByLabel('鼠标涂抹选区，只修改选中的区域').isChecked(),false)
+  await page.getByRole('dialog').locator('textarea').fill('把红色背景改成绿色，保留原构图')
+  await page.getByRole('button',{name:'生成图片',exact:true}).click()
+  await page.getByRole('dialog').getByRole('link',{name:'下载图片',exact:true}).first().waitFor()
+  assert.deepEqual(requests.at(-1).references,['archived-source'])
+  assert.equal(requests.at(-1).mask,null)
+  assert.equal(requests.at(-1).count,1)
+  await page.getByRole('button',{name:'关闭图片编辑',exact:true}).click()
   await page.setViewportSize({width:390,height:844})
+  const drawer = page.getByRole('complementary',{name:'报告中心数据助手'})
+  const frame = drawer.frameLocator('iframe')
+  await frame.getByText('测试助手会话').waitFor()
+  const launchesBeforeReopen = assistantLaunches
+  const drawerFrame = await drawer.locator('iframe').elementHandle()
+  await drawer.getByRole('button',{name:'切换为浮窗'}).click()
+  await frame.getByText('测试助手会话').waitFor()
+  await drawer.getByRole('button',{name:'停靠到右侧'}).click()
+  await drawer.getByRole('button',{name:'关闭',exact:true}).click()
+  await drawer.waitFor({state:'hidden'})
+  await page.getByRole('button',{name:'打开数据助手',exact:true}).first().click()
+  await frame.getByText('测试助手会话').waitFor()
+  assert.equal(assistantLaunches,launchesBeforeReopen)
+  assert.equal(await drawerFrame.evaluate(node => node === document.querySelector('iframe[data-globemind-drawer]')),true)
   await page.screenshot({path:'/tmp/globemind-image-editor-mobile.png',fullPage:true})
   assert.equal(errors.length,0,errors.join('\n'))
   console.log(JSON.stringify({passed:true,checks:['mouse selection alpha','two references','batch4','preview','download','report archive','continue edit','mobile dialog','no page errors','queued delivery before assistant ready','per-image downgrade disclosure','continue edit uses delivered quality']}))

@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ImageJobs from './ImageJobs.vue'
 import { imageJson, imageRequest, maskPixels } from './imageApi'
 const props = defineProps({ initial: { type: Object, default: null }, sessionId: { type: String, default: '' } })
@@ -9,6 +9,7 @@ const references = ref([]), canvas = ref(null), brush = ref(50), erase = ref(fal
 const busy = ref(false), error = ref(''), notice = ref(''), tab = ref('create')
 let painting = false, last = null, history = [], selected = false, submission = null
 let previousFocus
+let disposed = false
 const dialog = ref(null)
 async function decode(blob) {
   const url = URL.createObjectURL(blob)
@@ -105,15 +106,22 @@ async function retry(job) {
   catch (e) { error.value = e.message }
   finally { busy.value = false }
 }
-async function edit({ job, output }) {
+async function edit({ job, output, blob }) {
   busy.value = true; error.value = ''
   try {
+    const response = await imageRequest(output.url + '/reference', { method: 'POST' })
+    const asset = await response.json()
+    const source = blob || await (await imageRequest(output.url)).blob()
+    const info = await decode(source)
+    if (disposed) { URL.revokeObjectURL(info.url); return }
     references.value.forEach(ref => URL.revokeObjectURL(ref.url)); references.value = []
     tab.value = 'create'; prompt.value = ''; size.value = job.request.size; quality.value = output.quality || job.request.quality
-    const response = await imageRequest(output.url)
-    await addBlob(await response.blob())
-    maskEnabled.value = true
-  } catch (e) { error.value = e.message }
+    background.value = job.request.background || 'auto'
+    count.value = 1
+    maskEnabled.value = false
+    references.value = [{ ...asset, ...info }]
+    await resetCanvas()
+  } catch (e) { tab.value = 'create'; error.value = e.message }
   finally { busy.value = false }
 }
 function keys(event) {
@@ -125,7 +133,8 @@ function keys(event) {
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
 }
 onMounted(async () => { previousFocus = document.activeElement; dialog.value?.focus(); if (props.initial) await edit(props.initial) })
-onBeforeUnmount(() => { references.value.forEach(ref => URL.revokeObjectURL(ref.url)); previousFocus?.focus() })
+watch(() => props.initial, initial => { if (initial) void edit(initial) })
+onBeforeUnmount(() => { disposed = true; references.value.forEach(ref => URL.revokeObjectURL(ref.url)); previousFocus?.focus() })
 </script>
 <template>
   <Teleport to="body">

@@ -36,6 +36,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'page-action', 'layout-change'])
 const drawerWidth = ref(DEFAULT_DRAWER_WIDTH)
 const drawerMode = ref('docked')
+const opened = ref(props.modelValue)
 const isResizing = ref(false)
 const isFloatingDragging = ref(false)
 const floatingPosition = ref({ x: 0, y: 0 })
@@ -282,14 +283,17 @@ onBeforeUnmount(() => {
 
 watch(
   [() => props.modelValue, drawerWidth, drawerMode],
-  () => emitLayout(),
+  () => {
+    if (props.modelValue) opened.value = true
+    emitLayout()
+  },
 )
 </script>
 
 <template>
   <Teleport to="body">
     <Transition name="gm-assistant-drawer">
-      <div v-if="props.modelValue" class="gm-assistant-drawer" role="complementary" :aria-label="props.title">
+      <div v-if="opened" v-show="props.modelValue" class="gm-assistant-drawer" role="complementary" :aria-label="props.title">
         <aside
           class="gm-assistant-drawer__panel"
           :class="{
@@ -338,7 +342,7 @@ watch(
           </header>
           <div class="gm-assistant-drawer__body">
             <DataAssistant
-              :key="props.drawerKey"
+              :context-key="props.drawerKey"
               embedded
               @page-action="emit('page-action', $event)"
             />
@@ -363,7 +367,7 @@ watch(
   max-width: calc(100vw - 24px);
   min-width: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template: auto minmax(0, 1fr) / minmax(0, 1fr);
   overflow: hidden;
   border-left: 1px solid rgba(15, 23, 42, 0.12);
   background: #f6f8ff;
@@ -550,6 +554,7 @@ watch(
 }
 
 .gm-assistant-drawer__body {
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }

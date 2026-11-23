@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ImageStudio from '@/features/assistant/ImageStudio.vue'
 import LoginModal from '@/components/LoginModal.vue'
 import { assistantErrorText } from '@/features/assistant/api.js'
@@ -7,7 +7,10 @@ import { syncPendingCapabilities } from '@/bootstrap.js'
 import { dshLaunchUrl, isDshFrame } from '@/utils/dshFrame.js'
 import { getToken, clearAuth, getAuthChangedEventName } from '@/utils/auth.js'
 
-const props = defineProps({ embedded: { type: Boolean, default: false } })
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+  contextKey: { type: [Number, String], default: 0 },
+})
 const emit = defineEmits(['page-action'])
 const showImageStudio = ref(false), imageInitial = ref(null)
 const imageDelivery = ref('')
@@ -15,7 +18,8 @@ const dshFrame = ref(null)
 const bridgeNonce = ref('')
 const bridgeStatus = ref('')
 const bridgeFailed = ref(false)
-const bridge = { timer: 0, context: null, requestId: '', seen: new Set(), sessionId: '', ready: false, imageRequests: new Map() }
+const sessionId = ref('')
+const bridge = { timer: 0, context: null, requestId: '', seen: new Set(), ready: false, imageRequests: new Map() }
 const frameUrl = ref(''), loading = ref(true), error = ref('')
 const loginRequired = ref(false), showLoginModal = ref(false)
 // Capability migration remains centralized in bootstrap: CAPABILITIES_SYNC_KEY,
@@ -45,13 +49,22 @@ function connectBridge() {
 function onBridgeMessage(event) {
   const data = event.data
   if (event.origin !== location.origin || event.source !== dshFrame.value?.contentWindow
-      || data?.channel !== BRIDGE_CHANNEL || data.nonce !== bridgeNonce.value) return
+      || data?.channel !== BRIDGE_CHANNEL) return
+  if (data.type === 'available') {
+    if (isDshFrame(dshFrame.value)) {
+      clearFrameTimeout()
+      loading.value = false
+    }
+    bridgePost('connect')
+    return
+  }
+  if (data.nonce !== bridgeNonce.value) return
   if (data.type === 'ready') {
     bridge.ready = true
     for (const request of bridge.imageRequests.values()) bridgePost('image-job', request)
     window.clearInterval(bridge.timer)
     bridgeFailed.value = false
-    bridge.sessionId = data.sessionId || ''
+    sessionId.value = data.sessionId || ''
     bridgeStatus.value = '助手已连接，检索会同步到本页'
     if (bridge.context) bridgePost('context', { requestId: bridge.requestId, prompt: bridge.context.prompt })
   } else if (data.type === 'image-job-ack') {
@@ -59,7 +72,7 @@ function onBridgeMessage(event) {
     bridge.imageRequests.delete(data.requestId)
     imageDelivery.value = data.ok ? '图片任务已发送到助手对话' : '发送到对话失败，可在图片归档中重新发送'
   } else if (data.type === 'session') {
-    bridge.sessionId = data.sessionId
+    sessionId.value = data.sessionId
   } else if (data.type === 'context-ack' && data.requestId === bridge.requestId) {
     if (data.ok) {
       bridge.context = null
@@ -67,13 +80,13 @@ function onBridgeMessage(event) {
     }
     bridgeFailed.value = !data.ok
     bridgeStatus.value = data.ok ? '当前页面材料已发送给助手' : '页面材料发送失败，请确认工作区可用后重新连接'
-  } else if (data.type === 'search' && data.sessionId === bridge.sessionId
+  } else if (data.type === 'search' && data.sessionId === sessionId.value
       && typeof data.callId === 'string' && typeof data.query === 'string'
       && data.query.trim() && data.query.length <= 500 && !bridge.seen.has(data.callId)) {
     bridge.seen.add(data.callId)
     bridgeStatus.value = `助手正在检索：${data.query}`
     emit('page-action', { type: 'search', tool: 'globemind_search', query: data.query, input: data.input, callId: data.callId })
-  } else if (data.type === 'search-result' && data.sessionId === bridge.sessionId && bridge.seen.has(data.callId)) {
+  } else if (data.type === 'search-result' && data.sessionId === sessionId.value && bridge.seen.has(data.callId)) {
     bridgeStatus.value = data.failed ? '助手检索失败，请查看对话中的错误说明' : '助手检索已完成，关键词已同步到本页'
   }
 }
@@ -94,6 +107,7 @@ function loadPageContext() {
     if (typeof context?.prompt === 'string' && context.prompt.length <= 32000) {
       bridge.context = context
       bridge.requestId = crypto.randomUUID()
+      if (bridge.ready) bridgePost('context', { requestId: bridge.requestId, prompt: context.prompt })
     }
   } catch { bridgeStatus.value = '当前页面材料读取失败' }
 }
@@ -121,7 +135,7 @@ function onFrameLoad(event) {
   clearFrameTimeout()
   loading.value = false
   error.value = ''
-  connectBridge()
+  if (!bridge.ready) connectBridge()
 }
 function onFrameError() {
   if (frameUrl.value) failFrame('助手连接中断，请重新连接。')
@@ -134,7 +148,7 @@ async function loadDsh({ retry = false } = {}) {
   bridgeFailed.value = false
   bridgeStatus.value = props.embedded ? '正在连接页面联动…' : ''
   bridgeNonce.value = crypto.randomUUID()
-  bridge.sessionId = ''
+  sessionId.value = ''
   bridge.seen.clear()
   if (!retry) recoveryAttempts = 0
   // Remove the old document even when the server reuses its launch token.
@@ -188,6 +202,7 @@ onMounted(() => {
   window.addEventListener(getAuthChangedEventName(), authChanged)
   void loadDsh()
 })
+watch(() => props.contextKey, loadPageContext)
 onBeforeUnmount(() => {
   window.clearInterval(bridge.timer)
   window.removeEventListener('message', onBridgeMessage)
@@ -208,13 +223,14 @@ onBeforeUnmount(() => {
       <button type="button" @click="openImageEditor">图片生成与编辑</button>
       <span v-if="imageDelivery" role="status">{{ imageDelivery }}</span>
     </div>
-    <ImageStudio v-if="showImageStudio" :initial="imageInitial" :session-id="bridge.sessionId" @close="showImageStudio = false; imageInitial = null" @submitted="deliverImage" />
+    <ImageStudio v-if="showImageStudio" :initial="imageInitial" :session-id="sessionId" @close="showImageStudio = false; imageInitial = null" @submitted="deliverImage" />
     <iframe
       ref="dshFrame"
       v-if="frameUrl"
       v-show="!loading"
       :key="frameUrl"
       class="dsh-frame"
+      :data-globemind-drawer="props.embedded ? '' : undefined"
       :src="frameUrl"
       title="GlobeMind 数据助手"
       allow="clipboard-read; clipboard-write"
@@ -245,11 +261,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: #f6f8fb;
 }
-.image-entry { display: flex; align-items: center; gap: 14px; padding: 6px 12px; font-size: 12px; background: white; border-bottom: 1px solid #e2e8f0; }
+.image-entry { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 12px; font-size: 12px; background: white; border-bottom: 1px solid #e2e8f0; }
 .image-entry button { border: 1px solid #cbd5e1; border-radius: 6px; background: white; padding: 6px 12px; color: #1d4ed8; cursor: pointer; }
 .bridge-status { margin: 0; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
-.assistant-page--embedded { display: flex; flex-direction: column; }
-.assistant-page--embedded .dsh-frame { flex: 1; min-height: 0; }
+.assistant-page--embedded .dsh-frame { flex: 1 1 0; height: 0; }
 .dsh-frame {
   flex: 1;
   min-height: 0;
@@ -300,6 +315,7 @@ onBeforeUnmount(() => {
 }
 /* The drawer already supplies its own header and available content height. */
 .assistant-page--embedded {
+  min-width: 0;
   height: 100%;
   margin-top: 0;
 }
