@@ -3,6 +3,7 @@ import { computed, ref, useId, watch } from 'vue'
 import 'element-plus/es/components/button/style/css'
 import { API_PREFIX } from '@/config/api'
 import { getToken } from '@/utils/auth'
+import { formatQuotaMoney } from '@/utils/formatQuotaMoney.js'
 
 const props = defineProps({
   userId: { type: Number, required: true },
@@ -108,7 +109,7 @@ async function submit() {
       <select :id="`${fieldId}-quota-plan`" v-model="planId" required :disabled="loading || !plans.length">
         <option value="">{{ loading ? '正在读取套餐…' : plans.length ? '请选择套餐' : '暂无可开通的套餐' }}</option>
         <option v-for="plan in plans" :key="plan.id" :value="plan.id">
-          {{ plan.name }}（{{ Number(plan.quota_cny).toFixed(2) }} 元 / {{ plan.validity_days }} 天）
+          {{ plan.name }}（{{ formatQuotaMoney(plan.quota_cny) }} / {{ plan.validity_days }} 天）
         </option>
       </select>
       <template v-if="admin">

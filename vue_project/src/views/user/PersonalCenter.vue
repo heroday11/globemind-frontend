@@ -14,6 +14,7 @@ import DisplayPreferencesPanel from './DisplayPreferencesPanel.vue'
 import DshSoundPreferencesPanel from './DshSoundPreferencesPanel.vue'
 import DshEmailPreferencesPanel from './DshEmailPreferencesPanel.vue'
 import QuotaAdminPanel from './QuotaAdminPanel.vue'
+import { formatQuotaMoney } from '@/utils/formatQuotaMoney.js'
 import QuotaOperationDialog from './QuotaOperationDialog.vue'
 
 const router = useRouter()
@@ -608,11 +609,6 @@ async function onQuotaSaved(operation) {
 
 function refreshOwnQuota(userId) {
   if (userId === currentUserId.value) void loadQuota()
-}
-
-function formatQuotaMoney(value) {
-  if (value === null || value === undefined) return '不限'
-  return `${Number(value).toFixed(4)} 元`
 }
 
 function formatQuotaDate(value) {

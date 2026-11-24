@@ -3,6 +3,7 @@ import { nextTick, onMounted, ref } from 'vue'
 import { ElDialog } from 'element-plus'
 import { API_PREFIX } from '@/config/api'
 import { getToken } from '@/utils/auth'
+import { formatQuotaMoney } from '@/utils/formatQuotaMoney.js'
 import 'element-plus/es/components/dialog/style/css'
 import QuotaOperationForm from './QuotaOperationForm.vue'
 
@@ -28,16 +29,14 @@ const roleError = ref('')
 const savingRole = ref(false)
 const notice = ref('')
 const usage = ref([])
+const adjustments = ref([])
+const adjustmentsError = ref('')
 const usageLoading = ref(false)
 const usageError = ref('')
 let usageRequest = 0
 
 function headers() {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` }
-}
-
-function moneyText(value) {
-  return value == null ? '不限' : `${Number(value).toFixed(4)} 元`
 }
 
 async function fetchPage(targetPage, needle) {
@@ -68,6 +67,8 @@ async function loadUsers(targetPage = page.value, needle = appliedSearch.value) 
     if (target.value && !users.value.some((item) => item.user_id === target.value.user_id)) {
       target.value = null
       void loadUsage(null)
+      adjustments.value = []
+      adjustmentsError.value = ''
     }
   } catch (failure) {
     error.value = failure.message
@@ -78,7 +79,7 @@ async function loadUsers(targetPage = page.value, needle = appliedSearch.value) 
 }
 
 function jumpToPage() {
-  if (savingOperation.value) return
+  if (loading.value || savingOperation.value) return
   const input = pageInput.value.trim()
   const requested = Number(input)
   if (!/^\d+$/.test(input) || !Number.isSafeInteger(requested) || requested < 1 || requested > totalPages.value) {
@@ -91,6 +92,11 @@ function jumpToPage() {
     return
   }
   void loadUsers(requested)
+}
+
+function submitPageOnBlur(event) {
+  if (event.relatedTarget?.matches('button, input, select, a[href]')) return
+  jumpToPage()
 }
 
 function refreshUsers() {
@@ -125,12 +131,36 @@ async function loadUsage(userId) {
   }
 }
 
+let adjustmentsRequest = 0
+
+async function loadAdjustments(userId) {
+  const request = ++adjustmentsRequest
+  adjustments.value = null
+  adjustmentsError.value = ''
+  try {
+    const response = await fetch(`${API_PREFIX}/billing/users/${userId}/adjustments`, {
+      headers: headers(),
+      cache: 'no-store',
+    })
+    if (!response.ok) throw new Error('读取调整记录失败')
+    const rows = await response.json()
+    if (request === adjustmentsRequest && target.value?.user_id === userId) {
+      adjustments.value = rows
+    }
+  } catch (failure) {
+    if (request === adjustmentsRequest && target.value?.user_id === userId) {
+      adjustmentsError.value = failure.message
+    }
+  }
+}
+
 async function openOperation(item) {
   if (savingOperation.value) return
   if (target.value?.user_id !== item.user_id) {
     target.value = item
     notice.value = ''
     void loadUsage(item.user_id)
+    void loadAdjustments(item.user_id)
   }
   await nextTick()
   operationPanel.value?.scrollIntoView({ block: 'start' })
@@ -139,6 +169,7 @@ async function openOperation(item) {
 function afterOperation(kind, userId) {
   notice.value = kind === 'adjust' ? '额度已调整' : '套餐已开通'
   emit('quota-changed', userId)
+  if (kind === 'adjust') void loadAdjustments(userId)
   void loadUsers()
 }
 
@@ -226,9 +257,9 @@ onMounted(loadUsers)
               </button>
             </td>
             <td><span class="qam-tag" :class="{ 'qam-tag--plain': item.role !== 'admin' }">{{ roleLabels[item.role] }}</span></td>
-            <td>{{ moneyText(item.allowance_cny) }}</td>
-            <td>{{ moneyText(item.used_cny) }}</td>
-            <td>{{ moneyText(item.remaining_cny) }}</td>
+            <td>{{ formatQuotaMoney(item.allowance_cny) }}</td>
+            <td>{{ formatQuotaMoney(item.used_cny) }}</td>
+            <td>{{ formatQuotaMoney(item.remaining_cny) }}</td>
             <td class="qam-muted">{{ item.period_end ? item.period_end.slice(0, 19).replace('T', ' ') : '—' }}</td>
             <td>
               <div class="qam-row-actions">
@@ -256,6 +287,8 @@ onMounted(loadUsers)
           :aria-invalid="Boolean(pageError)"
           :aria-describedby="pageError ? 'quota-page-error' : undefined"
           :disabled="loading || Boolean(savingOperation)"
+          @blur="submitPageOnBlur"
+          @keydown.enter.prevent="jumpToPage"
         />
         <span>页 / 共 {{ totalPages }} 页</span>
       </form>
@@ -301,6 +334,21 @@ onMounted(loadUsers)
       </div>
       <div class="qam-usage">
         <div class="qam-usage-head">
+          <h4>最近调整记录</h4>
+          <button type="button" class="qam-link" :disabled="adjustments === null && !adjustmentsError" @click="loadAdjustments(target.user_id)">刷新记录</button>
+        </div>
+        <p v-if="adjustmentsError" class="qam-error" role="alert">{{ adjustmentsError }}</p>
+        <ul v-else-if="adjustments?.length" class="qam-adjustment-list">
+          <li v-for="row in adjustments" :key="row.id">
+            <strong>{{ formatQuotaMoney(row.amount_cny) }}</strong>
+            <span>{{ row.reason }}</span>
+            <time class="qam-muted" :datetime="row.created_at">{{ row.created_at?.slice(0, 19).replace('T', ' ') }}</time>
+          </li>
+        </ul>
+        <p v-else class="qam-muted">{{ adjustments === null ? '正在读取调整记录…' : '暂无调整记录' }}</p>
+      </div>
+      <div class="qam-usage">
+        <div class="qam-usage-head">
           <h4>最近调用记录</h4>
           <button type="button" class="qam-link" :disabled="usageLoading" @click="loadUsage(target.user_id)">
             {{ usageLoading ? '读取中…' : '刷新用量' }}
@@ -311,7 +359,7 @@ onMounted(loadUsers)
           <li v-for="row in usage.slice(0, 20)" :key="row.id">
             <span class="qam-usage-model">{{ row.model }}</span>
             <span class="qam-muted">{{ row.input_tokens }} / {{ row.output_tokens }} tokens</span>
-            <span class="qam-usage-cost">{{ moneyText(row.cost_cny) }}</span>
+            <span class="qam-usage-cost">{{ formatQuotaMoney(row.cost_cny) }}</span>
             <span class="qam-muted">{{ row.created_at?.slice(0, 19).replace('T', ' ') }}</span>
           </li>
         </ul>
@@ -384,7 +432,7 @@ onMounted(loadUsers)
 .qam-operation-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-block: 16px; }
 .qam-operation-grid > div { display: flex; flex-direction: column; }
 .qam-operation-grid h4 { margin: 0 0 8px; font-size: 14px; color: #1f2a44; }
-.qam-usage { padding-top: 12px; border-top: 1px solid #e4e8f2; }
+.qam-usage { margin-bottom: 10px; padding-top: 12px; border-top: 1px solid #e4e8f2; }
 @media (max-width: 740px) {
   .qam-operation-grid { grid-template-columns: minmax(0, 1fr); }
   .qam-usage-list li { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-wrap: anywhere; }
@@ -392,6 +440,9 @@ onMounted(loadUsers)
 .qam-usage-head { display: flex; align-items: center; justify-content: space-between; }
 .qam-usage-head h4 { margin: 0; color: #1f2a44; font-size: 14px; }
 .qam-link { border: none; background: none; color: #5b72df; font-size: 13px; font-weight: 600; cursor: pointer; }
+.qam-adjustment-list { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.qam-adjustment-list li { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 10px; border-radius: 8px; background: #f8faff; font-size: 13px; overflow-wrap: anywhere; }
+.qam-adjustment-list li span { flex: 1 1 12rem; min-width: 0; }
 .qam-usage-list { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .qam-usage-list li { display: grid; grid-template-columns: minmax(120px, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 8px 10px; border-radius: 8px; background: #f8faff; font-size: 12px; }
 .qam-usage-model { color: #33415f; font-weight: 600; }
