@@ -336,9 +336,13 @@ const router = createRouter({
     },
     {
       path: '/data-assistant/briefings',
+      redirect: to => ({ name: 'DataAssistant', query: { section: 'briefings', task: to.query.task } })
+    },
+    {
+      path: '/data-assistant/briefings/content',
       name: 'BriefingSchedules',
       component: () => import('@/views/BriefingSchedules.vue'),
-      meta: { hideNavbar: false }
+      meta: { workbenchContent: true }
     },
     {
       path: '/data-assistant',

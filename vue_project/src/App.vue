@@ -44,7 +44,8 @@ watch(() => route.path, async () => {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'app--financial-terminal': isFinancialTerminal }">
+  <router-view v-if="route.meta.workbenchContent" />
+  <div v-else class="app-shell" :class="{ 'app--financial-terminal': isFinancialTerminal }">
     <a class="skip-to-content" href="#main-content">跳到主要内容</a>
     <appNav :route-preloaders="routePreloaders" />
     <FontSizeControl v-if="route.meta.hideNavbar" class="standalone-font-size" />

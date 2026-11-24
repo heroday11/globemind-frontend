@@ -130,6 +130,10 @@ function toggle(row) {
   return rowAction(row, () => service.save(row.id, buildBriefingSchedulePayload({ ...createBriefingScheduleForm(row), enabled: !row.enabled }, row)))
 }
 
+function startBriefingSkill() {
+  window.parent.postMessage({ channel: 'globemind-page-v1', type: 'start-briefing-skill' }, location.origin)
+}
+
 function remove(row) {
   if (window.confirm(`删除定期简报「${row.title}」？`)) {
     void rowAction(row, () => service.remove(row.id))
@@ -160,12 +164,12 @@ function formatTime(value, timeZone) {
 
 <template>
   <main class="briefings">
-    <RouterLink class="back" to="/data-assistant">返回数据助手</RouterLink>
+
     <header>
       <h1>定期简报</h1>
       <div v-if="signedIn && (schedules.length || error)" class="entries">
         <button class="primary" type="button" @click="openForm()"><Plus :size="18" aria-hidden="true" />新建定期简报</button>
-        <RouterLink class="secondary" :to="{ name: 'DataAssistant', query: { skill: 'create-periodic-briefing' } }"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</RouterLink>
+        <button type="button" class="secondary" @click="startBriefingSkill"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</button>
       </div>
     </header>
 
@@ -182,7 +186,7 @@ function formatTime(value, timeZone) {
           <h2>创建第一份定期简报</h2>
           <div v-if="signedIn" class="entries">
             <button class="primary" type="button" @click="openForm()"><Plus :size="18" aria-hidden="true" />新建定期简报</button>
-            <RouterLink class="secondary" :to="{ name: 'DataAssistant', query: { skill: 'create-periodic-briefing' } }"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</RouterLink>
+            <button type="button" class="secondary" @click="startBriefingSkill"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</button>
           </div>
           <button v-else type="button" class="primary" @click="showLogin = true">登录后创建</button>
         </section>
@@ -232,10 +236,10 @@ function formatTime(value, timeZone) {
 <style scoped>
 .briefings {
   --briefing-accent: #135a72; --briefing-muted: #526575; --briefing-muted-bg: #f2f6f8;
-  width: min(100% - 36px, 1060px); margin: 64px auto 0; padding: 24px 0 48px;
+  width: min(100% - 36px, 1060px); margin: 0 auto; padding: 12px 0 36px;
   color: var(--text-primary, #1d2932);
 }
-.back, details summary { color: var(--briefing-accent); cursor: pointer; }
+details summary { color: var(--briefing-accent); cursor: pointer; }
 header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 13px 0 18px; }
 h1 { font-size: 1.75em; font-weight: 680; margin: 0; }
 h2 { font-size: 1.1em; font-weight: 650; margin: 0; overflow-wrap: anywhere; }

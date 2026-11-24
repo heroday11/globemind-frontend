@@ -1,7 +1,6 @@
 <script setup>
 import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { CalendarClock } from 'lucide-vue-next'
+import { useRoute } from 'vue-router'
 import BriefingForm from '@/features/assistant/briefing/BriefingForm.vue'
 import { createBriefingDraft, buildBriefingSchedulePayload } from '@/features/assistant/briefing/model.js'
 import { createBriefingScheduleService } from '@/features/assistant/briefing/service.js'
@@ -43,15 +42,21 @@ let launchController
 let syncController
 
 const route = useRoute()
-const router = useRouter()
+
 const briefingService = createBriefingScheduleService(createAssistantApi())
 const briefingDialog = ref(null), briefingDraft = ref(null), savedBriefing = ref(null)
 const briefingBusy = ref(false), briefingError = ref(''), briefingStartError = ref('')
 const briefingEmail = ref('')
 let briefingStartId = '', briefingDraftSession = '', briefingRequestId = ''
 
+let openedBriefings = false
+let skillRequested = !props.embedded && route.query.skill === 'create-periodic-briefing'
+
+function showBriefings(task = '') {
+  if (bridge.ready) bridgePost('show-briefings', { task })
+}
 function launchBriefingSkill() {
-  if (props.embedded || route.query.skill !== 'create-periodic-briefing' || briefingStartId || !bridge.ready) return
+  if (!skillRequested || briefingStartId || !bridge.ready) return
   briefingStartError.value = ''
   briefingStartId = crypto.randomUUID()
   bridgePost('briefing-start', { requestId: briefingStartId })
@@ -132,8 +137,10 @@ function onBridgeMessage(event) {
     return
   }
   if (data.nonce !== bridgeNonce.value) return
-  if (data.type === 'open-briefings' && bridge.ready && isDshFrame(dshFrame.value)) {
-    void router.push({ name: 'BriefingSchedules' })
+  if (data.type === 'start-briefing-skill' && bridge.ready && isDshFrame(dshFrame.value)) {
+    skillRequested = true
+    briefingStartId = ''
+    launchBriefingSkill()
     return
   }
   if (data.type === 'ready') {
@@ -143,6 +150,10 @@ function onBridgeMessage(event) {
     bridgeFailed.value = false
     sessionId.value = data.sessionId || ''
     launchBriefingSkill()
+    if (!openedBriefings && !props.embedded && route.query.section === 'briefings') {
+      openedBriefings = true
+      showBriefings(typeof route.query.task === 'string' ? route.query.task : '')
+    }
     bridgeStatus.value = '助手已连接，检索会同步到本页'
     if (bridge.context) bridgePost('context', { requestId: bridge.requestId, prompt: bridge.context.prompt })
   } else if (data.type === 'image-job-ack') {
@@ -249,6 +260,7 @@ async function loadDsh() {
   syncController = undefined
   capabilitySyncFailed.value = false
   bridge.ready = false
+  openedBriefings = false
   clearFrameTimeout()
   window.clearInterval(bridge.timer)
   bridgeFailed.value = false
@@ -338,10 +350,9 @@ onBeforeUnmount(() => {
 <template>
   <!-- The site owns the top navigation; DSH owns all assistant navigation. -->
   <main class="assistant-page" :class="{ 'assistant-page--embedded': props.embedded }" aria-label="数据助手">
-    <div v-if="!props.embedded || briefingDraft || savedBriefing" class="briefing-tools">
-      <RouterLink v-if="!props.embedded" :to="{ name: 'BriefingSchedules' }"><CalendarClock :size="16" aria-hidden="true" />定期简报</RouterLink>
+    <div v-if="briefingDraft || savedBriefing || briefingStartError" class="briefing-tools">
       <button v-if="briefingDraft" type="button" @click="openBriefingDraft">查看任务草稿</button>
-      <RouterLink v-if="savedBriefing" :to="{ name: 'BriefingSchedules', query: { task: savedBriefing.id } }">已创建 · 查看定期简报</RouterLink>
+      <button v-if="savedBriefing" type="button" @click="showBriefings(savedBriefing.id)">已创建 · 查看定期简报</button>
       <span v-if="briefingStartError" role="status">{{ briefingStartError }}</span>
       <button v-if="briefingStartError" type="button" @click="launchBriefingSkill">重试</button>
     </div>
