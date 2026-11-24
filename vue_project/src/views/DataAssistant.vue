@@ -1,11 +1,12 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import ImageStudio from '@/features/assistant/ImageStudio.vue'
+import { defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import LoginModal from '@/components/LoginModal.vue'
 import { assistantErrorText } from '@/features/assistant/api.js'
 import { syncPendingCapabilities } from '@/bootstrap.js'
 import { dshLaunchUrl, isDshFrame } from '@/utils/dshFrame.js'
 import { getToken, clearAuth, getAuthChangedEventName } from '@/utils/auth.js'
+
+const ImageStudio = defineAsyncComponent(() => import('@/features/assistant/ImageStudio.vue'))
 
 const props = defineProps({
   embedded: { type: Boolean, default: false },
@@ -22,14 +23,26 @@ const sessionId = ref('')
 const bridge = { timer: 0, context: null, requestId: '', seen: new Set(), ready: false, imageRequests: new Map() }
 const frameUrl = ref(''), loading = ref(true), error = ref('')
 const loginRequired = ref(false), showLoginModal = ref(false)
-// Capability migration remains centralized in bootstrap: CAPABILITIES_SYNC_KEY,
-// safeExpertSkillDocumentPath, method: 'PUT', and the empty selection guard
-// if (!skillIds.length && !databaseCards.length) return are handled there.
+const capabilitySyncFailed = ref(false)
 let generation = 0
 let frameTimeout = 0
-let recoveryAttempts = 0
+let launchController
+let syncController
 
-async function requestDshLaunch(token) { const r = await fetch('/api/assistant/dsh-launch', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }); const p = await r.json().catch(() => ({})); if (r.status === 401) { clearAuth(); throw new Error('登录状态已失效，请重新登录。') }; if (!r.ok || !p.url) throw new Error(p.detail || '数据助手暂时不可用'); return p }
+async function requestDshLaunch(token, signal) {
+  const response = await fetch('/api/assistant/dsh-launch', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+    signal,
+  })
+  if (response.status === 401 && !signal.aborted && getToken() === token) {
+    clearAuth()
+    throw new Error('登录状态已失效，请重新登录。')
+  }
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok || !payload.url) throw new Error(payload.detail || '数据助手暂时不可用')
+  return payload
+}
 const BRIDGE_CHANNEL = 'globemind-page-v1'
 function bridgePost(type, payload = {}) {
   dshFrame.value?.contentWindow?.postMessage({ channel: BRIDGE_CHANNEL, nonce: bridgeNonce.value, type, ...payload }, location.origin)
@@ -50,6 +63,10 @@ function onBridgeMessage(event) {
   const data = event.data
   if (event.origin !== location.origin || event.source !== dshFrame.value?.contentWindow
       || data?.channel !== BRIDGE_CHANNEL) return
+  if (data.type === 'image-studio' && !loading.value && isDshFrame(dshFrame.value)) {
+    showImageStudio.value = true
+    return
+  }
   if (data.type === 'available') {
     if (isDshFrame(dshFrame.value)) {
       clearFrameTimeout()
@@ -97,9 +114,6 @@ function deliverImage(job) {
   if (bridge.ready) bridgePost('image-job', request)
   imageDelivery.value = bridge.ready ? '正在发送图片任务到助手对话…' : '正在连接助手，连接就绪后自动发送图片任务'
 }
-function openImageEditor() {
-  showImageStudio.value = true
-}
 function loadPageContext() {
   if (!props.embedded) return
   try {
@@ -117,11 +131,6 @@ function clearFrameTimeout() {
 }
 function failFrame(message) {
   clearFrameTimeout()
-  if (recoveryAttempts < 1 && getToken()) {
-    recoveryAttempts += 1
-    void loadDsh({ retry: true })
-    return
-  }
   frameUrl.value = ''
   loading.value = false
   error.value = message
@@ -134,14 +143,31 @@ function onFrameLoad(event) {
   }
   clearFrameTimeout()
   loading.value = false
-  error.value = ''
   if (!bridge.ready) connectBridge()
 }
 function onFrameError() {
   if (frameUrl.value) failFrame('助手连接中断，请重新连接。')
 }
-async function loadDsh({ retry = false } = {}) {
+async function syncCapabilities(token) {
+  syncController?.abort()
+  const controller = new AbortController()
+  syncController = controller
+  const timeout = window.setTimeout(() => controller.abort(), 15000)
+  capabilitySyncFailed.value = false
+  try {
+    await syncPendingCapabilities(token, controller.signal)
+  } catch {
+    if (syncController === controller && getToken() === token) capabilitySyncFailed.value = true
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+async function loadDsh() {
   const current = ++generation
+  launchController?.abort()
+  syncController?.abort()
+  syncController = undefined
+  capabilitySyncFailed.value = false
   bridge.ready = false
   clearFrameTimeout()
   window.clearInterval(bridge.timer)
@@ -150,7 +176,6 @@ async function loadDsh({ retry = false } = {}) {
   bridgeNonce.value = crypto.randomUUID()
   sessionId.value = ''
   bridge.seen.clear()
-  if (!retry) recoveryAttempts = 0
   // Remove the old document even when the server reuses its launch token.
   frameUrl.value = ''
   loading.value = true
@@ -162,19 +187,29 @@ async function loadDsh({ retry = false } = {}) {
     loading.value = false
     return
   }
+  const controller = new AbortController()
+  launchController = controller
+  const timeout = window.setTimeout(() => controller.abort(), 30000)
+  const headersTimeout = window.setTimeout(() => {
+    if (current === generation && !frameUrl.value) error.value = '正在启动助手工作区，请稍候…'
+  }, 4000)
+  void syncCapabilities(token)
   try {
-    await syncPendingCapabilities(token)
-    const payload = await requestDshLaunch(token)
+    const payload = await requestDshLaunch(token, controller.signal)
     if (current !== generation) return
+    error.value = '正在加载对话界面…'
     frameUrl.value = dshLaunchUrl(payload.url, location.origin, `${Date.now()}-${current}`)
     frameTimeout = window.setTimeout(() => {
       if (current === generation) failFrame('助手加载超时，请重新连接。')
-    }, 45000)
+    }, 25000)
   } catch (e) {
     if (current !== generation) return
     loading.value = false
     loginRequired.value = !getToken()
-    error.value = assistantErrorText(e, '连接数据助手失败')
+    error.value = controller.signal.aborted ? '助手连接超时，请重新连接。' : assistantErrorText(e, '连接数据助手失败')
+  } finally {
+    window.clearTimeout(timeout)
+    window.clearTimeout(headersTimeout)
   }
 }
 function reconnect() {
@@ -185,6 +220,7 @@ function reconnect() {
   void loadDsh()
 }
 function authChanged() {
+  imageDelivery.value = ''
   bridge.imageRequests.clear()
   bridge.ready = false
   showImageStudio.value = false
@@ -207,6 +243,9 @@ onBeforeUnmount(() => {
   window.clearInterval(bridge.timer)
   window.removeEventListener('message', onBridgeMessage)
   generation += 1
+  launchController?.abort()
+  syncController?.abort()
+  syncController = undefined
   clearFrameTimeout()
   window.removeEventListener(getAuthChangedEventName(), authChanged)
 })
@@ -219,17 +258,20 @@ onBeforeUnmount(() => {
       {{ bridgeStatus }}
       <button v-if="bridgeFailed" type="button" @click="reconnect">重新连接</button>
     </p>
-    <div v-if="frameUrl && !loading" class="image-entry">
-      <button type="button" @click="openImageEditor">图片生成与编辑</button>
+    <div v-if="frameUrl && !loading && (imageDelivery || capabilitySyncFailed)" class="assistant-notices">
       <span v-if="imageDelivery" role="status">{{ imageDelivery }}</span>
+      <span v-if="capabilitySyncFailed" role="status">技能设置同步失败</span>
+      <button v-if="capabilitySyncFailed" type="button" @click="syncCapabilities(getToken())">重试同步</button>
     </div>
     <ImageStudio v-if="showImageStudio" :initial="imageInitial" :session-id="sessionId" @close="showImageStudio = false; imageInitial = null" @submitted="deliverImage" />
     <iframe
       ref="dshFrame"
       v-if="frameUrl"
-      v-show="!loading"
       :key="frameUrl"
       class="dsh-frame"
+      :inert="loading"
+      :aria-hidden="loading"
+      data-globemind-assistant
       :data-globemind-drawer="props.embedded ? '' : undefined"
       :src="frameUrl"
       title="GlobeMind 数据助手"
@@ -239,7 +281,7 @@ onBeforeUnmount(() => {
     />
     <div v-if="!frameUrl || loading" class="assistant-status" role="status" aria-live="polite" :aria-busy="loading">
       <span v-if="loading" class="spinner" aria-hidden="true" />
-      <p>{{ loading ? '正在连接数据助手...' : error }}</p>
+      <p>{{ error || '正在连接数据助手…' }}</p>
       <button v-if="!loading" type="button" class="reconnect" @click="reconnect">
         {{ loginRequired ? '登录' : '重新连接' }}
       </button>
@@ -261,8 +303,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: #f6f8fb;
 }
-.image-entry { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 12px; font-size: 12px; background: white; border-bottom: 1px solid #e2e8f0; }
-.image-entry button { border: 1px solid #cbd5e1; border-radius: 6px; background: white; padding: 6px 12px; color: #1d4ed8; cursor: pointer; }
+.assistant-notices { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
+.assistant-notices button { border: 0; background: transparent; color: #1d4ed8; cursor: pointer; text-decoration: underline; }
 .bridge-status { margin: 0; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
 .assistant-page--embedded .dsh-frame { flex: 1 1 0; height: 0; }
 .dsh-frame {
@@ -276,6 +318,7 @@ onBeforeUnmount(() => {
 .assistant-status {
   position: absolute;
   inset: 0;
+  background: #f6f8fb;
   display: grid;
   place-items: center;
   align-content: center;

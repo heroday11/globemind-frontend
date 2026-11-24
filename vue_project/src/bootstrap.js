@@ -27,14 +27,14 @@ function capabilityFingerprint(skillIds, cards) {
   })
 }
 
-async function readSkillContent(skill) {
+async function readSkillContent(skill, signal) {
   const target = safeExpertSkillDocumentPath(skill?.localPath)
   if (!target) return ''
-  const response = await fetch(target, { cache: 'force-cache' })
+  const response = await fetch(target, { cache: 'force-cache', signal })
   return response.ok ? response.text() : ''
 }
 
-async function syncPendingCapabilities(token) {
+async function syncPendingCapabilities(token, signal) {
   const skillIds = localJson(SELECTED_SKILLS_KEY, []).filter((id) => typeof id === 'string')
   const databaseCards = localJson(DB_STORAGE_KEY, []).filter((card) => card && typeof card === 'object')
   if (!skillIds.length && !databaseCards.length) return
@@ -44,8 +44,8 @@ async function syncPendingCapabilities(token) {
   try { syncedFingerprint = localStorage.getItem(CAPABILITIES_SYNC_KEY) || '' } catch { /* Storage is optional. */ }
   if (fingerprint === syncedFingerprint) return
 
-  const catalogResponse = await fetch(CATALOG_URL, { cache: 'force-cache' })
-  if (!catalogResponse.ok) throw new Error('Skill 目录加载失败，暂时无法连接数据助手。')
+  const catalogResponse = await fetch(CATALOG_URL, { cache: 'force-cache', signal })
+  if (!catalogResponse.ok) throw new Error('Skill 目录加载失败。')
   const catalog = await catalogResponse.json()
   const catalogSkills = (catalog.domains || []).flatMap((domain) =>
     (domain.skills || []).map((skill) => ({ ...skill, domainId: domain.id || '' })),
@@ -63,17 +63,19 @@ async function syncPendingCapabilities(token) {
       domain: skill.domainId,
       source: skill.source || '',
       runtime: skill.runtime || '',
-      content: await readSkillContent(skill),
+      content: await readSkillContent(skill, signal),
     }
   }))
   const response = await fetch('/api/assistant/capabilities', {
     method: 'PUT',
+    signal,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ skills: skills.filter(Boolean), databaseCards }),
   })
   const payload = await response.json().catch(() => ({}))
   if (response.status === 401) throw new Error('登录状态已失效，请重新登录后连接数据助手。')
-  if (!response.ok) throw new Error(payload.detail || '所选 Skill 尚未同步，暂时无法连接数据助手。')
+  if (!response.ok) throw new Error(payload.detail || '所选 Skill 尚未同步。')
+  signal?.throwIfAborted()
   try { localStorage.setItem(CAPABILITIES_SYNC_KEY, fingerprint) } catch { /* Storage is optional. */ }
 }
 

@@ -20,20 +20,20 @@ test('academic capability selections persist to the account and DSH', async () =
   assert.match(view, /hasPendingLocalChanges/)
 })
 
-test('data assistant migrates pending browser skills before launching DSH', async () => {
+test('data assistant starts alongside browser skill migration and lets users retry failed syncs', async () => {
   const [view, bootstrap] = await Promise.all([
     source('../src/views/DataAssistant.vue'),
     source('../src/bootstrap.js'),
   ])
 
   assert.match(view, /syncPendingCapabilities/)
-  assert.match(view, /await syncPendingCapabilities\(token\)/)
-  assert.match(view, /CAPABILITIES_SYNC_KEY/)
-  assert.match(view, /safeExpertSkillDocumentPath/)
-  assert.match(view, /method: 'PUT'/)
-  assert.match(view, /if \(!skillIds\.length && !databaseCards\.length\) return/)
-  assert.match(view, /await syncPendingCapabilities\(token\)[\s\S]{0,120}requestDshLaunch\(token\)/)
-  assert.match(bootstrap, /syncPendingCapabilities\(token\)/)
+  assert.match(view, /void syncCapabilities\(token\)[\s\S]{0,120}await requestDshLaunch\(token, controller\.signal\)/)
+  assert.match(view, /await syncPendingCapabilities\(token, controller\.signal\)/)
+  assert.match(view, /v-if="capabilitySyncFailed"[^>]*@click="syncCapabilities\(getToken\(\)\)"/)
+  assert.match(bootstrap, /CAPABILITIES_SYNC_KEY/)
+  assert.match(bootstrap, /safeExpertSkillDocumentPath/)
+  assert.match(bootstrap, /if \(!skillIds\.length && !databaseCards\.length\) return/)
+  assert.match(bootstrap, /syncPendingCapabilities\(token, signal\)/)
   assert.match(bootstrap, /method: 'PUT'/)
   assert.doesNotMatch(bootstrap, /createDshFrame|__GLOBEMIND_DSH_PRELAUNCH__/)
   assert.match(bootstrap, /void loadApplication\(\)/)
