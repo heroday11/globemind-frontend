@@ -73,154 +73,10 @@ function handleMouseMove(e) {
           :style="{ '--i': i, '--bg-y': card.bgPosition }"
           :to="`/${card.path}`"
           :aria-label="`进入${card.title}`"
-          :aria-describedby="`${card.moduleId}-disclosure`"
         >
           <div class="card-shimmer" />
           <div class="card-body">
-            <div class="card-icon">
-              <svg v-if="card.featured" width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <rect
-                  x="2"
-                  y="2"
-                  width="28"
-                  height="28"
-                  rx="8"
-                  stroke="currentColor"
-                  stroke-width="2"
-                />
-                <circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.6" />
-                <path
-                  d="M22 14l-4 4-2-2-4 4"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <circle cx="22" cy="22" r="1.5" fill="currentColor" />
-                <circle cx="10" cy="22" r="1.5" fill="currentColor" opacity="0.5" />
-              </svg>
-              <svg v-else-if="i === 1" width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <circle cx="16" cy="16" r="12" stroke="currentColor" stroke-width="2" />
-                <circle cx="16" cy="16" r="4" fill="currentColor" opacity="0.5" />
-                <circle cx="8" cy="10" r="1.5" fill="currentColor" opacity="0.6" />
-                <circle cx="24" cy="20" r="1.5" fill="currentColor" opacity="0.6" />
-                <circle cx="20" cy="8" r="1" fill="currentColor" opacity="0.4" />
-                <circle cx="10" cy="24" r="1" fill="currentColor" opacity="0.4" />
-                <line
-                  x1="14"
-                  y1="14"
-                  x2="9"
-                  y2="10.5"
-                  stroke="currentColor"
-                  stroke-width="1"
-                  opacity="0.4"
-                />
-                <line
-                  x1="18"
-                  y1="18"
-                  x2="22.5"
-                  y2="19"
-                  stroke="currentColor"
-                  stroke-width="1"
-                  opacity="0.4"
-                />
-              </svg>
-              <svg v-else-if="i === 2" width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" />
-                <circle
-                  cx="16"
-                  cy="14"
-                  r="6"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  opacity="0.5"
-                />
-                <path
-                  d="M9 22l3-4h3l2 3h3l3-5"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  opacity="0.6"
-                />
-              </svg>
-              <svg v-else width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <rect
-                  x="3"
-                  y="5"
-                  width="12"
-                  height="10"
-                  rx="2"
-                  stroke="currentColor"
-                  stroke-width="2"
-                />
-                <rect
-                  x="17"
-                  y="9"
-                  width="12"
-                  height="14"
-                  rx="2"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  opacity="0.6"
-                />
-                <rect
-                  x="17"
-                  y="5"
-                  width="12"
-                  height="6"
-                  rx="2"
-                  stroke="currentColor"
-                  stroke-width="2"
-                />
-                <line
-                  x1="9"
-                  y1="19"
-                  x2="9"
-                  y2="24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-                <line
-                  x1="6"
-                  y1="21.5"
-                  x2="12"
-                  y2="21.5"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </div>
-            <div class="card-copy">
-              <h3 class="card-title">{{ card.title }}</h3>
-              <p class="card-desc">{{ card.desc }}</p>
-            </div>
-            <div
-              :id="`${card.moduleId}-disclosure`"
-              class="card-stat"
-              :data-state="card.disclosure.state"
-            >
-              <div class="card-stat-item">
-                <span class="card-stat-num">{{ card.disclosure.scope }}</span>
-                <span class="card-stat-label">{{ card.disclosure.freshness }}</span>
-              </div>
-            </div>
-            <div class="card-action">
-              <span class="card-cta">
-                进入
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" class="card-cta-arrow">
-                  <path
-                    d="M6 4l4 4-4 4"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </span>
-            </div>
+            <h3 class="card-title">{{ card.title }}</h3>
           </div>
         </router-link>
       </section>
@@ -451,10 +307,10 @@ function handleMouseMove(e) {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
   min-height: 280px;
   aspect-ratio: 2 / 1;
-  padding: 34px 40px 26px;
+  padding: 32px 36px;
   border-radius: 20px;
   background-color: rgba(255, 255, 255, 0.12);
   background-image: url('/imgs/home/home-cards.webp');
@@ -556,165 +412,24 @@ function handleMouseMove(e) {
   }
 }
 
-/* ---- Card body ---- */
+/* ---- Card title ---- */
 .card-body {
   position: relative;
   z-index: 2;
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.card-icon {
-  width: 44px;
-  height: 44px;
-  display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: rgba(59, 130, 246, 0.08);
-  color: #3b82f6;
-  transition:
-    background 0.3s ease,
-    color 0.3s ease,
-    transform 0.3s ease;
-}
-
-.card:hover .card-icon {
-  background: rgba(59, 130, 246, 0.14);
-  color: #2563eb;
-  transform: scale(1.08);
-}
-
-.card--featured .card-icon {
-  background: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
-}
-
-.card-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.card-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #1e293b;
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-
-.card-desc {
-  font-size: 14px;
-  color: #64748b;
-  line-height: 1.6;
-  margin: 0;
-  max-width: 68%;
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-/* ---- Stat badge ---- */
-.card-stat {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.card-stat-item {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+  width: 66%;
   min-width: 0;
 }
 
-.card-stat--multi {
-  align-items: stretch;
-  gap: 18px;
-}
-
-.card-stat--multi .card-stat-item {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-}
-
-.card-stat--multi .card-stat-item + .card-stat-item {
-  padding-left: 18px;
-  border-left: 1px solid rgba(148, 163, 184, 0.28);
-}
-
-.card-stat--multi .card-stat-label {
-  font-weight: 700;
-  color: #475569;
-  letter-spacing: 0.04em;
-}
-
-.card-stat-num {
-  font-size: 22px;
+.card-title {
+  margin: 0;
+  font-size: clamp(26px, 2.25vw, 36px);
   font-weight: 800;
+  line-height: 1.4;
   color: #1e293b;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-
-.card-stat-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-/* ---- Card action ---- */
-.card-action {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  justify-content: flex-start;
-  margin-top: 14px;
-}
-
-.card-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: 82px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  padding: 6px 0;
-  border-radius: 999px;
-  background: rgba(50, 125, 248, 1);
-  transition: all 0.3s ease;
-}
-
-.card:hover .card-cta {
-  background: #2563eb;
-  color: #fff;
-}
-
-.card-cta-arrow {
-  transition: transform 0.3s ease;
-}
-
-.card:hover .card-cta-arrow {
-  transform: translateX(3px);
-}
-
-.card--featured .card-cta {
-  background: rgba(50, 125, 248, 1);
-  color: #fff;
-}
-
-.card--featured:hover .card-cta {
-  background: #1d4ed8;
-  color: #fff;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
 }
 
 /* ============================================================
@@ -791,56 +506,12 @@ function handleMouseMove(e) {
   .card {
     aspect-ratio: auto;
     min-height: 224px;
-    padding: 22px 20px 18px;
+    padding: 24px;
     border-radius: 16px;
   }
 
-  .card-body {
-    gap: 10px;
-  }
-
-  .card-icon {
-    width: 36px;
-    height: 36px;
-  }
-
-  .card-icon svg {
-    width: 24px;
-    height: 24px;
-  }
-
   .card-title {
-    font-size: 17px;
-  }
-
-  .card-desc {
-    font-size: 13px;
-  }
-
-  .card-stat-num {
-    font-size: 18px;
-  }
-
-  .card-stat-label {
-    font-size: 11px;
-  }
-
-  .card-stat--multi {
-    gap: 14px;
-  }
-
-  .card-stat--multi .card-stat-item + .card-stat-item {
-    padding-left: 14px;
-  }
-
-  .card-action {
-    margin-top: 8px;
-  }
-
-  .card-cta {
-    width: 74px;
-    font-size: 11px;
-    padding: 5px 0;
+    font-size: 28px;
   }
 
   .home-footer {
@@ -866,33 +537,13 @@ function handleMouseMove(e) {
     font-size: 22px;
   }
 
-  .card-desc {
-    max-width: 72%;
-  }
-
   .card {
     min-height: 218px;
-    padding: 18px 16px 14px;
+    padding: 20px;
   }
 
   .card-title {
-    font-size: 15px;
-  }
-
-  .card-desc {
-    font-size: 12px;
-  }
-
-  .card-stat-num {
-    font-size: 16px;
-  }
-
-  .card-stat--multi {
-    gap: 12px;
-  }
-
-  .card-stat--multi .card-stat-item + .card-stat-item {
-    padding-left: 12px;
+    font-size: 23px;
   }
 
   .home-footer {

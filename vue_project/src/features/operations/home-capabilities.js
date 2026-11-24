@@ -46,7 +46,7 @@ const MODULES = Object.freeze([
     moduleId: 'home-agent-data-connections',
     featureId: null,
     path: 'academic-data',
-    title: 'Agent 数据连接',
+    title: 'agent连接',
     desc: '浏览 Agent Skill 与数据连接入口；来源许可和实际可用性以数据目录登记为准。',
     featured: false,
     bgPosition: '100%',
