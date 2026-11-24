@@ -81,41 +81,9 @@ function retryBriefingSkill() {
   if (!bridge.ready && isDshFrame(dshFrame.value)) connectBridge()
   launchBriefingSkill()
 }
-let briefingPositionObserver
-
-function stopBriefingPositionObserver() {
-  briefingPositionObserver?.disconnect()
-  briefingPositionObserver = undefined
-}
-
 async function openBriefingDraft() {
   await nextTick()
-  const dialog = briefingDialog.value
-  const frame = dshFrame.value
-  if (!briefingDraft.value || !dialog || dialog.open) return
-  stopBriefingPositionObserver()
-  if (frame) {
-    const conversation = isDshFrame(frame)
-      ? frame.contentDocument.querySelector('[data-conversation-content]')
-      : null
-    const position = () => {
-      const outer = frame.getBoundingClientRect()
-      const inner = conversation?.isConnected ? conversation.getBoundingClientRect() : null
-      const left = Math.max(0, outer.left + (inner?.left ?? 0))
-      const top = Math.max(0, outer.top + (inner?.top ?? 0))
-      const right = Math.min(window.innerWidth, outer.right, outer.left + (inner?.right ?? outer.width))
-      const bottom = Math.min(window.innerHeight, outer.bottom, outer.top + (inner?.bottom ?? outer.height))
-      dialog.style.setProperty('--briefing-center-x', `${(left + right) / 2}px`)
-      dialog.style.setProperty('--briefing-center-y', `${(top + bottom) / 2}px`)
-      dialog.style.setProperty('--briefing-area-width', `${right - left}px`)
-      dialog.style.setProperty('--briefing-area-height', `${bottom - top}px`)
-    }
-    position()
-    briefingPositionObserver = new ResizeObserver(position)
-    briefingPositionObserver.observe(frame)
-    if (conversation) briefingPositionObserver.observe(conversation)
-  }
-  dialog.showModal()
+  if (briefingDraft.value && !briefingDialog.value?.open) briefingDialog.value?.showModal()
 }
 async function saveBriefingDraft() {
   if (briefingBusy.value || !briefingDraft.value) return
@@ -395,7 +363,6 @@ onMounted(() => {
 })
 watch(() => props.contextKey, loadPageContext)
 onBeforeUnmount(() => {
-  stopBriefingPositionObserver()
   window.clearTimeout(briefingStartTimer)
   window.clearInterval(bridge.timer)
   window.removeEventListener('message', onBridgeMessage)
@@ -418,12 +385,14 @@ onBeforeUnmount(() => {
       <span v-if="briefingStartError" role="status">{{ briefingStartError }}</span>
       <button v-if="briefingStartError" type="button" @click="retryBriefingSkill">重试</button>
     </div>
-    <dialog ref="briefingDialog" class="briefing-dialog" aria-labelledby="briefing-draft-heading"
-      @cancel.prevent="!briefingBusy && briefingDialog.close()" @close="stopBriefingPositionObserver">
-      <h2 id="briefing-draft-heading">定期简报任务草稿</h2>
-      <BriefingForm v-if="briefingDraft" v-model="briefingDraft" conversational :email="briefingEmail"
-        :busy="briefingBusy" :error="briefingError" @close="briefingDialog.close()" @submit="saveBriefingDraft" />
-    </dialog>
+    <Teleport to="body">
+      <dialog ref="briefingDialog" class="briefing-dialog" aria-labelledby="briefing-draft-heading"
+        @cancel.prevent="!briefingBusy && briefingDialog.close()">
+        <h2 id="briefing-draft-heading">定期简报任务草稿</h2>
+        <BriefingForm v-if="briefingDraft" v-model="briefingDraft" conversational :email="briefingEmail"
+          :busy="briefingBusy" :error="briefingError" @close="briefingDialog.close()" @submit="saveBriefingDraft" />
+      </dialog>
+    </Teleport>
     <p v-if="props.embedded && bridgeStatus" class="bridge-status" role="status">
       {{ bridgeStatus }}
       <button v-if="bridgeFailed" type="button" @click="reconnect">重新连接</button>
@@ -479,11 +448,9 @@ onBeforeUnmount(() => {
 .briefing-tools button { border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; }
 .briefing-tools a:hover, .briefing-tools button:hover { text-decoration: underline; }
 .briefing-dialog {
-  position: fixed; inset: auto;
-  left: var(--briefing-center-x, 50%); top: var(--briefing-center-y, 50%);
-  transform: translate(-50%, -50%); margin: 0;
-  width: min(560px, calc(var(--briefing-area-width, 100vw) - 24px));
-  max-height: calc(var(--briefing-area-height, 100dvh) - 24px);
+  position: fixed; inset: 0; margin: auto;
+  width: min(560px, calc(100% - 24px));
+  height: fit-content; max-height: calc(100dvh - 24px);
   overflow: auto; overscroll-behavior: contain;
   padding: 20px; border: 1px solid #dbe3e8; border-radius: 8px;
 }
