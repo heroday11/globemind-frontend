@@ -1,7 +1,7 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { CalendarClock, Ellipsis, MessageCircle, Plus, X } from 'lucide-vue-next'
+import { CalendarClock, Ellipsis, ListChecks, MessageCircle, Plus, X } from 'lucide-vue-next'
 import { createAssistantApi, assistantErrorText } from '@/features/assistant/api.js'
 import { createBriefingScheduleForm, buildBriefingSchedulePayload, briefingCadenceLabel } from '@/features/assistant/briefing/model.js'
 import { createBriefingScheduleService } from '@/features/assistant/briefing/service.js'
@@ -197,13 +197,16 @@ function formatTime(value, timeZone) {
   <main class="briefings" @click="moreMenu = ''" @keydown.esc="moreMenu = ''">
     <header class="briefing-header">
       <div class="overview">
-        <h1><CalendarClock class="calendar-icon" :size="26" aria-hidden="true" />定期简报</h1>
-        <div class="intro">
-          <p>选一个想持续关注的话题，数据助手会定时调查，生成不超过200字的简报，保存到你的简报目录。</p>
-          <p>例如，每天早上8:30跟踪全球半导体出口管制，了解过去24小时的新变化。</p>
+        <span class="overview-icon"><ListChecks :size="28" aria-hidden="true" /></span>
+        <div class="overview-copy">
+          <p class="section-label" aria-hidden="true">定期简报</p>
+          <h1>定期简报</h1>
+          <p class="intro">选一个想持续关注的话题，数据助手会定时调查，生成不超过200字的简报，保存到你的简报目录。</p>
+          <p class="example">例如，每天早上8:30跟踪全球半导体出口管制，了解过去24小时的新变化。</p>
         </div>
       </div>
       <section v-if="signedIn || !loading" class="creation-card" aria-labelledby="briefing-create-heading">
+        <span class="creation-icon"><CalendarClock :size="18" aria-hidden="true" /></span>
         <h2 id="briefing-create-heading">{{ !loading && !error && !schedules.length ? '创建第一份定期简报' : '创建定期简报' }}</h2>
         <div class="entries">
           <template v-if="signedIn">
@@ -276,24 +279,29 @@ function formatTime(value, timeZone) {
 <style scoped>
 .briefings {
   --briefing-accent: #135a72; --briefing-muted: #526575; --briefing-muted-bg: #f2f6f8;
-  width: calc(100% - 36px); margin: 0 auto; padding: 22px 0 36px;
+  width: min(85%, 1280px); margin: 0 auto; padding: 24px 0 36px;
   color: var(--text-primary, #1d2932);
 }
 .briefing-header {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 24px;
-  padding-bottom: 22px;
+  padding-bottom: 30px;
 }
-.calendar-icon { flex: none; color: var(--briefing-accent); }
+.overview { display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: start; gap: 14px; }
+.overview-icon, .creation-icon { display: grid; place-items: center; }
+.overview-icon { width: 54px; height: 54px; border-radius: 12px; background: #e7f1ff; color: #1768e5; }
+.section-label { margin: 0 0 4px; color: #1768e5; font-size: .85em; font-weight: 650; line-height: 1.35; }
 h1, h2, h3 { margin: 0; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
-h1 { display: flex; align-items: center; gap: 10px; font-size: 1.75em; }
+h1 { font-size: 1.85em; }
 .creation-card {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 8px 9px;
   justify-self: end; max-width: 100%; padding: 12px; border: 1px solid #dbe3e8;
   border-radius: 8px; background: #fff;
 }
+.creation-icon { width: 30px; height: 30px; border-radius: 6px; background: #e5f3f4; color: var(--briefing-accent); }
 .creation-card h2 { font-size: 1em; }
 h2 { font-size: 1.1em; }
 h3 { font-size: 1em; }
-.entries { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.entries { display: flex; flex-wrap: wrap; grid-column: 2; gap: 8px; }
 .entries button { white-space: nowrap; }
 .primary, .secondary, .action-link {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px;
@@ -304,8 +312,11 @@ h3 { font-size: 1em; }
 .action-link { padding-inline: 4px; background: transparent; color: var(--briefing-accent); }
 .action-link:hover:not(:disabled) { background: var(--briefing-muted-bg); }
 button:disabled { opacity: .55; cursor: default; }
-.intro { max-width: 46em; color: var(--briefing-muted); line-height: 1.65; margin-top: 8px; }
-.intro p { margin: 0 0 4px; }
+.intro, .example { max-width: 46em; margin: 8px 0 0; color: var(--briefing-muted); line-height: 1.65; }
+.example { position: relative; font-size: .9em; }
+.example::before {
+  position: absolute; inset: .15em auto .15em -8px; width: 2px; background: #bbd7fb; content: '';
+}
 .task-section { border-top: 1px solid #dbe3e8; }
 .task-section > h2 { padding: 14px 0; }
 .task-section > h2 span { color: var(--briefing-muted); font-weight: 450; }
@@ -351,6 +362,7 @@ dialog::backdrop { background: #18253066; }
   .briefings { width: calc(100% - 24px); }
   .briefing-header { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .creation-card { justify-self: start; }
+  .overview { gap: 12px; }
   .entries button { font-size: .875em; padding-inline: 7px; }
 }
 </style>
