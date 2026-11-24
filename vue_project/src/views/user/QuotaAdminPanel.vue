@@ -206,7 +206,13 @@ onMounted(loadUsers)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in users" :key="item.user_id" class="qam-row">
+          <tr
+            v-for="item in users"
+            :key="item.user_id"
+            class="qam-row"
+            :class="{ 'qam-row--actionable': !savingOperation }"
+            @click="openOperation(item)"
+          >
             <td>
               <button
                 type="button"
@@ -214,7 +220,6 @@ onMounted(loadUsers)
                 :aria-expanded="target?.user_id === item.user_id"
                 :aria-controls="target?.user_id === item.user_id ? 'quota-account-operations' : undefined"
                 :disabled="Boolean(savingOperation)"
-                @click="openOperation(item)"
               >
                 <strong>{{ item.username }}</strong>
                 <small>{{ item.email || '#' + item.user_id }}</small>
@@ -227,7 +232,7 @@ onMounted(loadUsers)
             <td class="qam-muted">{{ item.period_end ? item.period_end.slice(0, 19).replace('T', ' ') : '—' }}</td>
             <td>
               <div class="qam-row-actions">
-                <button v-if="item.user_id !== currentUserId" type="button" class="qam-btn" @click="openRole(item)">修改角色</button>
+                <button v-if="item.user_id !== currentUserId" type="button" class="qam-btn" @click.stop="openRole(item)">修改角色</button>
               </div>
             </td>
           </tr>
@@ -361,7 +366,8 @@ onMounted(loadUsers)
 .qam-table th, .qam-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #eef1f7; white-space: nowrap; }
 .qam-table th { color: #74809b; font-size: 12px; font-weight: 700; background: #f7f9fd; }
 .qam-table td small { display: block; margin-top: 2px; color: #98a2b8; font-size: 11px; }
-.qam-row:hover { background: #f8faff; }
+.qam-row--actionable { cursor: pointer; }
+.qam-row--actionable:hover, .qam-row:focus-within { background: #f8faff; }
 .qam-account { display: block; min-height: 32px; width: 100%; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #3656b4; font: inherit; text-align: left; cursor: pointer; }
 .qam-account:hover:not(:disabled) strong, .qam-account[aria-expanded="true"] strong { text-decoration: underline; }
 .qam-account:focus-visible { outline: 2px solid #5b72df; outline-offset: 2px; }
