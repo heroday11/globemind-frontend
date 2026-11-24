@@ -78,14 +78,6 @@ function handleMouseMove(e) {
           <div class="card-body">
             <h3 class="card-title">{{ card.title }}</h3>
           </div>
-          <div class="card-action">
-            <span class="card-cta">
-              进入
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" class="card-cta-arrow" aria-hidden="true">
-                <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </span>
-          </div>
         </router-link>
       </section>
     </div>
@@ -421,60 +413,37 @@ function handleMouseMove(e) {
 }
 
 /* ---- Card title ---- */
+/* Each illustration leaves a different amount of space for its title. */
+.card[data-module-id='home-data-search'] {
+  --title-area-width: 58%;
+}
+
+.card[data-module-id='home-agent-data-connections'] {
+  --title-area-width: 62%;
+}
+
 .card-body {
-  position: relative;
+  position: absolute;
+  inset: 0 auto 0 0;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  width: 66%;
+  display: grid;
+  place-items: center;
+  width: var(--title-area-width, 56%);
   min-width: 0;
+  padding: 20px 12px;
+  box-sizing: border-box;
+  text-align: center;
 }
 
 .card-title {
   margin: 0;
+  max-width: 100%;
   font-size: clamp(26px, 2.25vw, 36px);
   font-weight: 800;
   line-height: 1.4;
   color: #1e293b;
   letter-spacing: 0.01em;
   text-wrap: balance;
-}
-
-/* ---- Entry action ---- */
-.card-action {
-  position: absolute;
-  z-index: 2;
-  left: 36px;
-  bottom: 28px;
-}
-
-.card-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: 82px;
-  padding: 6px 0;
-  border-radius: 999px;
-  background: #327df8;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 16px;
-  transition: background 0.3s ease;
-}
-
-.card:hover .card-cta,
-.card:focus-visible .card-cta {
-  background: #2563eb;
-}
-
-.card-cta-arrow {
-  transition: transform 0.3s ease;
-}
-
-.card:hover .card-cta-arrow {
-  transform: translateX(3px);
 }
 
 /* ============================================================
@@ -559,11 +528,6 @@ function handleMouseMove(e) {
     font-size: 28px;
   }
 
-  .card-action {
-    left: 24px;
-    bottom: 22px;
-  }
-
   .home-footer {
     padding: 10px 16px;
   }
@@ -593,12 +557,7 @@ function handleMouseMove(e) {
   }
 
   .card-title {
-    font-size: 23px;
-  }
-
-  .card-action {
-    left: 20px;
-    bottom: 20px;
+    font-size: clamp(20px, 5.9vw, 23px);
   }
 
   .home-footer {
