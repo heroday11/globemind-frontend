@@ -294,7 +294,7 @@ h1, h2, h3 { margin: 0; line-height: 1.35; font-weight: 650; overflow-wrap: anyw
 h1 { font-size: 1.85em; }
 .creation-card {
   display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 8px 9px;
-  justify-self: end; max-width: 100%; padding: 12px; border: 1px solid #dbe3e8;
+  justify-self: end; max-width: 100%; padding: 16px 20px; border: 1px solid #dbe3e8;
   border-radius: 8px; background: #fff;
 }
 .creation-icon { width: 30px; height: 30px; border-radius: 6px; background: #e5f3f4; color: var(--briefing-accent); }
@@ -361,7 +361,7 @@ dialog::backdrop { background: #18253066; }
   .mobile-label { display: block; color: var(--briefing-muted); font-size: .9em; }
   .briefings { width: calc(100% - 24px); }
   .briefing-header { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .creation-card { justify-self: start; }
+  .creation-card { justify-self: start; padding: 12px; }
   .overview { gap: 12px; }
   .entries button { font-size: .875em; padding-inline: 7px; }
 }
