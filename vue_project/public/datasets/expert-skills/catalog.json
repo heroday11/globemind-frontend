@@ -1,6 +1,6 @@
 {
   "version": "2026-07-08-expanded-real-skills",
-  "updatedAt": "2026-07-08",
+  "updatedAt": "2026-11-24",
   "policy": {
     "installMode": "expanded-real-skill-catalog",
     "summary": "扩容后的 Skill 市场只展示已筛选的真实 SKILL.md；每项保留来源、许可证、运行时要求和本地路径。",
@@ -9,12 +9,12 @@
     "maxActiveSkills": 12,
     "rawCandidates": 1189,
     "safeCandidates": 673,
-    "selectedSkills": 281,
+    "selectedSkills": 275,
     "selectedBySource": {
-      "alirez": 70,
-      "nous": 67,
+      "alirez": 68,
+      "nous": 64,
       "orchestra": 56,
-      "softaworks": 35,
+      "softaworks": 34,
       "anthropic": 12,
       "web-quality": 6,
       "addy": 24,
@@ -23,8 +23,8 @@
       "globemind-document-skills": 4
     },
     "selectedByDomain": {
-      "research": 25,
-      "mlops": 64,
+      "research": 20,
+      "mlops": 63,
       "engineering": 44,
       "frontend": 28,
       "devops": 1,
@@ -52,8 +52,6 @@
       "softaworks:blocked_skill_name": 1
     },
     "forcedDataAssistantSkills": [
-      "nous-duckduckgo-search",
-      "nous-searxng-search",
       "nous-blogwatcher",
       "nous-domain-intel",
       "nous-ocr-and-documents",
@@ -248,55 +246,6 @@
           "nameZh": "决策级实体调研",
           "descriptionZh": "生成基于假设测试的详细报告，适用于验证特定实体的信息；适合研究与情报分析场景，支持资料检索、证据核验和综合分析，输出结构化结果和可执行下一步。",
           "activationHintZh": "当用户需要决策级实体调研，或请求中出现「dossier」等线索时启用；需要具体步骤时再读取 Skill 原文。",
-          "tasksZh": [
-            "资料检索",
-            "证据核验",
-            "综合分析"
-          ],
-          "knowledgeInputsZh": [
-            "问题陈述",
-            "来源链接",
-            "时间范围"
-          ],
-          "safetyZh": "需要说明检索口径和来源可靠性；联网结果可能变化，关键事实应交叉验证。",
-          "i18nSource": "local-llm-qwen2.5-7b-awq+rules",
-          "i18nUpdatedAt": "2026-07-08"
-        },
-        {
-          "id": "alirez-grants",
-          "name": "grants",
-          "status": "available-requires-runtime",
-          "source": "Alireza Rezvani / MIT",
-          "description": "NIH grant research skill for clinical researchers. Grill-me intake (research idea + career stage + preliminary data + environment + submission posture + known institute targets) locks down the funding strategy before any search runs. Runs a 5-facet Consensus positioning analysis (with draft Significance/Innovation language), maps the research to the right NIH institutes and study sections via RePORTER, finds NOSIs and funded overlap, and produces an editable Word document (.docx) with budget/scope-aware mechanism recommendations, submission timelines, and a mandatory program officer recommendation. Use when the user asks about research funding or makes any grant-related request (e.g., 'grant",
-          "tasks": [
-            "资料检索",
-            "证据核验",
-            "综合分析"
-          ],
-          "knowledgeInputs": [
-            "问题陈述",
-            "来源链接",
-            "时间范围"
-          ],
-          "activationHint": "当用户任务涉及 grants：NIH grant research skill for clinical researchers. Grill-me intake (research idea + career stage + preliminary data + environment + submission posture + known institute targets) lo 时读取该 Skill。",
-          "safety": "结论必须区分来源事实、模型总结和推断，时效内容需要联网核验。",
-          "license": "MIT",
-          "sourceRepo": "https://github.com/alirezarezvani/claude-skills",
-          "skillPath": "research/grants/skills/grants/SKILL.md",
-          "localPath": "/datasets/expert-skills/skills/alirez/research/grants/skills/grants/SKILL.md",
-          "artifactPath": "/datasets/expert-skills/skills/alirez/research/grants/skills/grants",
-          "hasSkillMd": true,
-          "runtime": "script-backed",
-          "requires": [
-            "运行时依赖见 SKILL.md"
-          ],
-          "quality": "selected from Claude Skills; score=89.86; chars=14658",
-          "installMode": "selected-skill-read",
-          "progressiveDisclosure": "card metadata first; call selected_skill_read to load SKILL.md and bundled references only when needed",
-          "tags": [],
-          "nameZh": "NIH基金申请策略",
-          "descriptionZh": "制定NIH基金申请策略，适用于临床研究者。提供全面的前期准备与分析，确保申请成功；适合研究与情报分析场景，支持资料检索、证据核验和综合分析，输出结构化结果和可执行下一步。",
-          "activationHintZh": "当用户需要NIH基金申请策略，或请求中出现「grants」等线索时启用；需要具体步骤时再读取 Skill 原文。",
           "tasksZh": [
             "资料检索",
             "证据核验",
@@ -673,55 +622,6 @@
           "i18nUpdatedAt": "2026-07-08"
         },
         {
-          "id": "alirez-syllabus",
-          "name": "syllabus",
-          "status": "available-requires-runtime",
-          "source": "Alireza Rezvani / MIT",
-          "description": "Generates a curated supplementary reading list from any course syllabus using Consensus academic search. Grill-me intake (syllabus input format + course audience + year range) plus a grouping forcing-options checkpoint before any search runs — so the reading list matches the course's level and recency need. Parses the syllabus to extract topics and learning outcomes, searches Consensus for recent peer-reviewed papers per topic, and produces a professionally formatted .docx with clickable Consensus links, plain-language summaries calibrated to audience level, and Bloom-higher-order discussion questions tied to course learning goals. Use when the user uploads a syllabus, course outline, or cur",
-          "tasks": [
-            "资料检索",
-            "证据核验",
-            "综合分析"
-          ],
-          "knowledgeInputs": [
-            "问题陈述",
-            "来源链接",
-            "时间范围"
-          ],
-          "activationHint": "当用户任务涉及 syllabus：Generates a curated supplementary reading list from any course syllabus using Consensus academic search. Grill-me intake (syllabus input format + course audience + year range) plus 时读取该 Skill。",
-          "safety": "结论必须区分来源事实、模型总结和推断，时效内容需要联网核验。",
-          "license": "MIT",
-          "sourceRepo": "https://github.com/alirezarezvani/claude-skills",
-          "skillPath": "research/syllabus/skills/syllabus/SKILL.md",
-          "localPath": "/datasets/expert-skills/skills/alirez/research/syllabus/skills/syllabus/SKILL.md",
-          "artifactPath": "/datasets/expert-skills/skills/alirez/research/syllabus/skills/syllabus",
-          "hasSkillMd": true,
-          "runtime": "script-backed",
-          "requires": [
-            "运行时依赖见 SKILL.md"
-          ],
-          "quality": "selected from Claude Skills; score=88.99; chars=12469",
-          "installMode": "selected-skill-read",
-          "progressiveDisclosure": "card metadata first; call selected_skill_read to load SKILL.md and bundled references only when needed",
-          "tags": [],
-          "nameZh": "课程补充阅读生成",
-          "descriptionZh": "从课程大纲生成精选补充阅读列表，适用于学术研究和教学辅助；适合研究与情报分析场景，支持资料检索、证据核验和综合分析，输出结构化结果和可执行下一步。",
-          "activationHintZh": "当用户需要课程大纲：生成精选补充阅读列表，或请求中出现「syllabus」等线索时启用；需要具体步骤时再读取 Skill 原文。",
-          "tasksZh": [
-            "资料检索",
-            "证据核验",
-            "综合分析"
-          ],
-          "knowledgeInputsZh": [
-            "问题陈述",
-            "来源链接",
-            "时间范围"
-          ],
-          "safetyZh": "需要说明检索口径和来源可靠性；联网结果可能变化，关键事实应交叉验证。",
-          "i18nSource": "local-llm-qwen2.5-7b-awq+rules",
-          "i18nUpdatedAt": "2026-07-08"
-        },
-        {
           "id": "alirez-ux-researcher-designer",
           "name": "ux-researcher-designer",
           "status": "available-requires-runtime",
@@ -940,62 +840,6 @@
           "i18nUpdatedAt": "2026-07-08"
         },
         {
-          "id": "nous-duckduckgo-search",
-          "name": "duckduckgo-search",
-          "status": "available-requires-runtime",
-          "source": "Nous Research / MIT",
-          "description": "Free web search via DuckDuckGo — text, news, images, videos. No API key needed. Prefer the `ddgs` CLI when installed; use the Python DDGS library only after verifying that `ddgs` is available in the current runtime.",
-          "tasks": [
-            "资料检索",
-            "证据核验",
-            "综合分析"
-          ],
-          "knowledgeInputs": [
-            "问题陈述",
-            "来源链接",
-            "时间范围"
-          ],
-          "activationHint": "当用户任务涉及 duckduckgo-search：Free web search via DuckDuckGo — text, news, images, videos. No API key needed. Prefer the `ddgs` CLI when installed; use the Python DDGS library only after verifying that `ddgs` i 时读取该 Skill。",
-          "safety": "只做公开网页检索；不得绕过站点访问限制，不处理隐私画像请求。",
-          "license": "MIT",
-          "sourceRepo": "https://github.com/NousResearch/hermes-agent",
-          "skillPath": "optional-skills/research/duckduckgo-search/SKILL.md",
-          "localPath": "/datasets/expert-skills/skills/nous/optional-skills/research/duckduckgo-search/SKILL.md",
-          "artifactPath": "/datasets/expert-skills/skills/nous/optional-skills/research/duckduckgo-search",
-          "hasSkillMd": true,
-          "runtime": "script-backed",
-          "requires": [
-            "运行时依赖见 SKILL.md",
-            "platforms: linux, macos, windows"
-          ],
-          "quality": "force-kept data-assistant capability from Hermes Agent Skills; chars=8439",
-          "installMode": "selected-skill-read",
-          "progressiveDisclosure": "card metadata first; call selected_skill_read to load SKILL.md and bundled references only when needed",
-          "tags": [
-            "search",
-            "duckduckgo",
-            "web-search",
-            "free",
-            "fallback"
-          ],
-          "nameZh": "DuckDuckGo 搜索",
-          "descriptionZh": "通过 DuckDuckGo 执行公开网页、新闻、图片和视频检索，适合补充时效性事实、查找来源链接并汇总可引用证据；适合研究与情报分析场景，输出结构化结果、关键依据和下一步行动。",
-          "activationHintZh": "当用户需要联网搜索、查找最新信息或验证公开网页来源时启用。",
-          "tasksZh": [
-            "网页检索",
-            "新闻查询",
-            "来源汇总"
-          ],
-          "knowledgeInputsZh": [
-            "查询关键词",
-            "时间范围",
-            "语言/地区"
-          ],
-          "safetyZh": "需要说明检索口径和来源可靠性；联网结果可能变化，关键事实应交叉验证。",
-          "i18nSource": "local-llm-qwen2.5-7b-awq+rules",
-          "i18nUpdatedAt": "2026-07-08"
-        },
-        {
           "id": "nous-parallel-cli",
           "name": "parallel-cli",
           "status": "available-requires-runtime",
@@ -1165,63 +1009,6 @@
             "时间范围"
           ],
           "safetyZh": "修改代码应保持范围清晰，避免覆盖用户改动，并给出可复现的验证方式。",
-          "i18nSource": "local-llm-qwen2.5-7b-awq+rules",
-          "i18nUpdatedAt": "2026-07-08"
-        },
-        {
-          "id": "nous-searxng-search",
-          "name": "searxng-search",
-          "status": "available-requires-runtime",
-          "source": "Nous Research / MIT",
-          "description": "Free meta-search via SearXNG — aggregates results from 70+ search engines. Self-hosted or use a public instance. No API key needed. Falls back automatically when the web search toolset is unavailable.",
-          "tasks": [
-            "资料检索",
-            "证据核验",
-            "综合分析"
-          ],
-          "knowledgeInputs": [
-            "问题陈述",
-            "来源链接",
-            "时间范围"
-          ],
-          "activationHint": "当用户任务涉及 searxng-search：Free meta-search via SearXNG — aggregates results from 70+ search engines. Self-hosted or use a public instance. No API key needed. Falls back automatically when the web search too 时读取该 Skill。",
-          "safety": "只使用公开搜索结果；公共实例稳定性和可用性需运行时验证。",
-          "license": "MIT",
-          "sourceRepo": "https://github.com/NousResearch/hermes-agent",
-          "skillPath": "optional-skills/research/searxng-search/SKILL.md",
-          "localPath": "/datasets/expert-skills/skills/nous/optional-skills/research/searxng-search/SKILL.md",
-          "artifactPath": "/datasets/expert-skills/skills/nous/optional-skills/research/searxng-search",
-          "hasSkillMd": true,
-          "runtime": "script-backed",
-          "requires": [
-            "运行时依赖见 SKILL.md",
-            "platforms: linux, macos"
-          ],
-          "quality": "force-kept data-assistant capability from Hermes Agent Skills; chars=7216",
-          "installMode": "selected-skill-read",
-          "progressiveDisclosure": "card metadata first; call selected_skill_read to load SKILL.md and bundled references only when needed",
-          "tags": [
-            "search",
-            "searxng",
-            "meta-search",
-            "self-hosted",
-            "free",
-            "fallback"
-          ],
-          "nameZh": "SearXNG 元搜索",
-          "descriptionZh": "通过 SearXNG 聚合多个搜索引擎结果，适合并行比较不同来源、减少单一搜索引擎偏差并整理证据链接；适合研究与情报分析场景，输出结构化结果、关键依据和下一步行动。",
-          "activationHintZh": "当用户需要多搜索引擎交叉检索、比较来源或寻找替代搜索结果时启用。",
-          "tasksZh": [
-            "多源搜索",
-            "结果去重",
-            "证据筛选"
-          ],
-          "knowledgeInputsZh": [
-            "查询关键词",
-            "搜索类别",
-            "时间范围"
-          ],
-          "safetyZh": "需要说明检索口径和来源可靠性；联网结果可能变化，关键事实应交叉验证。",
           "i18nSource": "local-llm-qwen2.5-7b-awq+rules",
           "i18nUpdatedAt": "2026-07-08"
         },
@@ -1489,55 +1276,6 @@
           ],
           "knowledgeInputsZh": [
             "问题描述",
-            "来源链接",
-            "时间范围"
-          ],
-          "safetyZh": "需要说明检索口径和来源可靠性；联网结果可能变化，关键事实应交叉验证。",
-          "i18nSource": "local-llm-qwen2.5-7b-awq+rules",
-          "i18nUpdatedAt": "2026-07-08"
-        },
-        {
-          "id": "softaworks-perplexity",
-          "name": "perplexity",
-          "status": "available-requires-runtime",
-          "source": "Softaworks / MIT",
-          "description": "Web search and research using Perplexity AI. Use when user says \"search\", \"find\", \"look up\", \"ask\", \"research\", or \"what's the latest\" for generic queries. NOT for library/framework docs (use Context7) or workspace questions.",
-          "tasks": [
-            "资料检索",
-            "证据核验",
-            "综合分析"
-          ],
-          "knowledgeInputs": [
-            "问题陈述",
-            "来源链接",
-            "时间范围"
-          ],
-          "activationHint": "当用户任务涉及 perplexity：Web search and research using Perplexity AI. Use when user says \"search\", \"find\", \"look up\", \"ask\", \"research\", or \"what's the latest\" for generic queries. NOT for library/framewor 时读取该 Skill。",
-          "safety": "结论必须区分来源事实、模型总结和推断，时效内容需要联网核验。",
-          "license": "MIT",
-          "sourceRepo": "https://github.com/softaworks/agent-toolkit",
-          "skillPath": "skills/perplexity/SKILL.md",
-          "localPath": "/datasets/expert-skills/skills/softaworks/skills/perplexity/SKILL.md",
-          "artifactPath": "/datasets/expert-skills/skills/softaworks/skills/perplexity",
-          "hasSkillMd": true,
-          "runtime": "tool-backed",
-          "requires": [
-            "运行时依赖见 SKILL.md"
-          ],
-          "quality": "selected from Agent Toolkit; score=83.54; chars=3858",
-          "installMode": "selected-skill-read",
-          "progressiveDisclosure": "card metadata first; call selected_skill_read to load SKILL.md and bundled references only when needed",
-          "tags": [],
-          "nameZh": "Perplexity 联网研究",
-          "descriptionZh": "面向通用联网研究的搜索型 Skill，适合获取近期事实、整理资料来源并把检索结果转成简洁回答；适合研究与情报分析场景，输出结构化结果、关键依据和下一步行动。",
-          "activationHintZh": "当用户明确要求搜索、查找、了解最新动态或需要外部资料佐证时启用。",
-          "tasksZh": [
-            "资料检索",
-            "证据核验",
-            "综合分析"
-          ],
-          "knowledgeInputsZh": [
-            "问题陈述",
             "来源链接",
             "时间范围"
           ],
@@ -1813,62 +1551,6 @@
           "nameZh": "ComfyUI",
           "descriptionZh": "生成图像、视频和音频，安装、管理节点/模型，运行工作流；适合模型工程和 AI 研发场景，支持模型工程、实验评测和部署优化，输出结构化结果和可执行下一步。",
           "activationHintZh": "当用户需要图像、视频和音频生成及管理时，或请求中出现「comfyui」、「image-generation」等线索时启用；需要具体步骤时再读取 Skill 原文。",
-          "tasksZh": [
-            "模型工程",
-            "实验评测",
-            "部署优化"
-          ],
-          "knowledgeInputsZh": [
-            "模型/框架",
-            "数据集",
-            "运行环境"
-          ],
-          "safetyZh": "仅在用户目标明确且上下文相关时启用；涉及外部账号、联网或文件写入时遵守最小权限。",
-          "i18nSource": "local-llm-qwen2.5-7b-awq+rules",
-          "i18nUpdatedAt": "2026-07-08"
-        },
-        {
-          "id": "nous-computer-use",
-          "name": "computer-use",
-          "status": "available-requires-runtime",
-          "source": "Nous Research / MIT",
-          "description": "Drive the user's desktop in the background — clicking, typing, scrolling, dragging — without stealing the cursor, keyboard focus, or switching virtual desktops / Spaces. Cross-platform: macOS, Windows, Linux. Works with any tool-capable model. Load this skill whenever the `computer_use` tool is available.",
-          "tasks": [
-            "模型工程",
-            "实验评测",
-            "部署优化"
-          ],
-          "knowledgeInputs": [
-            "模型/框架",
-            "数据集",
-            "运行环境"
-          ],
-          "activationHint": "当用户任务涉及 computer-use：Drive the user's desktop in the background — clicking, typing, scrolling, dragging — without stealing the cursor, keyboard focus, or switching virtual desktops / Spaces. Cross-plat 时读取该 Skill。",
-          "safety": "仅在用户目标明确且上下文相关时启用；涉及外部账号、联网或文件写入时遵守最小权限。",
-          "license": "MIT",
-          "sourceRepo": "https://github.com/NousResearch/hermes-agent",
-          "skillPath": "skills/computer-use/SKILL.md",
-          "localPath": "/datasets/expert-skills/skills/nous/skills/computer-use/SKILL.md",
-          "artifactPath": "/datasets/expert-skills/skills/nous/skills/computer-use",
-          "hasSkillMd": true,
-          "runtime": "tool-backed",
-          "requires": [
-            "运行时依赖见 SKILL.md",
-            "platforms: macos, windows, linux"
-          ],
-          "quality": "selected from Hermes Agent Skills; score=100.44; chars=11111",
-          "installMode": "selected-skill-read",
-          "progressiveDisclosure": "card metadata first; call selected_skill_read to load SKILL.md and bundled references only when needed",
-          "tags": [
-            "computer-use",
-            "desktop",
-            "automation",
-            "gui",
-            "cross-platform"
-          ],
-          "nameZh": "桌面自动化",
-          "descriptionZh": "远程操控用户桌面，实现点击、打字、滚动等操作，适用于模型工程和实验评测；适合模型工程和 AI 研发场景，支持模型工程、实验评测和部署优化，输出结构化结果和可执行下一步。",
-          "activationHintZh": "当用户需要桌面自动化，或请求中出现「computer-use」、「desktop」等线索时启用；需要具体步骤时再读取 Skill 原文。",
           "tasksZh": [
             "模型工程",
             "实验评测",
