@@ -54,6 +54,12 @@ const mobileDrawerClose = ref(null)
 // 移动端子菜单展开
 const mobileExpandedMenus = ref({})
 
+const mobileLayout = window.matchMedia('(max-width: 1200px)')
+
+function handleMobileLayoutChange(event) {
+  if (!event.matches) void closeMobileMenu({ restoreFocus: false })
+}
+
 function toggleMobileSubmenu(key) {
   mobileExpandedMenus.value[key] = !mobileExpandedMenus.value[key]
 }
@@ -205,6 +211,7 @@ onMounted(() => {
   // 路由回退时，强制触发页面重绘，解决布局错乱
   window.dispatchEvent(new Event('resize'))
   window.addEventListener(getAuthChangedEventName(), handleRouteChange)
+  mobileLayout.addEventListener('change', handleMobileLayoutChange)
 
   // document.body.style.paddingTop = '60px'
 })
@@ -219,6 +226,7 @@ onUnmounted(() => {
   window.removeEventListener('routeToHome', handleRouteToHome)
   window.removeEventListener('showLoginModal', handleShowLoginModal)
   window.removeEventListener(getAuthChangedEventName(), handleRouteChange)
+  mobileLayout.removeEventListener('change', handleMobileLayoutChange)
 
   if (shouldHideNavbar.value) {
     document.body.style.paddingTop = '0'
@@ -306,7 +314,6 @@ const submitGlobalSearch = () => {
 
     <div class="nav-shell">
       <nav class="nav-center" aria-label="主导航">
-        <FontSizeControl class="nav-font-size" />
         <div class="middle">
           <ul class="nav-list">
         <!-- 使用 <router-link> 实现路由跳转，to 属性指定目标路径 -->
@@ -394,12 +401,11 @@ const submitGlobalSearch = () => {
         </li>
           </ul>
         </div>
-
-        <router-link class="about-us-link" to="/about-us" @pointerenter="preloadRoute('/about-us')" @focus="preloadRoute('/about-us')" @click="closeDropdowns">关于我们</router-link>
       </nav>
 
-      <!-- 页面最右：搜索 + 登录 -->
       <div class="header-actions header-actions--right">
+        <router-link class="about-us-link" to="/about-us" @pointerenter="preloadRoute('/about-us')" @focus="preloadRoute('/about-us')" @click="closeDropdowns">关于我们</router-link>
+        <FontSizeControl class="nav-font-size" />
         <button class="action-btn guide-btn" data-tour="guide-entry" type="button" title="新手指南" aria-label="打开新手指南" @click="openNewUserGuide">
           <CircleHelp class="nav-icon" :size="19" />
         </button>
@@ -476,7 +482,6 @@ const submitGlobalSearch = () => {
 
           <!-- 移动端导航列表 -->
           <nav class="mobile-nav" aria-label="移动端主导航">
-            <FontSizeControl class="mobile-font-size" />
             <router-link class="mobile-nav-item" to="/" @click="closeMobileMenuForNavigation">
               <span>首页</span>
             </router-link>
@@ -506,10 +511,6 @@ const submitGlobalSearch = () => {
             <router-link class="mobile-nav-item" to="/academic-data" @click="closeMobileMenuForNavigation">
               <span>Agent 能力市场</span>
             </router-link>
-            <button class="mobile-nav-item mobile-guide-item" type="button" @click="openNewUserGuide">
-              <span>新手指南</span>
-              <CircleHelp class="nav-icon" :size="18" />
-            </button>
 
             <!-- 用户中心（含子菜单） -->
             <template v-if="hasToken">
@@ -549,9 +550,14 @@ const submitGlobalSearch = () => {
               </div>
             </template>
 
-            <router-link class="mobile-nav-item" to="/about-us" @click="closeMobileMenuForNavigation">
+            <router-link class="mobile-nav-item-row" to="/about-us" @click="closeMobileMenuForNavigation">
               <span>关于我们</span>
             </router-link>
+            <FontSizeControl class="mobile-font-size" />
+            <button class="mobile-nav-item-row" type="button" @click="openNewUserGuide">
+              <span>新手指南</span>
+              <CircleHelp class="nav-icon" :size="18" />
+            </button>
           </nav>
 
           <!-- 移动端登录/用户按钮 -->

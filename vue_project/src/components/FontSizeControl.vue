@@ -37,8 +37,8 @@ function step(delta) {
 button {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 34px;
+  width: var(--font-size-button-width, 30px);
+  height: var(--font-size-button-height, 34px);
   padding: 0;
   background: transparent;
   color: inherit;
@@ -54,16 +54,11 @@ button:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
 }
 
 output {
-  min-width: 3.5rem;
+  min-inline-size: 7.5ch;
+  padding-inline: 4px;
   text-align: center;
   font-size: .6875rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-@media (max-width: 480px) {
-  button { width: 34px; }
-  output { min-width: 2.75rem; }
-  output span { display: none; }
 }
 </style>
