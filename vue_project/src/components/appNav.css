@@ -1,3 +1,5 @@
+@import "../../../shared/world-state-fonts.css";
+
 * {
   margin: 0;
   padding: 0;
@@ -1240,3 +1242,14 @@
     height: 32px;
   }
 }
+
+
+/* Keep the financial page navigation consistent with its signal workspace. */
+.header-financial {
+  --gm-font-world: "GlobeMind Harmony", "Microsoft YaHei", sans-serif;
+  --gm-font-sans: var(--gm-font-world);
+  --gm-nav-font: var(--gm-font-world);
+}
+.header-financial .nav-item a,
+.header-financial .dropdown-trigger span { font-size: 1.1875rem; font-weight: 700; }
+.header-financial .header-search__input { font-size: 1.0625rem; font-weight: 500; }

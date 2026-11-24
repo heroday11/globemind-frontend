@@ -1,0 +1,15 @@
+/* Self-hosted font shared by the financial page and its navigation. */
+@font-face {
+  font-family: "GlobeMind Harmony";
+  src: url("./assets/fonts/HarmonyOS-Sans-Medium.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GlobeMind Harmony";
+  src: url("./assets/fonts/HarmonyOS-Sans-Bold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 650 900;
+  font-display: swap;
+}

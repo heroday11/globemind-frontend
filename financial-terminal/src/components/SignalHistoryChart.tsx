@@ -61,8 +61,8 @@ export default function SignalHistoryChart({
     const step = Math.max(integerCounts ? 1 : 0, niceStep((high - low) * 1.12))
     const min = Math.floor(low / step) * step
     const max = Math.max(min + step, Math.ceil(high / step) * step)
-    const left = Math.max(48, Math.max(fmt(min).length, fmt(max).length) * 7 + 17)
-    const right = 18, top = 54, bottom = 62
+    const left = Math.max(64, Math.max(fmt(min).length, fmt(max).length) * 10 + 20)
+    const right = 24, top = 68, bottom = 62
     const width = Math.max(1, size.width - left - right), height = Math.max(1, size.height - top - bottom)
     const y = (value: number) => top + (max - value) / (max - min) * height
     return { min, max, step, left, right, top, width, height, y }
@@ -86,7 +86,7 @@ export default function SignalHistoryChart({
   const intraday = visiblePoints.length > 1 && visiblePoints[visiblePoints.length - 1].time - visiblePoints[0].time < 172800
   const timeTicks = useMemo(() => {
     if (!meta.length) return new Set<number>()
-    const spacing = intraday ? 115 : 62
+    const spacing = intraday ? 154 : 72
     const indices = new Set([0])
     let lastX = meta[0].x
     for (let i = 1; i < meta.length - 1; i += 1) {
@@ -99,7 +99,7 @@ export default function SignalHistoryChart({
     return indices
   }, [meta, intraday])
   const hovered = hoverIndex === null ? null : meta[hoverIndex] || null
-  const zero = layout.y(0), showValues = meta.length <= Math.floor(layout.width / 48)
+  const zero = layout.y(0), showValues = meta.length <= Math.floor(layout.width / 56)
   const coords = (event: MouseEvent<SVGSVGElement>) => {
     const r = event.currentTarget.getBoundingClientRect()
     return { x: (event.clientX - r.left) / Math.max(r.width, 1) * size.width, y: (event.clientY - r.top) / Math.max(r.height, 1) * size.height }
@@ -136,19 +136,19 @@ export default function SignalHistoryChart({
     })
   }
   return (
-    <div ref={wrapRef} className="relative h-full min-h-[20rem] w-full bg-white" title={historical ? statusMessage : undefined}>
+    <div ref={wrapRef} className="world-state-history-chart relative h-full min-h-[20rem] w-full bg-white" title={historical ? statusMessage : undefined}>
       {!meta.length ? <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-600" role="status">{statusMessage || '暂无数据'}</div> : <>
         <svg className="h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300"
           viewBox={`0 0 ${size.width} ${size.height}`} role="img" tabIndex={0}
           aria-label={`${label}柱形图。${hovered ? `${fmtTime(hovered.time, true)} UTC，${fmt(hovered.value)} ${unit || ''}。` : ''}左右方向键查看观测值。`}
           onMouseMove={handleMove} onMouseLeave={() => setHoverIndex(null)} onClick={handleClick} onKeyDown={handleKey}
           onFocus={() => setHoverIndex(current => current ?? meta.length - 1)} onBlur={() => setHoverIndex(null)}>
-          <text x={layout.left} y={21} fontSize="12" fill="#52627b">{unit ? `${seriesLabel}（${unit}）` : seriesLabel}</text>
-          <rect x={size.width - 110} y={12} width="9" height="9" rx="2" fill="#8194e7" />
-          <text x={size.width - 93} y={21} fontSize="12" fill="#52627b">{seriesLabel}</text>
+          <text x={layout.left} y={21} fontSize="17" fill="#52627b">{unit ? `${seriesLabel}（${unit}）` : seriesLabel}</text>
+          <rect x={size.width - 148} y={12} width="9" height="9" rx="2" fill="#8194e7" />
+          <text x={size.width - 130} y={21} fontSize="17" fill="#52627b">{seriesLabel}</text>
           {ticks.map(t => <g key={t.value}>
             <line x1={layout.left} x2={size.width - layout.right} y1={t.y} y2={t.y} stroke={t.value === 0 ? '#a7b0c1' : '#e7ecf5'} strokeDasharray={t.value === 0 ? undefined : '3 5'} />
-            <text x={layout.left - 12} y={t.y + 4} textAnchor="end" fontSize="12" fill="#667790" fontFamily="var(--gm-font-mono)">{fmt(t.value)}</text>
+            <text x={layout.left - 12} y={t.y + 4} textAnchor="end" fontSize="17" fill="#667790" fontFamily="var(--gm-font-mono)">{fmt(t.value)}</text>
           </g>)}
           <line x1={layout.left} x2={layout.left} y1={layout.top} y2={layout.top + layout.height} stroke="#a7b0c1" />
           {meta.map((p, i) => {
@@ -157,15 +157,15 @@ export default function SignalHistoryChart({
               {active ? <rect x={p.x - p.slot / 2} y={layout.top} width={p.slot} height={layout.height} fill="#f2f5fd" /> : null}
               <rect x={p.x - p.width / 2} y={Math.min(p.y, zero)} width={p.width} height={Math.abs(zero - p.y)} rx="2" fill={color} />
               <circle cx={p.x} cy={p.y} r={active ? 4 : 3} fill="white" stroke={color} strokeWidth="1.7" />
-              {showValues ? <text x={p.x} y={p.y + (p.value < 0 ? 19 : -12)} textAnchor="middle" fontSize="12" fill={active || i === meta.length - 1 ? '#4c68df' : '#667995'} fontFamily="var(--gm-font-mono)">{fmt(p.value)}</text> : null}
-              {timeTicks.has(i) ? <text x={p.x} y={size.height - 36} textAnchor="middle" fontSize="12" fill="#667790" fontFamily="var(--gm-font-mono)">{fmtTime(p.time, intraday)}</text> : null}
+              {showValues ? <text x={p.x} y={p.y + (p.value < 0 ? 19 : -12)} textAnchor="middle" fontSize="17" fill={active || i === meta.length - 1 ? '#4c68df' : '#667995'} fontFamily="var(--gm-font-mono)">{fmt(p.value)}</text> : null}
+              {timeTicks.has(i) ? <text x={p.x} y={size.height - 36} textAnchor="middle" fontSize="17" fill="#667790" fontFamily="var(--gm-font-mono)">{fmtTime(p.time, intraday)}</text> : null}
             </g>
           })}
           {validThresholds.map(t => <g key={t.id}>
             <line x1={layout.left} x2={size.width - layout.right} y1={layout.y(t.price)} y2={layout.y(t.price)} stroke="#c66b79" strokeDasharray="5 6" />
-            <text x={layout.left + 8} y={layout.y(t.price) - 7} fontSize="12" fill="#a94458">{t.label} · {fmt(t.price)}</text>
+            <text x={layout.left + 8} y={layout.y(t.price) - 7} fontSize="17" fill="#a94458">{t.label} · {fmt(t.price)}</text>
           </g>)}
-          <text x={size.width - layout.right} y={size.height - 6} textAnchor="end" fontSize="12" fill="#52627b">日期（UTC）</text>
+          <text x={size.width - layout.right} y={size.height - 6} textAnchor="end" fontSize="17" fill="#52627b">日期（UTC）</text>
         </svg>
         {hovered ? <div className="pointer-events-none absolute z-10 min-w-[11rem] rounded-lg border border-[#dfe5f2] bg-white px-4 py-3 text-[#52627b] shadow-[0_8px_25px_rgba(35,61,114,0.10)]"
           style={{ left: Math.max(4, Math.min(hovered.x - 72, size.width - 198)), top: Math.max(30, Math.min(hovered.y - 96, size.height - 110)) }} role="status">
