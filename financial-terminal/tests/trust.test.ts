@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
 import {
@@ -475,22 +476,71 @@ test('a self-reported or absent composite method card cannot release precise val
   assert.equal(sanitized.trust?.composite_method_card, undefined)
 })
 
-test('terminal presents source coverage and metric-specific observation semantics', () => {
-  const source = readFileSync(
-    new URL('../src/pages/TerminalDashboard.tsx', import.meta.url),
-    'utf8',
-  )
-  for (const disclosure of [
-    '输入/输出单位',
-    '数据源覆盖',
-    '当前指标截止',
-    '事件图谱截止',
-    '原始观测',
-    '暂无可比上期',
-  ]) {
-    assert.equal(source.includes(disclosure), true, disclosure)
+test('terminal preserves backend observation units and series without enabling mock fallback', async () => {
+  const metrics = [{
+    id: 'GN-POL-7D',
+    kind: 'metric' as const,
+    label: '本地政治外交事件簇',
+    unit: '簇/7d',
+    latest: 2009,
+    change_pct: -19.45,
+    points: [{ time: 1795392000, value: 2494 }, { time: 1795478400, value: 2009 }],
+    daily_points: [{ time: 1795392000, value: 196 }, { time: 1795478400, value: 218 }],
+    daily_unit: '簇',
+    daily_label: '每日事件簇',
+    daily_date_basis: 'event_date' as const,
+  }, {
+    id: 'GN-POL-24H',
+    kind: 'metric' as const,
+    label: '本地政治新闻 24h',
+    unit: '条/24h',
+    latest: 15,
+    change_pct: -11.76,
+    points: [{ time: 1795474800, value: 17 }, { time: 1795478400, value: 15 }],
+  }]
+  const input = dashboard({ series: metrics, trust: undefined })
+  const before = structuredClone(input)
+  const result = sanitizeFinancialDashboard(input)
+  assert.deepEqual(result.series, metrics)
+  assert.deepEqual(input, before)
+
+  const require = createRequire(import.meta.url)
+  const { build } = require('esbuild')
+  const bundled = await build({
+    entryPoints: [fileURLToPath(new URL('../src/api/index.ts', import.meta.url))],
+    bundle: true, write: false, format: 'esm', platform: 'node',
+    define: { 'import.meta.env': '{}' },
+  })
+  const api = await import('data:text/javascript;base64,' + Buffer.from(bundled.outputFiles[0].text).toString('base64'))
+  const originalFetch = globalThis.fetch
+  const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  const requests: string[] = []
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true, value: { getItem: () => null },
+  })
+  try {
+    globalThis.fetch = async (url: string | URL | Request) => {
+      requests.push(String(url))
+      return new Response(JSON.stringify(input), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    const fetched = await api.fetchDashboard()
+    assert.deepEqual(fetched.series, metrics)
+    assert.equal(fetched.mode, 'unavailable')
+    assert.deepEqual(requests, ['/api/financial/dashboard'])
+
+    const unavailable = new Error('network unavailable')
+    globalThis.fetch = async () => { throw unavailable }
+    await assert.rejects(api.fetchDashboard(), error => error === unavailable)
+
+    globalThis.fetch = async () => new Response('unavailable', { status: 503 })
+    await assert.rejects(api.fetchDashboard(), /503/)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage)
+    else Reflect.deleteProperty(globalThis, 'localStorage')
   }
 })
+
 
 test('self-reported source coverage cannot replace a matching source inventory', () => {
   const missing = dashboard({ sources: [] })

@@ -161,3 +161,59 @@ body {
 .animate-ping-once {
   animation: ping-once 1.2s ease-out both;
 }
+
+/* World-state workspace: colors are scoped to avoid legacy light-mode inversion. */
+.world-state-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;min-height:76px;padding:16px 26px;border-bottom:1px solid #e5eaf3;background:#fff;color:#17233b}
+.world-state-heading{display:flex;align-items:center;gap:12px;min-width:0}
+.world-state-heading h1{margin:0;font-size:1.25rem;line-height:1.5;font-weight:600;letter-spacing:.02em}
+.world-state-mark{display:grid;place-items:center;width:34px;height:34px;flex-shrink:0;border-radius:10px;background:#eef1fd;color:#4c68df}
+.world-state-switch{display:flex;align-items:center;gap:4px;flex-shrink:0;padding:4px;background:#f3f5fa;border:1px solid #e9edf5;border-radius:8px}
+.world-state-switch a{padding:8px 22px;border-radius:5px;color:#68758c;font-size:.8125rem;text-decoration:none;white-space:nowrap}
+.world-state-switch a.is-active{background:#fff;color:#4c68df;font-weight:600;box-shadow:0 1px 5px #233e7410}
+.world-state-dashboard{display:flex;flex-direction:column;height:100%;min-height:0;background:#f4f6fb;color:#17233b}
+.world-state-workspace{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:20px;padding:20px 24px 24px;flex:1;min-height:0}
+.world-state-panel{overflow:hidden;background:#fff;border:1px solid #e5eaf3;border-radius:12px}
+.world-state-main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.world-state-summary{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;padding:22px 26px;border-bottom:1px solid #edf0f6}
+.world-state-summary-content{display:flex;align-items:center;flex-wrap:wrap;gap:12px 27px;min-width:0}
+.world-state-summary h2{margin:0;color:#17233b;font-size:1.125rem;font-weight:600;line-height:1.5}
+.world-state-value{display:flex;align-items:baseline;gap:8px}
+.world-state-value strong{font:600 1.9375rem var(--gm-font-mono);letter-spacing:-.03em;color:#17233b}
+.world-state-value>span{font-size:.75rem;color:#5f6e85;white-space:nowrap}
+.world-state-value .world-state-change{padding:5px 7px;margin-left:4px;border-radius:4px;font-family:var(--gm-font-mono)}
+.world-state-dashboard .is-up{color:#27876e}
+.world-state-dashboard .is-down{color:#b6576a}
+.world-state-change.is-up{background:#eff8f4}
+.world-state-change.is-down{background:#fcf1f4}
+.world-state-range{display:flex;gap:3px;flex-shrink:0;padding:3px;border:1px solid #e5eaf3;border-radius:6px}
+.world-state-range button{padding:5px 10px;border:0;border-radius:4px;background:transparent;color:#68758c;font-size:.75rem;white-space:nowrap}
+.world-state-range button.is-active{background:#edf1fc;color:#4c68df;font-weight:600}
+.world-state-chart{flex:1;min-height:0;padding:24px 26px 18px}
+.world-state-directory{display:flex;flex-direction:column;min-height:0}
+.world-state-directory-header{padding:24px 22px 21px;flex-shrink:0}
+.world-state-directory-header h2{margin:0;color:#17233b;font-size:1.0625rem;font-weight:600}
+.world-state-search{display:flex;align-items:center;gap:9px;min-height:38px;margin-top:19px;padding:7px 11px;border:1px solid #e5eaf3;border-radius:6px;background:#fafbfe;color:#7888a2}
+.world-state-search svg{width:18px;height:18px;flex-shrink:0}
+.world-state-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#52627b;font-size:.75rem}
+.world-state-search:focus-within{outline:2px solid #4c68df;outline-offset:2px}
+.world-state-search input::placeholder{color:#7c89a0}
+.world-state-categories{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
+.world-state-categories button{padding:5px 10px;border:1px solid #e5eaf3;border-radius:5px;background:#fff;color:#65748d;font-size:.75rem}
+.world-state-categories button.is-active{background:#eef2ff;border-color:#e2e8ff;color:#4c68df}
+.world-state-signals{list-style:none;flex:1;min-height:0;margin:0;padding:9px 11px;overflow:auto;border-top:1px solid #e5eaf3}
+.world-state-signal{position:relative;display:flex;flex-direction:column;justify-content:center;width:100%;min-height:103px;padding:17px 13px;border:1px solid transparent;border-bottom-color:#edf0f6;border-radius:7px;background:#fff;text-align:left}
+.world-state-signal:hover{background:#f7f9ff}
+.world-state-signal.is-active{background:#eff3ff;border:1px solid #e1e8fc}
+.world-state-signal.is-active:before{content:'';position:absolute;left:-1px;top:50%;transform:translateY(-50%);width:3px;height:32px;border-radius:2px;background:#4c68df}
+.world-state-signal-top{display:flex;align-items:center;justify-content:space-between;gap:9px;color:#17233b;font-size:.8125rem;font-weight:600}
+.world-state-signal-top span{min-width:0}
+.world-state-signal-top strong{flex-shrink:0;font:600 1.1875rem var(--gm-font-mono)}
+.world-state-signal.is-active .world-state-signal-top{color:#445fc6}
+.world-state-signal-bottom{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:13px;color:#64758e;font-size:.75rem}
+.world-state-signal-bottom>span:last-child:not(:first-child){font-family:var(--gm-font-mono)}
+.world-state-empty{padding:25px 12px;color:#64758e;font-size:.8125rem;text-align:center}
+.world-state-error{padding:10px 24px;background:#fff2f4;color:#a63850;font-size:.8125rem}
+.world-state-dashboard button:focus-visible,.world-state-header a:focus-visible{outline:2px solid #4c68df;outline-offset:2px}
+@media(max-width:1390px){.world-state-summary-content{gap:8px 18px}.world-state-summary h2{width:100%}.world-state-summary{padding:18px 22px}.world-state-workspace{grid-template-columns:minmax(0,1fr) 330px}.world-state-chart{padding:20px 22px 16px}}
+@media(max-width:1000px){.world-state-dashboard{height:auto;min-height:100vh}.world-state-workspace{grid-template-columns:minmax(0,1fr);padding:16px;gap:16px}.world-state-main{min-height:540px}.world-state-chart{min-height:390px}.world-state-directory{height:620px}.world-state-categories{max-height:118px;overflow:auto}}
+@media(max-width:600px){.world-state-header{min-height:70px;padding:14px 16px;gap:9px}.world-state-mark{display:none}.world-state-heading h1{font-size:1.0625rem}.world-state-switch a{padding:8px 10px;font-size:.75rem}.world-state-workspace{padding:14px}.world-state-summary{flex-wrap:wrap;padding:18px}.world-state-summary h2{font-size:1rem}.world-state-value strong{font-size:1.6875rem}.world-state-chart{padding:20px 12px 16px}.world-state-directory-header{padding:21px}}

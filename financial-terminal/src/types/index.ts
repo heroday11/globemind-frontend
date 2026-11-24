@@ -220,6 +220,10 @@ export interface SeriesPoint {
 }
 
 export interface MetricSeries extends IndexTrustMetadata {
+  daily_points?: SeriesPoint[]
+  daily_unit?: string
+  daily_label?: string
+  daily_date_basis?: 'event_date'
   id: string
   kind?: 'index' | 'metric'
   label: string
