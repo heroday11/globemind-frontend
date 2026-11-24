@@ -81,9 +81,41 @@ function retryBriefingSkill() {
   if (!bridge.ready && isDshFrame(dshFrame.value)) connectBridge()
   launchBriefingSkill()
 }
+let briefingPositionObserver
+
+function stopBriefingPositionObserver() {
+  briefingPositionObserver?.disconnect()
+  briefingPositionObserver = undefined
+}
+
 async function openBriefingDraft() {
   await nextTick()
-  if (briefingDraft.value && !briefingDialog.value?.open) briefingDialog.value?.showModal()
+  const dialog = briefingDialog.value
+  const frame = dshFrame.value
+  if (!briefingDraft.value || !dialog || dialog.open) return
+  stopBriefingPositionObserver()
+  if (frame) {
+    const conversation = isDshFrame(frame)
+      ? frame.contentDocument.querySelector('[data-conversation-content]')
+      : null
+    const position = () => {
+      const outer = frame.getBoundingClientRect()
+      const inner = conversation?.isConnected ? conversation.getBoundingClientRect() : null
+      const left = Math.max(0, outer.left + (inner?.left ?? 0))
+      const top = Math.max(0, outer.top + (inner?.top ?? 0))
+      const right = Math.min(window.innerWidth, outer.right, outer.left + (inner?.right ?? outer.width))
+      const bottom = Math.min(window.innerHeight, outer.bottom, outer.top + (inner?.bottom ?? outer.height))
+      dialog.style.setProperty('--briefing-center-x', `${(left + right) / 2}px`)
+      dialog.style.setProperty('--briefing-center-y', `${(top + bottom) / 2}px`)
+      dialog.style.setProperty('--briefing-area-width', `${right - left}px`)
+      dialog.style.setProperty('--briefing-area-height', `${bottom - top}px`)
+    }
+    position()
+    briefingPositionObserver = new ResizeObserver(position)
+    briefingPositionObserver.observe(frame)
+    if (conversation) briefingPositionObserver.observe(conversation)
+  }
+  dialog.showModal()
 }
 async function saveBriefingDraft() {
   if (briefingBusy.value || !briefingDraft.value) return
@@ -363,6 +395,7 @@ onMounted(() => {
 })
 watch(() => props.contextKey, loadPageContext)
 onBeforeUnmount(() => {
+  stopBriefingPositionObserver()
   window.clearTimeout(briefingStartTimer)
   window.clearInterval(bridge.timer)
   window.removeEventListener('message', onBridgeMessage)
@@ -386,7 +419,7 @@ onBeforeUnmount(() => {
       <button v-if="briefingStartError" type="button" @click="retryBriefingSkill">重试</button>
     </div>
     <dialog ref="briefingDialog" class="briefing-dialog" aria-labelledby="briefing-draft-heading"
-      @cancel.prevent="!briefingBusy && briefingDialog.close()">
+      @cancel.prevent="!briefingBusy && briefingDialog.close()" @close="stopBriefingPositionObserver">
       <h2 id="briefing-draft-heading">定期简报任务草稿</h2>
       <BriefingForm v-if="briefingDraft" v-model="briefingDraft" conversational :email="briefingEmail"
         :busy="briefingBusy" :error="briefingError" @close="briefingDialog.close()" @submit="saveBriefingDraft" />
@@ -445,7 +478,15 @@ onBeforeUnmount(() => {
 .briefing-tools a, .briefing-tools button { display: inline-flex; align-items: center; gap: 6px; color: #135a72; text-decoration: none; }
 .briefing-tools button { border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; }
 .briefing-tools a:hover, .briefing-tools button:hover { text-decoration: underline; }
-.briefing-dialog { width: min(100% - 24px, 560px); max-height: calc(100dvh - 32px); padding: 20px; border: 1px solid #dbe3e8; border-radius: 8px; }
+.briefing-dialog {
+  position: fixed; inset: auto;
+  left: var(--briefing-center-x, 50%); top: var(--briefing-center-y, 50%);
+  transform: translate(-50%, -50%); margin: 0;
+  width: min(560px, calc(var(--briefing-area-width, 100vw) - 24px));
+  max-height: calc(var(--briefing-area-height, 100dvh) - 24px);
+  overflow: auto; overscroll-behavior: contain;
+  padding: 20px; border: 1px solid #dbe3e8; border-radius: 8px;
+}
 .briefing-dialog h2 { margin: 0 0 14px; font-size: 1.15em; font-weight: 650; }
 .briefing-dialog::backdrop { background: #18253066; }
 .assistant-notices { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
