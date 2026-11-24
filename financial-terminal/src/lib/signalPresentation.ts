@@ -9,9 +9,11 @@ function observations(points: SeriesPoint[] = []) {
 }
 
 export function signalHasObservations(metric: MetricSeries) {
+  const points = observations(metric.points)
+  if (metric.status === 'degraded' && !metric.latest && !points.some((point) => point.value !== 0)) return false
   return metric.status !== 'disabled' && metric.status !== 'unavailable'
     && metric.availability !== 'not_computable' && metric.latest !== null
-    && Number.isFinite(metric.latest) && observations(metric.points).length > 0
+    && Number.isFinite(metric.latest) && points.length > 0
 }
 
 export function selectSignalRange(points: SeriesPoint[], days: number) {

@@ -40,6 +40,8 @@ test('daily fields need the declared event-date basis and expected count unit', 
 test('zero observations remain visible and zero denominators do not invent a percentage', () => {
   const raw = metric({ latest: 0, points: [{ time: 1, value: 0 }] })
   assert.equal(signalHasObservations(raw), true)
+  assert.equal(signalHasObservations({ ...raw, status: 'degraded' }), false)
+  assert.equal(signalHasObservations(metric({ status: 'degraded' })), true)
   assert.equal(signalHasObservations(metric({ status: 'disabled' })), false)
   assert.equal(signalHasObservations(metric({ latest: null })), false)
   const view = presentSignal(metric({ daily_points: [{ time: 1, value: 0 }, { time: 2, value: 5 }],
