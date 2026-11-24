@@ -36,7 +36,7 @@ onBeforeUnmount(() => { stopped = true; clearTimeout(timer) })
     <p v-if="!jobs.length && !error">生成的图片会自动保存在这里。</p>
     <article v-for="job in jobs" :key="job.id" class="image-job">
       <div class="image-job-title"><strong>{{ job.request.prompt }}</strong><span>{{ imageStateText(job.state) }}</span></div>
-      <p class="image-job-meta">{{ job.request.size }} · 请求画质 {{ job.request.quality }} · {{ job.outputs.length }}/{{ job.request.count }} 张 · 额度 ¥{{ job.quota_cny }} · 供应商记录 ${{ job.provider_cost_usd }}{{ job.provider_cost_complete ? '' : '（部分费用待确认）' }}</p>
+      <p class="image-job-meta">{{ job.request.size }} · 请求画质 {{ job.request.quality }} · {{ job.outputs.length }}/{{ job.request.count }} 张</p>
       <p v-if="job.error && job.state !== 'done'" class="image-job-error">{{ job.error }}</p>
       <div class="image-job-grid">
         <ImagePreview v-for="output in job.outputs" :key="output.index" :output="output" v-slot="{ blob }">
@@ -52,12 +52,11 @@ onBeforeUnmount(() => { stopped = true; clearTimeout(timer) })
           <span v-if="attempt.reason"> · 回退原因：{{ attempt.reason }}</span>
           <span v-if="attempt.error"> · {{ attempt.error_code }}：{{ attempt.error }}</span>
           <span v-if="attempt.task_id"> · 任务 {{ attempt.task_id }}</span>
-          · 费用 {{ attempt.cost_usd == null ? '待确认' : '$' + attempt.cost_usd }}
         </li></ol>
       </details>
       <div class="image-job-actions">
         <button type="button" @click="emit('deliver', job)">发送到助手回复</button>
-        <button v-if="job.outputs.some(o => o.model === 'gpt-image-2.5-sunburst') && ['done','partial'].includes(job.state)" type="button" :disabled="props.busy" @click="emit('retry', job)">结果不符合要求，使用 native 重试（再次计费，高画质降为中画质）</button>
+        <button v-if="job.outputs.some(o => o.model === 'gpt-image-2.5-sunburst') && ['done','partial'].includes(job.state)" type="button" :disabled="props.busy" @click="emit('retry', job)">结果不符合要求，切换模型重试（高画质降为中画质）</button>
       </div>
     </article>
     <button v-if="hasMore" type="button" :disabled="moreBusy" @click="loadMore">加载更早的图片</button>
