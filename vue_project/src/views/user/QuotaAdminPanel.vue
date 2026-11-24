@@ -1,9 +1,10 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { ElDialog } from 'element-plus'
 import { API_PREFIX } from '@/config/api'
 import { getToken } from '@/utils/auth'
-import QuotaOperationDialog from './QuotaOperationDialog.vue'
+import 'element-plus/es/components/dialog/style/css'
+import QuotaOperationForm from './QuotaOperationForm.vue'
 
 defineProps({ currentUserId: { type: Number, required: true } })
 const emit = defineEmits(['quota-changed'])
@@ -19,13 +20,13 @@ const pageInput = ref('1')
 const pageError = ref('')
 const totalPages = ref(1)
 const target = ref(null)
-const operation = ref('')
+const operationPanel = ref(null)
+const savingOperation = ref('')
 const roleTarget = ref(null)
 const role = ref('')
 const roleError = ref('')
 const savingRole = ref(false)
 const notice = ref('')
-const selectedUsage = ref(null)
 const usage = ref([])
 const usageLoading = ref(false)
 const usageError = ref('')
@@ -64,8 +65,8 @@ async function loadUsers(targetPage = page.value, needle = appliedSearch.value) 
     totalPages.value = Math.max(1, Math.ceil(payload.total / PAGE_SIZE))
     page.value = targetPage
     appliedSearch.value = needle
-    if (selectedUsage.value && !users.value.some((item) => item.user_id === selectedUsage.value.user_id)) {
-      selectedUsage.value = null
+    if (target.value && !users.value.some((item) => item.user_id === target.value.user_id)) {
+      target.value = null
       void loadUsage(null)
     }
   } catch (failure) {
@@ -77,6 +78,7 @@ async function loadUsers(targetPage = page.value, needle = appliedSearch.value) 
 }
 
 function jumpToPage() {
+  if (savingOperation.value) return
   const input = pageInput.value.trim()
   const requested = Number(input)
   if (!/^\d+$/.test(input) || !Number.isSafeInteger(requested) || requested < 1 || requested > totalPages.value) {
@@ -92,6 +94,7 @@ function jumpToPage() {
 }
 
 function refreshUsers() {
+  if (savingOperation.value) return
   const needle = search.value.trim()
   void loadUsers(needle === appliedSearch.value ? page.value : 1, needle)
 }
@@ -122,20 +125,25 @@ async function loadUsage(userId) {
   }
 }
 
-function showUsage(item) {
-  selectedUsage.value = selectedUsage.value?.user_id === item.user_id ? null : item
-  void loadUsage(selectedUsage.value?.user_id)
+async function openOperation(item) {
+  if (savingOperation.value) return
+  if (target.value?.user_id !== item.user_id) {
+    target.value = item
+    notice.value = ''
+    void loadUsage(item.user_id)
+  }
+  await nextTick()
+  operationPanel.value?.scrollIntoView({ block: 'start' })
 }
 
-function openOperation(item) {
-  target.value = item
-  operation.value = 'choose'
-}
-
-function afterOperation(kind) {
+function afterOperation(kind, userId) {
   notice.value = kind === 'adjust' ? '额度已调整' : '套餐已开通'
-  if (operation.value && target.value) emit('quota-changed', target.value.user_id)
+  emit('quota-changed', userId)
   void loadUsers()
+}
+
+function setSavingOperation(kind, saving) {
+  savingOperation.value = saving ? kind : ''
 }
 
 function openRole(item) {
@@ -177,7 +185,7 @@ onMounted(loadUsers)
       <h2 class="qam-title">用户额度管理</h2>
       <form class="qam-head-actions" @submit.prevent="refreshUsers">
         <input v-model="search" class="qam-input" type="search" aria-label="按用户名或邮箱搜索" placeholder="按用户名或邮箱搜索" />
-        <button class="qam-btn" type="submit" :disabled="loading">{{ loading ? '读取中…' : '搜索' }}</button>
+        <button class="qam-btn" type="submit" :disabled="loading || Boolean(savingOperation)">{{ loading ? '读取中…' : '搜索' }}</button>
       </form>
     </div>
 
@@ -207,9 +215,8 @@ onMounted(loadUsers)
             <td class="qam-muted">{{ item.period_end ? item.period_end.slice(0, 19).replace('T', ' ') : '—' }}</td>
             <td>
               <div class="qam-row-actions">
-                <button type="button" class="qam-btn" aria-haspopup="dialog" @click="openOperation(item)">操作</button>
+                <button type="button" class="qam-btn" :aria-expanded="target?.user_id === item.user_id" :aria-controls="target?.user_id === item.user_id ? 'quota-account-operations' : undefined" :disabled="Boolean(savingOperation)" @click="openOperation(item)">操作</button>
                 <button v-if="item.user_id !== currentUserId" type="button" class="qam-btn" @click="openRole(item)">修改角色</button>
-                <button type="button" class="qam-link" :aria-expanded="selectedUsage?.user_id === item.user_id" @click="showUsage(item)">用量</button>
               </div>
             </td>
           </tr>
@@ -218,29 +225,8 @@ onMounted(loadUsers)
       </table>
     </div>
 
-    <section v-if="selectedUsage" class="qam-detail" :aria-label="`${selectedUsage.username} 的用量`">
-      <div class="qam-usage">
-        <div class="qam-usage-head">
-          <h4>最近调用记录</h4>
-          <button type="button" class="qam-link" :disabled="usageLoading" @click="loadUsage(selectedUsage.user_id)">
-            {{ usageLoading ? '读取中…' : '刷新用量' }}
-          </button>
-        </div>
-        <p v-if="usageError" class="qam-error" role="alert">{{ usageError }}</p>
-        <ul v-else-if="usage.length" class="qam-usage-list">
-          <li v-for="row in usage.slice(0, 20)" :key="row.id">
-            <span class="qam-usage-model">{{ row.model }}</span>
-            <span class="qam-muted">{{ row.input_tokens }} / {{ row.output_tokens }} tokens</span>
-            <span class="qam-usage-cost">{{ moneyText(row.cost_cny) }}</span>
-            <span class="qam-muted">{{ row.created_at?.slice(0, 19).replace('T', ' ') }}</span>
-          </li>
-        </ul>
-        <p v-else class="qam-muted">暂无调用记录</p>
-      </div>
-    </section>
-
     <nav class="qam-pagination" aria-label="额度账户分页">
-      <button type="button" class="qam-btn" :disabled="loading || page <= 1" @click="loadUsers(page - 1)">上一页</button>
+      <button type="button" class="qam-btn" :disabled="loading || Boolean(savingOperation) || page <= 1" @click="loadUsers(page - 1)">上一页</button>
       <form class="qam-page-form" @submit.prevent="jumpToPage">
         <label for="quota-page-number">第</label>
         <input
@@ -253,24 +239,70 @@ onMounted(loadUsers)
           aria-label="当前页码"
           :aria-invalid="Boolean(pageError)"
           :aria-describedby="pageError ? 'quota-page-error' : undefined"
-          :disabled="loading"
+          :disabled="loading || Boolean(savingOperation)"
         />
         <span>页 / 共 {{ totalPages }} 页</span>
       </form>
-      <button type="button" class="qam-btn" :disabled="loading || page >= totalPages" @click="loadUsers(page + 1)">下一页</button>
+      <button type="button" class="qam-btn" :disabled="loading || Boolean(savingOperation) || page >= totalPages" @click="loadUsers(page + 1)">下一页</button>
     </nav>
     <p v-if="pageError" id="quota-page-error" class="qam-error qam-page-error" role="alert">{{ pageError }}</p>
 
-    <QuotaOperationDialog
+    <section
       v-if="target"
-      :user-id="target.user_id"
-      :username="target.username"
-      :operation="operation"
-      admin
-      @select="operation = $event"
-      @close="operation = ''"
-      @saved="afterOperation"
-    />
+      id="quota-account-operations"
+      :key="target.user_id"
+      ref="operationPanel"
+      class="qam-detail"
+      aria-labelledby="quota-operation-account"
+    >
+      <h3 id="quota-operation-account" class="qam-operation-heading">{{ target.username }} 的额度操作</h3>
+      <p v-if="target.email" class="qam-muted qam-operation-account">{{ target.email }}</p>
+      <div class="qam-operation-grid">
+        <div>
+          <h4>调整额度</h4>
+          <QuotaOperationForm
+            :user-id="target.user_id"
+            operation="adjust"
+            admin
+            inline
+            :disabled="savingOperation === 'subscribe'"
+            @busy="setSavingOperation('adjust', $event)"
+            @saved="afterOperation"
+          />
+        </div>
+        <div>
+          <h4>开通套餐</h4>
+          <QuotaOperationForm
+            :user-id="target.user_id"
+            operation="subscribe"
+            admin
+            inline
+            :disabled="savingOperation === 'adjust'"
+            @busy="setSavingOperation('subscribe', $event)"
+            @saved="afterOperation"
+          />
+        </div>
+      </div>
+      <div class="qam-usage">
+        <div class="qam-usage-head">
+          <h4>最近调用记录</h4>
+          <button type="button" class="qam-link" :disabled="usageLoading" @click="loadUsage(target.user_id)">
+            {{ usageLoading ? '读取中…' : '刷新用量' }}
+          </button>
+        </div>
+        <p v-if="usageError" class="qam-error" role="alert">{{ usageError }}</p>
+        <ul v-else-if="usage.length" class="qam-usage-list">
+          <li v-for="row in usage.slice(0, 20)" :key="row.id">
+            <span class="qam-usage-model">{{ row.model }}</span>
+            <span class="qam-muted">{{ row.input_tokens }} / {{ row.output_tokens }} tokens</span>
+            <span class="qam-usage-cost">{{ moneyText(row.cost_cny) }}</span>
+            <span class="qam-muted">{{ row.created_at?.slice(0, 19).replace('T', ' ') }}</span>
+          </li>
+        </ul>
+        <p v-else class="qam-muted">{{ usageLoading ? '正在读取调用记录…' : '暂无调用记录' }}</p>
+      </div>
+    </section>
+
     <el-dialog
       :model-value="Boolean(roleTarget)"
       title="修改角色"
@@ -325,7 +357,16 @@ onMounted(loadUsers)
 .qam-empty { padding: 22px; text-align: center; color: #98a2b8; }
 .qam-detail { padding: 20px; border: 1px solid #e4e8f2; border-radius: 12px; background: #fff; }
 .qam-form { display: flex; flex-direction: column; gap: 8px; }
-.qam-usage {  }
+.qam-detail { scroll-margin-top: 78px; }
+.qam-operation-heading { margin: 0 0 4px; color: #1f2a44; overflow-wrap: anywhere; }
+.qam-operation-account { margin: 0; overflow-wrap: anywhere; }
+.qam-operation-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-block: 16px; }
+.qam-operation-grid h4 { margin: 0 0 8px; font-size: 14px; color: #1f2a44; }
+.qam-usage { padding-top: 12px; border-top: 1px solid #e4e8f2; }
+@media (max-width: 740px) {
+  .qam-operation-grid { grid-template-columns: minmax(0, 1fr); }
+  .qam-usage-list li { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-wrap: anywhere; }
+}
 .qam-usage-head { display: flex; align-items: center; justify-content: space-between; }
 .qam-usage-head h4 { margin: 0; color: #1f2a44; font-size: 14px; }
 .qam-link { border: none; background: none; color: #5b72df; font-size: 13px; font-weight: 600; cursor: pointer; }

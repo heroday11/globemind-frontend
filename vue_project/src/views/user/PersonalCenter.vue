@@ -123,6 +123,7 @@ const quota = ref(null)
 const quotaLoading = ref(false)
 const quotaOperation = ref('')
 const remainingQuotaPercent = computed(() => {
+  if (quota.value?.is_platform_admin) return 100
   const total = Number(quota.value?.allowance_cny)
   return total > 0 ? Math.min(100, Math.max(0, Number(quota.value.remaining_cny) / total * 100)) : 0
 })
@@ -1026,25 +1027,30 @@ onBeforeUnmount(() => {
           </div>
           <p v-if="quotaLoading" class="pc-quota-muted">正在读取额度…</p>
           <template v-else-if="quota">
-            <div v-if="quota.is_platform_admin" class="pc-quota-values">
-              <span>已用 <strong>{{ formatQuotaMoney(quota.used_cny) }}</strong></span>
-            </div>
-            <template v-else>
-              <div class="pc-quota-meter">
-                <progress
-                  class="pc-quota-progress"
-                  :value="remainingQuotaPercent"
-                  max="100"
-                  aria-label="剩余额度比例"
-                  aria-describedby="pc-quota-amounts"
-                />
-                <div id="pc-quota-amounts" class="pc-quota-values">
+            <div class="pc-quota-meter">
+              <div
+                class="pc-quota-progress"
+                role="progressbar"
+                aria-label="剩余额度比例"
+                aria-describedby="pc-quota-amounts"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-valuenow="remainingQuotaPercent"
+                :aria-valuetext="quota.is_platform_admin ? '不限' : undefined"
+              >
+                <div class="pc-quota-progress-fill" :style="{ width: `${remainingQuotaPercent}%` }"></div>
+              </div>
+              <div id="pc-quota-amounts" class="pc-quota-values">
+                <span v-if="quota.is_platform_admin">已用 <strong>{{ formatQuotaMoney(quota.used_cny) }}</strong></span>
+                <template v-else>
                   <span>剩余 <strong>{{ formatQuotaMoney(quota.remaining_cny) }}</strong></span>
                   <span>总额度 <strong>{{ formatQuotaMoney(quota.allowance_cny) }}</strong></span>
-                </div>
+                </template>
               </div>
-              <p class="pc-quota-muted">下次重置：{{ formatQuotaDate(quota.period_end) }}（北京时间）</p>
-            </template>
+            </div>
+            <p v-if="!quota.is_platform_admin" class="pc-quota-muted">
+              下次重置：{{ formatQuotaDate(quota.period_end) }}（北京时间）
+            </p>
           </template>
           <p v-else class="pc-quota-muted">额度信息暂时不可用</p>
           <div v-if="accountRole === 'member' && currentUserId" class="pc-quota-actions">
@@ -3841,19 +3847,18 @@ onBeforeUnmount(() => {
 }
 .pc-quota-meter .pc-quota-values { margin: 0; }
 .pc-quota-progress {
-  appearance: none;
-  display: block;
   flex: 1 1 12rem;
   min-width: 0;
-  height: 8px;
+  height: 12px;
   overflow: hidden;
-  border: 0;
-  border-radius: 4px;
-  background: #e5ebf6;
+  border-radius: 6px;
+  background: #e0e7f2;
 }
-.pc-quota-progress::-webkit-progress-bar { background: #e5ebf6; }
-.pc-quota-progress::-webkit-progress-value { background: #456ac7; }
-.pc-quota-progress::-moz-progress-bar { background: #456ac7; }
+.pc-quota-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #456ac7;
+}
 .pc-quota-muted { margin: 4px 0 0; color: var(--pc-text-secondary); font-size: .76rem; }
 .pc-quota-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .pc-quota-actions .el-button { min-height: 32px; padding: 4px 8px; margin-left: 0; }
