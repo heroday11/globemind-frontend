@@ -14,6 +14,7 @@ import DisplayPreferencesPanel from './DisplayPreferencesPanel.vue'
 import DshSoundPreferencesPanel from './DshSoundPreferencesPanel.vue'
 import DshEmailPreferencesPanel from './DshEmailPreferencesPanel.vue'
 import QuotaAdminPanel from './QuotaAdminPanel.vue'
+import QuotaOperationDialog from './QuotaOperationDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -27,12 +28,9 @@ const baseSettingsTabs = Object.freeze([
   { id: 'display', label: '显示设置' },
   { id: 'report-delivery', label: '报告投递' },
 ])
-// Quota administration is a dedicated permission, not the admin role: every
-// account may hold the admin role (unlimited quota) while only named operators
-// can manage other accounts.
-const quotaPermission = ref(getCurrentUser()?.can_manage_quota === true)
-const quotaGrantPermission = ref(getCurrentUser()?.can_grant_quota === true)
-const canManageQuota = computed(() => quotaPermission.value)
+const currentUserId = ref(Number(getCurrentUser()?.id) || 0)
+const accountRole = ref(getCurrentUser()?.role || 'user')
+const canManageQuota = computed(() => accountRole.value === 'admin')
 const settingsTabs = computed(() =>
   canManageQuota.value
     ? [...baseSettingsTabs, { id: 'quota-admin', label: '额度管理' }]
@@ -123,6 +121,11 @@ const profile = reactive({
 })
 const quota = ref(null)
 const quotaLoading = ref(false)
+const quotaOperation = ref('')
+const remainingQuotaPercent = computed(() => {
+  const total = Number(quota.value?.allowance_cny)
+  return total > 0 ? Math.min(100, Math.max(0, Number(quota.value.remaining_cny) / total * 100)) : 0
+})
 const passwordForm = reactive({ old_password: '', new_password: '', confirm_password: '' })
 const assistantMemory = reactive({ memory_summary: '', updated_at: '', created_at: '' })
 const apiConfig = reactive({
@@ -569,8 +572,8 @@ async function loadProfile() {
     replaceApiKeyStatus(data.api_key_status)
     syncImageApiDraftFromConfig(data.api_config_public)
     setCurrentUser(data)
-    quotaPermission.value = data.can_manage_quota === true
-    quotaGrantPermission.value = data.can_grant_quota === true
+    currentUserId.value = Number(data.id) || 0
+    accountRole.value = data.role || 'user'
   } catch (e) {
     ElMessage.error(e.message || '获取个人资料失败')
     if ((e.message || '').includes('未登录')) {
@@ -585,7 +588,7 @@ async function loadProfile() {
 async function loadQuota() {
   quotaLoading.value = true
   try {
-    const res = await fetch(`${API_PREFIX}/billing/quota`, { headers: authHeaders() })
+    const res = await fetch(`${API_PREFIX}/billing/quota`, { headers: authHeaders(), cache: 'no-store' })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.detail || '获取额度失败')
     quota.value = data
@@ -595,6 +598,15 @@ async function loadQuota() {
   } finally {
     quotaLoading.value = false
   }
+}
+
+async function onQuotaSaved(operation) {
+  ElMessage.success(operation === 'adjust' ? '额度已调整' : '套餐已开通')
+  await loadQuota()
+}
+
+function refreshOwnQuota(userId) {
+  if (userId === currentUserId.value) void loadQuota()
 }
 
 function formatQuotaMoney(value) {
@@ -681,8 +693,8 @@ async function handleSaveApi() {
     replaceApiKeyStatus(data.api_key_status)
     syncImageApiDraftFromConfig(data.api_config_public)
     setCurrentUser(data)
-    quotaPermission.value = data.can_manage_quota === true
-    quotaGrantPermission.value = data.can_grant_quota === true
+    currentUserId.value = Number(data.id) || 0
+    accountRole.value = data.role || 'user'
     ElMessage.success('API 配置已保存，数据助手下一次提问会立即使用')
   } catch (e) {
     ElMessage.error(e.message || '保存失败')
@@ -1009,22 +1021,28 @@ onBeforeUnmount(() => {
 
         <section class="pc-quota-card" aria-labelledby="pc-quota-title">
           <div class="pc-quota-head">
-            <span id="pc-quota-title">模型额度</span>
-            <span v-if="quota?.is_platform_admin" class="pc-quota-tag">平台管理员</span>
-            <span v-else class="pc-quota-tag">7 天周期</span>
+            <h2 id="pc-quota-title">模型额度</h2>
+            <strong v-if="quota?.is_platform_admin">不限</strong>
           </div>
-          <div v-if="quotaLoading" class="pc-quota-muted">正在读取额度…</div>
+          <p v-if="quotaLoading" class="pc-quota-muted">正在读取额度…</p>
           <template v-else-if="quota">
-            <div class="pc-quota-values">
-              <div><small>已用</small><strong>{{ formatQuotaMoney(quota.used_cny) }}</strong></div>
-              <div><small>剩余</small><strong>{{ formatQuotaMoney(quota.remaining_cny) }}</strong></div>
+            <div v-if="quota.is_platform_admin" class="pc-quota-values">
+              <span>已用 <strong>{{ formatQuotaMoney(quota.used_cny) }}</strong></span>
             </div>
-            <div v-if="!quota.is_platform_admin" class="pc-quota-reset">
-              下次重置：{{ formatQuotaDate(quota.period_end) }}（北京时间）
-            </div>
-            <div v-else class="pc-quota-reset">调用量和成本持续记录，不受个人额度限制</div>
+            <template v-else>
+              <div class="pc-quota-values">
+                <span>剩余 <strong>{{ formatQuotaMoney(quota.remaining_cny) }}</strong></span>
+                <span>总额度 <strong>{{ formatQuotaMoney(quota.allowance_cny) }}</strong></span>
+              </div>
+              <progress class="pc-quota-progress" :value="remainingQuotaPercent" max="100" aria-label="剩余额度比例" />
+              <p class="pc-quota-muted">下次重置：{{ formatQuotaDate(quota.period_end) }}（北京时间）</p>
+            </template>
           </template>
-          <div v-else class="pc-quota-muted">额度信息暂时不可用</div>
+          <p v-else class="pc-quota-muted">额度信息暂时不可用</p>
+          <div v-if="accountRole === 'member' && currentUserId" class="pc-quota-actions">
+            <button type="button" class="el-button" @click="quotaOperation = 'adjust'">调整我的额度</button>
+            <button type="button" class="el-button" @click="quotaOperation = 'subscribe'">开通套餐</button>
+          </div>
         </section>
 
         <!-- Decorative bottom accent -->
@@ -1864,10 +1882,21 @@ onBeforeUnmount(() => {
           <DisplayPreferencesPanel v-if="activeTab === 'display'" />
           <DshSoundPreferencesPanel v-if="activeTab === 'display'" />
           <DshEmailPreferencesPanel v-if="activeTab === 'report-delivery'" />
-          <QuotaAdminPanel v-if="activeTab === 'quota-admin' && canManageQuota" :can-grant-quota="quotaGrantPermission" />
+          <QuotaAdminPanel
+            v-if="activeTab === 'quota-admin' && canManageQuota && currentUserId"
+            :current-user-id="currentUserId"
+            @quota-changed="refreshOwnQuota"
+          />
         </div>
       </section>
     </div>
+    <QuotaOperationDialog
+      v-if="accountRole === 'member' && currentUserId"
+      :user-id="currentUserId"
+      :operation="quotaOperation"
+      @close="quotaOperation = ''"
+      @saved="onQuotaSaved"
+    />
   </div>
 </template>
 
@@ -2545,7 +2574,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 150px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 5px 10px;
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid #e6edf7;
@@ -3387,8 +3416,8 @@ onBeforeUnmount(() => {
 }
 
 .pc-header {
-  min-height: 88px;
-  margin-bottom: 24px;
+  min-height: 68px;
+  margin-bottom: 14px;
   padding: 0 2px;
   border: 0;
   border-radius: 0;
@@ -3398,7 +3427,7 @@ onBeforeUnmount(() => {
 }
 
 .pc-header-overline {
-  margin-bottom: 7px;
+  margin-bottom: 4px;
   color: #5367c8;
   font-size: 0.78rem;
   font-weight: 650;
@@ -3410,7 +3439,7 @@ onBeforeUnmount(() => {
 }
 
 .pc-header-desc {
-  margin-top: 8px;
+  margin-top: 4px;
   font-size: 0.94rem;
   line-height: 1.6;
 }
@@ -3423,7 +3452,7 @@ onBeforeUnmount(() => {
 
 .pc-layout {
   grid-template-columns: minmax(0, 1fr);
-  gap: 22px;
+  gap: 14px;
 }
 
 .pc-card {
@@ -3440,18 +3469,18 @@ onBeforeUnmount(() => {
 
 .pc-avatar-block {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 62px minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-content: center;
-  column-gap: 18px;
-  row-gap: 8px;
-  padding: 24px 28px;
+  column-gap: 12px;
+  row-gap: 5px;
+  padding: 12px 18px;
 }
 
 .pc-avatar-outer {
   grid-row: 1 / 3;
-  width: 76px;
-  height: 76px;
+  width: 62px;
+  height: 62px;
   margin: 0;
 }
 
@@ -3482,17 +3511,17 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  padding: 18px 12px;
+  padding: 8px 10px;
 }
 
 .pc-meta-row {
   display: flex;
   min-width: 0;
-  min-height: 58px;
+  min-height: 48px;
   flex-direction: column;
   justify-content: center;
-  gap: 9px;
-  padding: 8px 18px;
+  gap: 5px;
+  padding: 5px 12px;
   border-left: 1px solid var(--pc-border-light);
 }
 
@@ -3506,14 +3535,14 @@ onBeforeUnmount(() => {
 .pc-divider {
   width: 1px;
   height: auto;
-  margin: 20px 0;
+  margin: 10px 0;
   border-top: 0;
   border-left: 1px solid var(--pc-border-light);
 }
 
 .pc-tabs {
   gap: 4px;
-  padding: 12px 14px;
+  padding: 6px 10px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -3524,8 +3553,9 @@ onBeforeUnmount(() => {
 
 .pc-tab {
   flex: 0 0 auto;
-  min-width: 88px;
-  padding: 9px 12px;
+  min-width: 76px;
+  min-height: 36px;
+  padding: 6px 10px;
   border-radius: 6px;
 }
 
@@ -3554,13 +3584,13 @@ onBeforeUnmount(() => {
 }
 
 .pc-form-stage {
-  min-height: 390px;
-  padding: 36px 40px 40px;
+  min-height: 290px;
+  padding: 18px 24px 22px;
 }
 
 .pc-form-intro {
-  margin-bottom: 28px;
-  padding-bottom: 20px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--pc-border-light);
 }
 
@@ -3582,23 +3612,23 @@ onBeforeUnmount(() => {
 .pc-profile-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  gap: 8px 16px;
 }
 
 .pc-field {
-  margin-bottom: 24px;
+  margin-bottom: 10px;
 }
 
 .pc-field-label {
-  margin-bottom: 9px;
+  margin-bottom: 5px;
   color: #394359;
   font-size: 0.86rem;
   font-weight: 600;
 }
 
 .pc-input :deep(.el-input__wrapper) {
-  min-height: 46px;
-  padding: 4px 14px;
+  min-height: 38px;
+  padding: 3px 10px;
   border-radius: 6px;
   background: #fff;
   box-shadow: 0 0 0 1px #ccd2dc inset;
@@ -3620,12 +3650,12 @@ onBeforeUnmount(() => {
 
 .pc-actions {
   margin-top: 4px;
-  padding-top: 20px;
+  padding-top: 10px;
   border-top: 1px solid var(--pc-border-light);
 }
 
 .pc-btn {
-  min-height: 42px;
+  min-height: 36px;
   border-radius: 6px !important;
   box-shadow: none;
 }
@@ -3659,7 +3689,7 @@ onBeforeUnmount(() => {
 
   .pc-header {
     min-height: auto;
-    margin-bottom: 18px;
+    margin-bottom: 12px;
     padding: 2px 0;
   }
 
@@ -3673,7 +3703,7 @@ onBeforeUnmount(() => {
 
   .pc-layout {
     grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
+    gap: 12px;
   }
 
   .pc-card--identity {
@@ -3685,7 +3715,7 @@ onBeforeUnmount(() => {
     display: grid;
     grid-template-columns: 58px minmax(0, 1fr) auto;
     gap: 14px;
-    padding: 18px;
+    padding: 10px 14px;
   }
 
   .pc-avatar-outer {
@@ -3748,12 +3778,12 @@ onBeforeUnmount(() => {
 
   .pc-form-stage {
     min-height: 0;
-    padding: 24px 20px 28px;
+    padding: 14px 14px 18px;
   }
 
   .pc-form-intro {
-    margin-bottom: 22px;
-    padding-bottom: 17px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
   }
 
   .pc-profile-fields {
@@ -3775,12 +3805,40 @@ onBeforeUnmount(() => {
 }
 </style>
 <style scoped>
-.pc-quota-card { margin: 18px 18px 0; padding: 14px; border: 1px solid var(--pc-border-light, #e5eaf2); border-radius: 12px; background: rgba(247, 250, 255, .72); }
-.pc-quota-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 700; color: var(--pc-text, #1f2937); }
-.pc-quota-tag { padding: 3px 7px; border-radius: 999px; background: #e8f0ff; color: #3166b1; font-size: 11px; font-weight: 600; }
-.pc-quota-values { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-.pc-quota-values div { display: flex; flex-direction: column; gap: 3px; }
-.pc-quota-values small { color: var(--pc-muted, #728096); font-size: 11px; }
-.pc-quota-values strong { color: var(--pc-text, #1f2937); font-size: 14px; }
-.pc-quota-reset, .pc-quota-muted { margin-top: 10px; color: var(--pc-muted, #728096); font-size: 11px; line-height: 1.5; }
+.pc-quota-card {
+  grid-column: 1 / -1;
+  margin: 0 12px 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--pc-border-light);
+  border-radius: 8px;
+  background: #f7faff;
+}
+.pc-quota-head, .pc-quota-values {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--pc-text);
+}
+.pc-quota-head h2 { margin: 0; font-size: .9rem; }
+.pc-quota-values { margin-top: 5px; font-size: .81rem; color: var(--pc-text-secondary); }
+.pc-quota-values strong { color: var(--pc-text); }
+.pc-quota-progress {
+  display: block;
+  width: 100%;
+  height: 8px;
+  margin-top: 6px;
+  accent-color: #456ac7;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: #e5ebf6;
+}
+.pc-quota-progress::-webkit-progress-bar { background: #e5ebf6; }
+.pc-quota-progress::-webkit-progress-value { background: #456ac7; }
+.pc-quota-progress::-moz-progress-bar { background: #456ac7; }
+.pc-quota-muted { margin: 4px 0 0; color: var(--pc-text-secondary); font-size: .76rem; }
+.pc-quota-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pc-quota-actions .el-button { min-height: 32px; padding: 4px 8px; margin-left: 0; }
 </style>

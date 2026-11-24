@@ -306,6 +306,7 @@ const submitGlobalSearch = () => {
 
     <div class="nav-shell">
       <nav class="nav-center" aria-label="主导航">
+        <FontSizeControl class="nav-font-size" />
         <div class="middle">
           <ul class="nav-list">
         <!-- 使用 <router-link> 实现路由跳转，to 属性指定目标路径 -->
@@ -399,7 +400,6 @@ const submitGlobalSearch = () => {
 
       <!-- 页面最右：搜索 + 登录 -->
       <div class="header-actions header-actions--right">
-        <FontSizeControl />
         <button class="action-btn guide-btn" data-tour="guide-entry" type="button" title="新手指南" aria-label="打开新手指南" @click="openNewUserGuide">
           <CircleHelp class="nav-icon" :size="19" />
         </button>
@@ -476,6 +476,7 @@ const submitGlobalSearch = () => {
 
           <!-- 移动端导航列表 -->
           <nav class="mobile-nav" aria-label="移动端主导航">
+            <FontSizeControl class="mobile-font-size" />
             <router-link class="mobile-nav-item" to="/" @click="closeMobileMenuForNavigation">
               <span>首页</span>
             </router-link>
