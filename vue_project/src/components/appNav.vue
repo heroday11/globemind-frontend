@@ -7,6 +7,7 @@ import {
   Crosshair,
   FileText,
   Folder,
+  Info,
   LogOut,
   Search,
   User,
@@ -404,7 +405,10 @@ const submitGlobalSearch = () => {
       </nav>
 
       <div class="header-actions header-actions--right">
-        <router-link class="about-us-link" to="/about-us" @pointerenter="preloadRoute('/about-us')" @focus="preloadRoute('/about-us')" @click="closeDropdowns">关于我们</router-link>
+        <router-link class="about-us-link" to="/about-us" aria-label="关于我们" title="关于我们" @pointerenter="preloadRoute('/about-us')" @focus="preloadRoute('/about-us')" @click="closeDropdowns">
+          <Info class="nav-icon about-us-icon" :size="16" aria-hidden="true" />
+          <span>关于我们</span>
+        </router-link>
         <FontSizeControl class="nav-font-size" />
         <button class="action-btn guide-btn" data-tour="guide-entry" type="button" title="新手指南" aria-label="打开新手指南" @click="openNewUserGuide">
           <CircleHelp class="nav-icon" :size="19" />
