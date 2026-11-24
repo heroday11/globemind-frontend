@@ -184,10 +184,11 @@
 .nav-font-size {
   --font-size-button-width: 22px;
   --font-size-button-height: 28px;
+  --gm-header-readout-size: 11px;
 }
 
 .header .nav-font-size > output {
-  font-size: 11px;
+  font-size: var(--gm-header-readout-size);
 }
 
 .action-btn.guide-btn {
@@ -394,17 +395,19 @@
 }
 
 .nav-item a {
+  display: flex;
+  align-items: center;
   text-decoration: none;
   color: #334155;
   font-size: 15px;
   font-weight: 600;
-  line-height: 42px;
+  min-height: 42px;
+  line-height: 1;
   padding: 0;
   transition:
     color 0.2s ease,
     opacity 0.2s ease;
   white-space: nowrap;
-  display: block;
 }
 
 .nav-item a:hover {
@@ -532,7 +535,7 @@
   font-size: 15px;
   font-weight: 600;
   min-height: 42px;
-  line-height: 42px;
+  line-height: 1;
   padding: 0;
   transition: color 0.2s ease;
   text-decoration: none;
@@ -727,7 +730,7 @@
 /* 顶部登录弹窗：覆盖当前页面，背景变暗，登录卡片居中 */
 
 /* Keep wrapped links inside the original capsule height. */
-@container (width < 960px) {
+@container (width < 62rem) {
   .middle {
     padding-block: 2px;
   }
@@ -735,7 +738,6 @@
   .nav-item a,
   .dropdown-trigger {
     min-height: 27px;
-    line-height: 27px;
   }
 
   .nav-item .router-link-active::after {
