@@ -28,7 +28,6 @@
         <RouterLink to="/data-service/ground-news" :class="{ 'is-selected': !isRegional }" :aria-current="!isRegional ? 'page' : undefined">全球事件总览</RouterLink>
         <RouterLink to="/data-service/ground-news-gba" :class="{ 'is-selected': isRegional }" :aria-current="isRegional ? 'page' : undefined">粤港澳事件总览</RouterLink>
       </nav>
-      <p v-if="isRegional" class="regional-policy">外国媒体报道优先，目标约七成；同时收录广东全省、香港及澳门当地新闻。数量以已收录内容为准。</p>
       <div class="freshness-banner" role="status">
         <Clock :size="16" />
         <strong
@@ -994,13 +993,6 @@ function inferLanguageLabel(text) {
   background: var(--blue);
 }
 .overview-switch a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.regional-policy {
-  grid-column: 1 / -1;
-  margin: -4px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.7;
-}
 
 /* Keep this page’s section navigation attached to the viewport. */
 :global(.app-shell:has(.ground-home)) {
