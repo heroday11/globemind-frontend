@@ -76,7 +76,43 @@ function handleMouseMove(e) {
         >
           <div class="card-shimmer" />
           <div class="card-body">
+            <div class="card-icon" aria-hidden="true">
+              <svg v-if="card.featured" width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <rect x="2" y="2" width="28" height="28" rx="8" stroke="currentColor" stroke-width="2" />
+                <circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.6" />
+                <path d="M22 14l-4 4-2-2-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="22" cy="22" r="1.5" fill="currentColor" />
+                <circle cx="10" cy="22" r="1.5" fill="currentColor" opacity="0.5" />
+              </svg>
+              <svg v-else-if="i === 1" width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="12" stroke="currentColor" stroke-width="2" />
+                <circle cx="16" cy="16" r="4" fill="currentColor" opacity="0.5" />
+                <circle cx="8" cy="10" r="1.5" fill="currentColor" opacity="0.6" />
+                <circle cx="24" cy="20" r="1.5" fill="currentColor" opacity="0.6" />
+                <circle cx="20" cy="8" r="1" fill="currentColor" opacity="0.4" />
+                <circle cx="10" cy="24" r="1" fill="currentColor" opacity="0.4" />
+                <path d="M14 14l-5-3.5M18 18l4.5 1" stroke="currentColor" opacity="0.4" />
+              </svg>
+              <svg v-else-if="i === 2" width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" />
+                <circle cx="16" cy="14" r="6" stroke="currentColor" stroke-width="1.5" opacity="0.5" />
+                <path d="M9 22l3-4h3l2 3h3l3-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" />
+              </svg>
+              <svg v-else width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <rect x="3" y="5" width="12" height="10" rx="2" stroke="currentColor" stroke-width="2" />
+                <rect x="17" y="9" width="12" height="14" rx="2" stroke="currentColor" stroke-width="2" opacity="0.6" />
+                <rect x="17" y="5" width="12" height="6" rx="2" stroke="currentColor" stroke-width="2" />
+                <path d="M9 19v5M6 21.5h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </div>
             <h3 class="card-title">{{ card.title }}</h3>
+            <p class="card-subtitle">{{ card.subtitle }}</p>
+            <span class="card-cta">
+              进入
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" class="card-cta-arrow" aria-hidden="true">
+                <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
           </div>
         </router-link>
       </section>
@@ -310,7 +346,7 @@ function handleMouseMove(e) {
   justify-content: center;
   min-height: 280px;
   aspect-ratio: 2 / 1;
-  padding: 32px 36px;
+  padding: 28px 36px 24px;
   border-radius: 20px;
   background-color: rgba(255, 255, 255, 0.12);
   background-image: url('/imgs/home/home-cards.webp');
@@ -412,38 +448,84 @@ function handleMouseMove(e) {
   }
 }
 
-/* ---- Card title ---- */
-/* Each illustration leaves a different amount of space for its title. */
-.card[data-module-id='home-data-search'] {
-  --title-area-width: 58%;
-}
-
-.card[data-module-id='home-agent-data-connections'] {
-  --title-area-width: 62%;
-}
-
+/* ---- Card content ---- */
 .card-body {
-  position: absolute;
-  inset: 0 auto 0 0;
+  position: relative;
   z-index: 2;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.card-icon {
   display: grid;
   place-items: center;
-  width: var(--title-area-width, 56%);
-  min-width: 0;
-  padding: 20px 12px;
-  box-sizing: border-box;
-  text-align: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.08);
+  color: #3b82f6;
+}
+
+.card--featured .card-icon {
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
 }
 
 .card-title {
   margin: 0;
-  max-width: 100%;
+  max-width: 80%;
   font-size: clamp(26px, 2.25vw, 36px);
   font-weight: 800;
-  line-height: 1.4;
+  line-height: 1.3;
   color: #1e293b;
   letter-spacing: 0.01em;
   text-wrap: balance;
+}
+
+.card-subtitle {
+  margin: 0;
+  max-width: 85%;
+  font-size: clamp(18px, 1.45vw, 22px);
+  font-weight: 750;
+  line-height: 1.35;
+  color: #1e293b;
+  text-wrap: balance;
+}
+
+.card-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 3px;
+  width: 82px;
+  padding: 6px 0;
+  border-radius: 999px;
+  background: #327df8;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  transition: background 0.3s ease;
+}
+
+.card:hover .card-cta,
+.card:focus-visible .card-cta {
+  background: #2563eb;
+}
+
+.card-cta-arrow {
+  transition: transform 0.3s ease;
+}
+
+.card:hover .card-cta-arrow {
+  transform: translateX(3px);
 }
 
 /* ============================================================
@@ -519,13 +601,32 @@ function handleMouseMove(e) {
 
   .card {
     aspect-ratio: auto;
-    min-height: 224px;
+    min-height: 250px;
     padding: 24px;
     border-radius: 16px;
   }
 
   .card-title {
     font-size: 28px;
+  }
+
+  .card-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .card-icon svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .card-body {
+    gap: 12px;
+  }
+
+  .card-subtitle {
+    max-width: 100%;
+    font-size: 17px;
   }
 
   .home-footer {
@@ -552,7 +653,7 @@ function handleMouseMove(e) {
   }
 
   .card {
-    min-height: 218px;
+    min-height: 250px;
     padding: 20px;
   }
 
