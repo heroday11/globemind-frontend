@@ -10,7 +10,7 @@ import {
   useDisplayPreferences,
 } from '@/composables/useDisplayPreferences.js'
 
-const { preferences, updateDisplayPreferences, resetDisplayPreferences } = useDisplayPreferences()
+const { preferences, fontSize, pending, syncError, retryFontSize, updateDisplayPreferences, resetDisplayPreferences } = useDisplayPreferences()
 
 const fontPreviewStacks = {
   system:
@@ -95,7 +95,7 @@ function updateFontSize(event) {
           <h3 id="dp-font-size-title">全局字号</h3>
           <p>保留各页面原有层级，同时整体缩小或放大文字。</p>
         </div>
-        <output class="dp-value" for="dp-font-size">{{ fontSizeLabel }}</output>
+        <output class="dp-value" for="dp-font-size">{{ fontSize }} px · {{ fontSizeLabel }}</output>
       </div>
       <div class="dp-range-wrap">
         <input
@@ -107,7 +107,7 @@ function updateFontSize(event) {
           step="1"
           :value="preferences.fontSizeOffset"
           aria-labelledby="dp-font-size-title"
-          :aria-valuetext="fontSizeLabel"
+          :aria-valuetext="`${fontSize} px，${fontSizeLabel}`"
           aria-describedby="dp-font-size-hint"
           @input="updateFontSize"
         />
@@ -117,6 +117,8 @@ function updateFontSize(event) {
           <span>更醒目</span>
         </div>
       </div>
+      <p v-if="syncError" class="dp-note" role="status">字号设置暂未同步到账号。<button type="button" @click="retryFontSize">重试同步</button></p>
+      <p v-else-if="pending" class="dp-note" role="status">正在保存字号…</p>
       <p id="dp-font-size-hint" class="dp-note">
         提供六档字号，保留页面层级并限制在安全的桌面布局范围内。
       </p>

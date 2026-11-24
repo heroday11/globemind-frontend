@@ -86,9 +86,13 @@ const ROOT_FONT_SIZES = Object.freeze({
 export const DEFAULT_DISPLAY_PREFERENCES = Object.freeze({
   version: DISPLAY_PREFERENCES_VERSION,
   fontFamily: "system",
-  fontSizeOffset: 0,
+  fontSizeOffset: 1,
   lineHeight: "standard",
 });
+
+export function getDisplayFontSize(offset) {
+  return ROOT_FONT_SIZES[offset] ?? ROOT_FONT_SIZES[DEFAULT_DISPLAY_PREFERENCES.fontSizeOffset];
+}
 
 function safeStorage(storage) {
   return storage && typeof storage.getItem === "function" ? storage : null;
@@ -196,7 +200,7 @@ export function applyDisplayPreferences(
   root.style.setProperty("--gm-font-mono", stacks.mono);
   root.style.setProperty(
     "--gm-root-font-size",
-    `${ROOT_FONT_SIZES[normalized.fontSizeOffset]}px`,
+    `${getDisplayFontSize(normalized.fontSizeOffset)}px`,
   );
   root.style.setProperty("--gm-leading", String(lineHeight.unitless));
   root.style.setProperty("--gm-leading-px", `${lineHeight.px}px`);

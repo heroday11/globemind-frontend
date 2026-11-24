@@ -10,6 +10,7 @@ export const DISPLAY_PREFERENCES_STORAGE_PREFIX: string;
 export const DISPLAY_PREFERENCES_EVENT: string;
 export const FONT_SIZE_OFFSET_MIN: number;
 export const FONT_SIZE_OFFSET_MAX: number;
+export function getDisplayFontSize(offset: number): number;
 export const DEFAULT_DISPLAY_PREFERENCES: Readonly<DisplayPreferences>;
 export const FONT_FAMILY_OPTIONS: ReadonlyArray<
   Readonly<{

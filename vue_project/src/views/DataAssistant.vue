@@ -3,6 +3,7 @@ import { defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vu
 import LoginModal from '@/components/LoginModal.vue'
 import { assistantErrorText } from '@/features/assistant/api.js'
 import { syncPendingCapabilities } from '@/bootstrap.js'
+import { useDisplayPreferences } from '@/composables/useDisplayPreferences.js'
 import { dshLaunchUrl, isDshFrame } from '@/utils/dshFrame.js'
 import { getToken, clearAuth, getAuthChangedEventName } from '@/utils/auth.js'
 
@@ -16,6 +17,13 @@ const emit = defineEmits(['page-action'])
 const showImageStudio = ref(false), imageInitial = ref(null)
 const imageDelivery = ref('')
 const dshFrame = ref(null)
+const { fontSize } = useDisplayPreferences()
+
+function applyFrameFontSize() {
+  const frame = dshFrame.value
+  if (isDshFrame(frame)) frame.contentDocument.documentElement.style.zoom = String(fontSize.value / 16)
+}
+watch(fontSize, applyFrameFontSize)
 const bridgeNonce = ref('')
 const bridgeStatus = ref('')
 const bridgeFailed = ref(false)
@@ -143,6 +151,7 @@ function onFrameLoad(event) {
   }
   clearFrameTimeout()
   loading.value = false
+  applyFrameFontSize()
   if (!bridge.ready) connectBridge()
 }
 function onFrameError() {

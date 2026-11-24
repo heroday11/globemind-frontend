@@ -15,6 +15,7 @@ import {
 import { getToken, getAuthChangedEventName } from '@/utils/auth'
 import { createRoutePreloadController } from '@/router/routePreloadController.js'
 import LoginModal from './LoginModal.vue'
+import FontSizeControl from './FontSizeControl.vue'
 
 const props = defineProps({
   routePreloaders: {
@@ -398,6 +399,7 @@ const submitGlobalSearch = () => {
 
       <!-- 页面最右：搜索 + 登录 -->
       <div class="header-actions header-actions--right">
+        <FontSizeControl />
         <button class="action-btn guide-btn" data-tour="guide-entry" type="button" title="新手指南" aria-label="打开新手指南" @click="openNewUserGuide">
           <CircleHelp class="nav-icon" :size="19" />
         </button>

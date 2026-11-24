@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppNav from './components/appNav.vue'
+import FontSizeControl from './components/FontSizeControl.vue'
 import NewUserGuide from './components/NewUserGuide.vue'
 import GuestAccessBanner from './components/GuestAccessBanner.vue'
 import { createOperationsHeartbeat } from './features/operations/index.js'
@@ -46,6 +47,7 @@ watch(() => route.path, async () => {
   <div class="app-shell" :class="{ 'app--financial-terminal': isFinancialTerminal }">
     <a class="skip-to-content" href="#main-content">跳到主要内容</a>
     <appNav :route-preloaders="routePreloaders" />
+    <FontSizeControl v-if="route.meta.hideNavbar" class="standalone-font-size" />
     <NewUserGuide />
     <GuestAccessBanner />
     <div id="main-content" ref="routeContent" class="route-content" tabindex="-1">
@@ -88,6 +90,8 @@ watch(() => route.path, async () => {
   outline-offset: 2px;
   transform: none;
 }
+
+.standalone-font-size { position: fixed; top: 12px; right: 12px; z-index: 100; }
 
 .route-content:focus {
   outline: none;
