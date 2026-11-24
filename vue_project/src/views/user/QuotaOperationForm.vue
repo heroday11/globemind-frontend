@@ -96,7 +96,7 @@ async function submit() {
 </script>
 
 <template>
-  <form class="quota-operation" @submit.prevent="submit">
+  <form class="quota-operation" :class="{ 'quota-operation--inline': inline }" @submit.prevent="submit">
     <template v-if="adjusting">
       <label :for="`${fieldId}-quota-adjust-amount`">增减金额（元）</label>
       <input :id="`${fieldId}-quota-adjust-amount`" v-model="amount" type="number" required step="0.00000001" placeholder="例如 20 或 -5" />
@@ -111,9 +111,16 @@ async function submit() {
           {{ plan.name }}（{{ Number(plan.quota_cny).toFixed(2) }} 元 / {{ plan.validity_days }} 天）
         </option>
       </select>
-      <template v-if="admin && plans.length">
-        <label :for="`${fieldId}-quota-plan-days`">有效天数（选填）</label>
-        <input :id="`${fieldId}-quota-plan-days`" v-model="days" type="number" min="1" max="3650" />
+      <template v-if="admin">
+        <label :for="`${fieldId}-quota-plan-days`">有效天数</label>
+        <input
+          :id="`${fieldId}-quota-plan-days`"
+          v-model="days"
+          type="number"
+          min="1"
+          max="3650"
+          :placeholder="plans.find((plan) => plan.id === planId)?.validity_days?.toString() || '套餐默认天数'"
+        />
       </template>
     </template>
     <p v-if="error" class="quota-operation__error" role="alert">{{ error }}</p>
@@ -147,5 +154,8 @@ async function submit() {
 }
 .quota-operation__error { margin: 0; color: #b42318; }
 .quota-operation__actions { display: flex; justify-content: flex-end; margin-top: 6px; }
+.quota-operation--inline { display: flex; flex: 1; flex-direction: column; }
+.quota-operation--inline .quota-operation__actions { margin-top: auto; padding-top: 6px; }
+.quota-operation--inline .quota-operation__actions button { min-width: 100px; min-height: 34px; }
 .quota-operation__actions button:disabled { opacity: .6; cursor: default; }
 </style>

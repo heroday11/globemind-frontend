@@ -202,12 +202,24 @@ onMounted(loadUsers)
             <th>已用</th>
             <th>剩余</th>
             <th>周期重置</th>
-            <th>操作</th>
+            <th>角色管理</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in users" :key="item.user_id" class="qam-row">
-            <td><strong>{{ item.username }}</strong><small>{{ item.email || '#' + item.user_id }}</small></td>
+            <td>
+              <button
+                type="button"
+                class="qam-account"
+                :aria-expanded="target?.user_id === item.user_id"
+                :aria-controls="target?.user_id === item.user_id ? 'quota-account-operations' : undefined"
+                :disabled="Boolean(savingOperation)"
+                @click="openOperation(item)"
+              >
+                <strong>{{ item.username }}</strong>
+                <small>{{ item.email || '#' + item.user_id }}</small>
+              </button>
+            </td>
             <td><span class="qam-tag" :class="{ 'qam-tag--plain': item.role !== 'admin' }">{{ roleLabels[item.role] }}</span></td>
             <td>{{ moneyText(item.allowance_cny) }}</td>
             <td>{{ moneyText(item.used_cny) }}</td>
@@ -215,7 +227,6 @@ onMounted(loadUsers)
             <td class="qam-muted">{{ item.period_end ? item.period_end.slice(0, 19).replace('T', ' ') : '—' }}</td>
             <td>
               <div class="qam-row-actions">
-                <button type="button" class="qam-btn" :aria-expanded="target?.user_id === item.user_id" :aria-controls="target?.user_id === item.user_id ? 'quota-account-operations' : undefined" :disabled="Boolean(savingOperation)" @click="openOperation(item)">操作</button>
                 <button v-if="item.user_id !== currentUserId" type="button" class="qam-btn" @click="openRole(item)">修改角色</button>
               </div>
             </td>
@@ -351,6 +362,10 @@ onMounted(loadUsers)
 .qam-table th { color: #74809b; font-size: 12px; font-weight: 700; background: #f7f9fd; }
 .qam-table td small { display: block; margin-top: 2px; color: #98a2b8; font-size: 11px; }
 .qam-row:hover { background: #f8faff; }
+.qam-account { display: block; min-height: 32px; width: 100%; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #3656b4; font: inherit; text-align: left; cursor: pointer; }
+.qam-account:hover:not(:disabled) strong, .qam-account[aria-expanded="true"] strong { text-decoration: underline; }
+.qam-account:focus-visible { outline: 2px solid #5b72df; outline-offset: 2px; }
+.qam-account:disabled { cursor: default; }
 .qam-tag { padding: 2px 8px; border-radius: 999px; background: #e8f0ff; color: #3166b1; font-size: 11px; font-weight: 600; }
 .qam-tag--plain { background: #f1f3f8; color: #667089; }
 .qam-muted { color: #98a2b8; }
@@ -361,6 +376,7 @@ onMounted(loadUsers)
 .qam-operation-heading { margin: 0 0 4px; color: #1f2a44; overflow-wrap: anywhere; }
 .qam-operation-account { margin: 0; overflow-wrap: anywhere; }
 .qam-operation-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-block: 16px; }
+.qam-operation-grid > div { display: flex; flex-direction: column; }
 .qam-operation-grid h4 { margin: 0 0 8px; font-size: 14px; color: #1f2a44; }
 .qam-usage { padding-top: 12px; border-top: 1px solid #e4e8f2; }
 @media (max-width: 740px) {
