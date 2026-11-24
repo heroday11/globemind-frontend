@@ -1,8 +1,8 @@
 <template>
   <div class="ground-home">
-    <nav class="ground-subnav" aria-label="全球新闻观察台次级导航">
+    <nav class="ground-subnav" aria-label="新闻观察台次级导航">
       <span>GROUND NEWS</span>
-      <RouterLink to="/data-service/ground-news">事件总览</RouterLink>
+      <RouterLink :to="overviewPath">事件总览</RouterLink>
       <RouterLink to="/data-service/ground-news-desk">分析工作台</RouterLink>
     </nav>
 
@@ -10,8 +10,8 @@
       <div class="home-heading">
         <span class="heading-icon"><Globe :size="30" :stroke-width="1.7" /></span>
         <div>
-          <h1>全球事件总览</h1>
-          <p>聚合多源报道，梳理事件脉络与关联线索</p>
+          <h1>{{ isRegional ? '粤港澳事件总览' : '全球事件总览' }}</h1>
+          <p>{{ isRegional ? '聚焦广东、香港与澳门，优先呈现外国媒体报道，兼顾本地新闻' : '聚合多源报道，梳理事件脉络与关联线索' }}</p>
         </div>
       </div>
       <div class="hero-actions">
@@ -24,6 +24,11 @@
           >进入分析工作台<ArrowRight :size="16"
         /></RouterLink>
       </div>
+      <nav class="overview-switch" aria-label="事件总览范围">
+        <RouterLink to="/data-service/ground-news" :class="{ 'is-selected': !isRegional }" :aria-current="!isRegional ? 'page' : undefined">全球事件总览</RouterLink>
+        <RouterLink to="/data-service/ground-news-gba" :class="{ 'is-selected': isRegional }" :aria-current="isRegional ? 'page' : undefined">粤港澳事件总览</RouterLink>
+      </nav>
+      <p v-if="isRegional" class="regional-policy">外国媒体报道优先，目标约七成；同时收录广东全省、香港及澳门当地新闻。数量以已收录内容为准。</p>
       <div class="freshness-banner" role="status">
         <Clock :size="16" />
         <strong
@@ -91,7 +96,7 @@
             </div>
             <article class="lead-story">
               <div class="story-kicker">
-                <span class="category-chip">重点事件</span
+                <span class="category-chip">{{ isRegional && leadStory.foreign_article_count ? '外国媒体关注' : '重点事件' }}</span
                 ><span class="category-chip subtle">{{ familyLabel(leadStory.event_family) }}</span
                 ><span
                   ><Clock :size="12" />{{
@@ -512,7 +517,7 @@
 
 <script setup>
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import {
   ArrowRight,
   ChevronDown,
@@ -556,10 +561,14 @@ import {
   homeStoryPath as storyPath,
   homeStorySourceLine as storySourceLine,
   homeTimelinePath as timelinePath,
-  homeTopicPath as topicPath,
+  homeTopicPath as globalTopicPath,
   homeVisibleBiasBuckets as visibleBiasBuckets,
 } from '@/features/ground-news/index.js'
 
+const route = useRoute()
+const isRegional = computed(() => route.meta.groundNewsScope === 'gba')
+const overviewPath = computed(() => isRegional.value ? '/data-service/ground-news-gba' : '/data-service/ground-news')
+let homeRequestId = 0
 const loading = ref(false)
 const error = ref('')
 const home = ref(null)
@@ -759,20 +768,35 @@ const BiasBar = defineComponent({
 
 onMounted(() => {
   void refreshFreshness()
-  void loadHome()
 })
 
+watch(isRegional, () => {
+  home.value = null
+  error.value = ''
+  activeSection.value = 'front-news'
+  failedCoverIds.value = new Set()
+  loadedCoverIds.value = new Set()
+  sectionObserver?.disconnect()
+  void loadHome()
+}, { immediate: true })
+
 async function loadHome() {
+  const requestId = ++homeRequestId
   loading.value = true
   error.value = ''
   try {
-    home.value = await groundNewsApi.getHome({ candidateLimit: 180, minArticles: 2 })
+    const result = await groundNewsApi.getHome({ candidateLimit: 180, minArticles: 2, scope: isRegional.value ? 'gba' : 'global' })
+    if (requestId !== homeRequestId) return
+    home.value = result
   } catch (err) {
+    if (requestId !== homeRequestId) return
     error.value = err?.response?.data?.detail || err?.message || '未知错误'
   } finally {
-    loading.value = false
-    await nextTick()
-    observeSections()
+    if (requestId === homeRequestId) {
+      loading.value = false
+      await nextTick()
+      if (requestId === homeRequestId) observeSections()
+    }
   }
 }
 
@@ -799,7 +823,10 @@ function observeSections() {
   }
 }
 
-onBeforeUnmount(() => sectionObserver?.disconnect())
+onBeforeUnmount(() => {
+  homeRequestId += 1
+  sectionObserver?.disconnect()
+})
 
 async function scrollToSection(id) {
   await nextTick()
@@ -820,6 +847,12 @@ async function scrollToSection(id) {
       `${window.location.pathname}${window.location.search}#${id}`,
     )
   }
+}
+
+function topicPath(key, story) {
+  if (!isRegional.value) return globalTopicPath(key, story)
+  const section = storySections.value.find((item) => item.stories?.some((row) => row.event_family === key))
+  return `${overviewPath.value}#${section ? `section-${section.key}` : 'front-news'}`
 }
 
 function editionLabel(key) {
@@ -936,6 +969,39 @@ function inferLanguageLabel(text) {
 </script>
 
 <style scoped>
+.overview-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  grid-column: 1 / -1;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.overview-switch a {
+  padding: 10px 18px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.ground-home .overview-switch a.is-selected {
+  color: white;
+  background: var(--blue);
+}
+.overview-switch a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.regional-policy {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 /* Keep this page’s section navigation attached to the viewport. */
 :global(.app-shell:has(.ground-home)) {
   overflow-x: clip;

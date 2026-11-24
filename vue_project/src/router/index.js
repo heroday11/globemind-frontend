@@ -273,6 +273,12 @@ const router = createRouter({
           component: routeViewLoaders.groundNewsHome
         },
         {
+          path: 'ground-news-gba',
+          name: 'GroundNewsGbaHome',
+          component: routeViewLoaders.groundNewsHome,
+          meta: { groundNewsScope: 'gba', title: '粤港澳事件总览 · GlobeMind' }
+        },
+        {
           path: 'decision-desk',
           name: 'DecisionDesk',
           component: () => import('@/views/DecisionDesk.vue'),

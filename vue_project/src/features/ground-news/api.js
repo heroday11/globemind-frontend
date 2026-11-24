@@ -48,9 +48,9 @@ export function createGroundNewsApi({ client = axios, apiRoot = defaultApiRoot()
       return response.data
     },
 
-    async getHome({ candidateLimit = 260, minArticles = 2 } = {}) {
+    async getHome({ candidateLimit = 260, minArticles = 2, scope = 'global' } = {}) {
       const response = await client.get(`${groundNewsRoot}/home`, {
-        params: { candidate_limit: candidateLimit, min_articles: minArticles },
+        params: { candidate_limit: candidateLimit, min_articles: minArticles, ...(scope === 'gba' ? { scope } : {}) },
       })
       return response.data
     },

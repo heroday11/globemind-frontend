@@ -34,6 +34,7 @@ export function createRoutePreloaders(loaders = routeViewLoaders) {
   return Object.freeze({
     '/': single('appHome'),
     '/data-service/ground-news': group('dataServiceShell', 'groundNewsHome'),
+    '/data-service/ground-news-gba': group('dataServiceShell', 'groundNewsHome'),
     '/sentiment-analysis': single('sentimentAnalysis'),
     '/data-service/story-graph': group('dataServiceShell', 'storyGraph'),
     '/data-service/data-search': group('dataServiceShell', 'dataSearch'),

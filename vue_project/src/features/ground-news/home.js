@@ -72,11 +72,12 @@ function uniqueStories(rows) {
 
 export function buildGroundNewsHomeModel(payload) {
   const value = payload && typeof payload === 'object' ? payload : {}
+  const regional = value.scope === 'gba'
   const apiLeadStory = value.lead_story || null
   const metrics = value.metrics || {}
   const edition = value.edition || {}
   const visibleSections = (Array.isArray(value.sections) ? value.sections : [])
-    .filter((section) => section?.stories?.length)
+    .filter((section) => regional || section?.stories?.length)
   const sectionByKey = Object.fromEntries(
     visibleSections.map((section) => [section.key, section]),
   )
@@ -88,7 +89,7 @@ export function buildGroundNewsHomeModel(payload) {
     ...(apiLeadStory ? [apiLeadStory] : []),
     ...visibleSections.flatMap((section) => section.stories || []),
   ])
-  const leadStory = selectVisualLeadStory(apiLeadStory, allHomeStories)
+  const leadStory = regional ? apiLeadStory : selectVisualLeadStory(apiLeadStory, allHomeStories)
   const latestStories = selectLatestStories(allHomeStories)
   const weekStories = (
     sectionByKey.week_watch?.stories?.length
@@ -97,7 +98,7 @@ export function buildGroundNewsHomeModel(payload) {
         ? sectionByKey.pulse_72h.stories
         : latestStories
   )
-  const frontLatestStories = selectFrontLatestStories(
+  const frontLatestStories = regional ? homeRegionalMix(latestStories, 6) : selectFrontLatestStories(
     latestStories,
     [
       ...(leadStory ? [leadStory] : []),
@@ -442,4 +443,24 @@ export function homeFormatNumber(value) {
 export function homeFormatPct(value) {
   const number = Number(value || 0)
   return number.toFixed(number >= 10 ? 0 : 1)
+}
+
+export function homeRegionalMix(stories, limit = stories.length) {
+  const rows = uniqueStories(stories)
+  const size = Math.min(rows.length, limit)
+  const isForeign = (story) => Number(story.foreign_article_count || 0) > 0
+    && Number(story.foreign_article_count) * 2 >= Number(story.origin_article_count || 0)
+  const foreign = rows.filter(isForeign)
+  const other = rows.filter((story) => !isForeign(story))
+  let foreignSlots = Math.min(foreign.length, Math.ceil(size * 0.7))
+  const otherSlots = Math.min(other.length, size - foreignSlots)
+  foreignSlots = Math.min(foreign.length, size - otherSlots)
+  const selectedForeign = foreign.slice(0, foreignSlots)
+  const selectedOther = other.slice(0, otherSlots)
+  const selected = []
+  while (selectedForeign.length || selectedOther.length) {
+    selected.push(...selectedForeign.splice(0, 3))
+    if (selectedOther.length) selected.push(selectedOther.shift())
+  }
+  return selected
 }

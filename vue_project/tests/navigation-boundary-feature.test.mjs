@@ -7,6 +7,7 @@ import { createRoutePreloaders } from '../src/router/routePreloaders.js'
 const PRELOAD_GROUPS = {
   '/': ['appHome'],
   '/data-service/ground-news': ['dataServiceShell', 'groundNewsHome'],
+  '/data-service/ground-news-gba': ['dataServiceShell', 'groundNewsHome'],
   '/sentiment-analysis': ['sentimentAnalysis'],
   '/data-service/story-graph': ['dataServiceShell', 'storyGraph'],
   '/data-service/data-search': ['dataServiceShell', 'dataSearch'],
