@@ -46,6 +46,9 @@ const route = useRoute()
 const briefingService = createBriefingScheduleService(createAssistantApi())
 const briefingDialog = ref(null), briefingDraft = ref(null), savedBriefing = ref(null)
 const briefingBusy = ref(false), briefingError = ref(''), briefingStartError = ref('')
+const briefingStarting = ref(false)
+let briefingStartTimer = 0
+let briefingDraftId = ''
 const briefingEmail = ref('')
 let briefingStartId = '', briefingDraftSession = '', briefingRequestId = ''
 
@@ -55,11 +58,28 @@ let skillRequested = !props.embedded && route.query.skill === 'create-periodic-b
 function showBriefings(task = '') {
   if (bridge.ready) bridgePost('show-briefings', { task })
 }
+function finishBriefingStart(message = '') {
+  window.clearTimeout(briefingStartTimer)
+  briefingStarting.value = false
+  briefingStartId = ''
+  skillRequested = false
+  briefingStartError.value = message
+}
 function launchBriefingSkill() {
-  if (!skillRequested || briefingStartId || !bridge.ready) return
-  briefingStartError.value = ''
+  if (!skillRequested || briefingStartId) return
+  if (!briefingStarting.value) {
+    briefingStartError.value = ''
+    briefingStarting.value = true
+    briefingStartTimer = window.setTimeout(() => finishBriefingStart('打开创建对话超时'), 35000)
+  }
+  if (!bridge.ready) return
   briefingStartId = crypto.randomUUID()
   bridgePost('briefing-start', { requestId: briefingStartId })
+}
+function retryBriefingSkill() {
+  skillRequested = true
+  if (!bridge.ready && isDshFrame(dshFrame.value)) connectBridge()
+  launchBriefingSkill()
 }
 async function openBriefingDraft() {
   await nextTick()
@@ -164,22 +184,25 @@ function onBridgeMessage(event) {
     bridge.imageRequests.delete(data.requestId)
     imageDelivery.value = data.ok ? '图片任务已发送到助手对话' : '发送到对话失败，可在图片归档中重新发送'
   } else if (data.type === 'briefing-start-ack' && briefingStartId && data.requestId === briefingStartId) {
-    briefingStartId = ''
-    if (data.ok) skillRequested = false
-    else briefingStartError.value = '未能打开创建对话'
-  } else if (data.type === 'briefing-draft' && data.sessionId && data.sessionId === sessionId.value && !briefingBusy.value) {
+    finishBriefingStart(data.ok ? '' : '未能打开创建对话，请确认有可用工作区')
+  } else if (data.type === 'briefing-draft' && data.sessionId && data.sessionId === sessionId.value && !briefingBusy.value
+      && typeof data.draftId === 'string' && data.draftId !== briefingDraftId) {
     const draft = createBriefingDraft(data.draft)
     if (!draft) return
     briefingDraftSession = data.sessionId
+    briefingDraftId = data.draftId
     briefingRequestId = crypto.randomUUID()
     briefingDraft.value = draft
     briefingEmail.value = getCurrentUser()?.email || ''
     briefingError.value = ''
+    briefingDialog.value?.close()
+  } else if (data.type === 'briefing-approved' && data.sessionId === sessionId.value && data.draftId === briefingDraftId) {
     void openBriefingDraft()
   } else if (data.type === 'session') {
     sessionId.value = data.sessionId
     if (briefingDraftSession !== sessionId.value && !briefingBusy.value) {
       briefingDraft.value = null
+      briefingDraftId = ''
       briefingDialog.value?.close()
     }
   } else if (data.type === 'context-ack' && data.requestId === bridge.requestId) {
@@ -315,7 +338,8 @@ function reconnect() {
   void loadDsh()
 }
 function authChanged() {
-  briefingStartId = ''
+  finishBriefingStart()
+  briefingDraftId = ''
   briefingDraft.value = null
   savedBriefing.value = null
   briefingDialog.value?.close()
@@ -339,6 +363,7 @@ onMounted(() => {
 })
 watch(() => props.contextKey, loadPageContext)
 onBeforeUnmount(() => {
+  window.clearTimeout(briefingStartTimer)
   window.clearInterval(bridge.timer)
   window.removeEventListener('message', onBridgeMessage)
   generation += 1
@@ -353,11 +378,12 @@ onBeforeUnmount(() => {
 <template>
   <!-- The site owns the top navigation; DSH owns all assistant navigation. -->
   <main class="assistant-page" :class="{ 'assistant-page--embedded': props.embedded }" aria-label="数据助手">
-    <div v-if="briefingDraft || savedBriefing || briefingStartError" class="briefing-tools">
-      <button v-if="briefingDraft" type="button" @click="openBriefingDraft">查看任务草稿</button>
+    <div v-if="briefingDraft || savedBriefing || briefingStartError || briefingStarting" class="briefing-tools">
+      <span v-if="briefingStarting" role="status">正在打开创建对话…</span>
+      <button v-if="briefingDraft" type="button" @click="openBriefingDraft">认可草稿并打开表单</button>
       <button v-if="savedBriefing" type="button" @click="showBriefings(savedBriefing.id)">已创建 · 查看定期简报</button>
       <span v-if="briefingStartError" role="status">{{ briefingStartError }}</span>
-      <button v-if="briefingStartError" type="button" @click="launchBriefingSkill">重试</button>
+      <button v-if="briefingStartError" type="button" @click="retryBriefingSkill">重试</button>
     </div>
     <dialog ref="briefingDialog" class="briefing-dialog" aria-labelledby="briefing-draft-heading"
       @cancel.prevent="!briefingBusy && briefingDialog.close()">
