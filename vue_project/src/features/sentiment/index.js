@@ -91,6 +91,7 @@ export {
   OPINION_SEMANTIC_SCHEMA_VERSION,
   enforceOpinionSemanticBoundary,
   formatSemanticAxis,
+  isCoreOpinionTrend,
   opinionSemanticMethodSnapshot,
   opinionSemanticSnapshot,
   semanticStanceClass,

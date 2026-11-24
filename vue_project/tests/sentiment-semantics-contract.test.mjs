@@ -8,6 +8,29 @@ import {
   semanticTrendProjection,
 } from '../src/features/sentiment/semantics.js'
 import { sanitizeOpinionPayload } from '../src/features/sentiment/presentation.js'
+import { trimTrendData } from '../src/features/sentiment/trend.js'
+
+test('the core trend retains both neutral scores and missing calendar days', () => {
+  const dates = ['2026-11-23', '2026-11-24']
+  const payload = {
+    metric_id: 'weighted_target_stance_index', dates, values: [0, null],
+    meta: {
+      method_version: 'core-fixed-market-target-stance-1',
+      model_version: 'core-china-target-stance-20261124-1',
+      weight_version: 'weights-1',
+      source: { database: 'globemind_core', table: 'public.article_analysis', timezone: 'Asia/Shanghai' },
+    },
+    coverage: [
+      { date: dates[0], status: 'available', articles: 10, sources: 4, markets_covered: 2, markets_required: 2, market_weight_coverage: 1 },
+      { date: dates[1], status: 'insufficient_market_coverage', articles: 2, sources: 1, markets_covered: 0, markets_required: 2, market_weight_coverage: 0 },
+    ],
+  }
+  assert.deepEqual(trimTrendData(semanticTrendProjection(payload)), { dates, values: [0, null] })
+  assert.deepEqual(semanticTrendProjection({ ...payload, values: [0, 0] }).values, [])
+  assert.deepEqual(semanticTrendProjection({ ...payload, meta: { ...payload.meta,
+    source: { ...payload.meta.source, database: 'news' },
+  } }).values, [])
+})
 
 const MODEL_VERSION = 'china-stance-model-full-version'
 

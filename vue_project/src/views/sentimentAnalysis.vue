@@ -303,6 +303,12 @@
         >
           {{ opinionError }}
         </div>
+        <div
+          v-else-if="safeOpinionTrendData.preserveCalendar && safeOpinionTrendData.values.every(value => value === null)"
+          class="chart-loading"
+        >
+          当前区间暂无满足覆盖要求的指数
+        </div>
         <div ref="chartRef" class="chart-wrapper"></div>
         <button
           class="chart-fullscreen-btn"
@@ -853,6 +859,7 @@ import {
   overviewSummary as buildOverviewSummary,
   overviewTrendClass as buildOverviewTrendClass,
   opinionTrustSnapshot as buildOpinionTrustSnapshot,
+  isCoreOpinionTrend,
   opinionSemanticMethodSnapshot,
   opinionSemanticSnapshot,
   qualitySnapshot as buildQualitySnapshot,
@@ -1232,9 +1239,11 @@ const safeOverviewData = computed(() => sanitizeOpinionPayload(overviewData.valu
   requireClaimContract: true,
 }))
 const safeOpinionTrendData = computed(() => semanticTrendProjection(
-  sanitizeOpinionPayload(opinionTrendData.value, {
-    now: opinionTrustEvaluationNow.value,
-  }),
+  isCoreOpinionTrend(opinionTrendData.value)
+    ? opinionTrendData.value
+    : sanitizeOpinionPayload(opinionTrendData.value, {
+      now: opinionTrustEvaluationNow.value,
+    }),
 ))
 
 const overviewSummary = computed(() => buildOverviewSummary(safeOverviewData.value))
@@ -1647,9 +1656,13 @@ const fetchOpinionTrend = async (days, filter, { showLoading = true, refresh = f
   const query = buildTrendQuery(days, activeFilter, { refresh })
   const outcome = await trendRequest.run((signal) => sentimentApi.getTrend(query, { signal }))
   if (outcome.status === 'success' && activeFilter === sentimentFilter.value) {
-    opinionTrendData.value = normalizeTrendResponse(sanitizeOpinionPayload(outcome.value))
+    const coreTrend = isCoreOpinionTrend(outcome.value)
+    opinionTrendData.value = coreTrend
+      ? semanticTrendProjection(outcome.value)
+      : normalizeTrendResponse(sanitizeOpinionPayload(outcome.value))
     lastFetchDays = days
-    snapshotCache.write(TREND_CACHE_KEY, opinionTrendData.value)
+    if (coreTrend) snapshotCache.remove(TREND_CACHE_KEY)
+    else snapshotCache.write(TREND_CACHE_KEY, opinionTrendData.value)
   } else if (outcome.status === 'error') {
     opinionError.value = outcome.error?.message || '获取舆情数据失败'
     console.warn('[opinion] 加载目标立场指数失败:', opinionError.value)

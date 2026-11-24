@@ -19,6 +19,9 @@ export function trimTrendData(trend) {
     ? trend.values.map(finiteOptionalNumber)
     : []
   if (!dates.length) return { dates: [], values: [] }
+  if (trend.preserveCalendar === true && dates.length === values.length) {
+    return { dates, values }
+  }
   const zeroThreshold = 0.01
   let start = 0
   while (

@@ -467,6 +467,40 @@ export function semanticStanceClass(record) {
   return 'semantic-stance--neutral'
 }
 
+export function isCoreOpinionTrend(payload) {
+  return payload?.meta?.method_version === 'core-fixed-market-target-stance-1'
+}
+
+function coreTrendProjection(payload, empty) {
+  const { meta, dates, values, coverage } = payload
+  if (payload.metric_id !== 'weighted_target_stance_index'
+    || meta.model_version !== 'core-china-target-stance-20261124-1'
+    || meta.source?.database !== 'globemind_core'
+    || meta.source?.table !== 'public.article_analysis'
+    || meta.source?.timezone !== 'Asia/Shanghai'
+    || typeof meta.weight_version !== 'string' || !meta.weight_version
+    || !Array.isArray(dates) || !Array.isArray(values) || !Array.isArray(coverage)
+    || !dates.length || dates.length !== values.length || dates.length !== coverage.length) return empty
+  const valid = dates.every((date, index) => {
+    const point = coverage[index]
+    const value = values[index]
+    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+      || (index > 0 && date <= dates[index - 1]) || point?.date !== date
+      || !Number.isInteger(point.articles) || point.articles < 0
+      || !Number.isInteger(point.sources) || point.sources < 0
+      || !Number.isInteger(point.markets_required) || point.markets_required < 2
+      || !Number.isInteger(point.markets_covered) || point.markets_covered < 0
+      || point.markets_covered > point.markets_required
+      || !Number.isFinite(point.market_weight_coverage)
+      || point.market_weight_coverage < 0 || point.market_weight_coverage > 1) return false
+    return value === null
+      ? point.status === 'insufficient_market_coverage' && point.markets_covered < point.markets_required
+      : Number.isFinite(value) && value >= -100 && value <= 100 && point.status === 'available'
+        && point.markets_covered === point.markets_required && point.market_weight_coverage === 1
+  })
+  return valid ? { ...empty, dates, values, coverage, heat: coverage.map(point => point.articles), preserveCalendar: true } : empty
+}
+
 export function semanticTrendProjection(payload) {
   const empty = {
     dates: [],
@@ -477,6 +511,7 @@ export function semanticTrendProjection(payload) {
     semantic_contract: payload?.semantic_contract,
     semantic_dimensions: payload?.semantic_dimensions,
   }
+  if (isCoreOpinionTrend(payload)) return coreTrendProjection(payload, empty)
   const stance = opinionSemanticSnapshot(payload).stance
   const dates = Array.isArray(payload?.dates) ? payload.dates : []
   const values = Array.isArray(payload?.values) ? payload.values.map(finiteNumber) : []
