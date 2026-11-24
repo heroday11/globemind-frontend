@@ -195,20 +195,24 @@ function formatTime(value, timeZone) {
 
 <template>
   <main class="briefings" @click="moreMenu = ''" @keydown.esc="moreMenu = ''">
-    <header class="creation" :class="{ compact: schedules.length }">
-      <CalendarClock class="calendar-icon" :size="26" aria-hidden="true" />
-      <div class="creation-copy">
-        <h1>{{ !loading && !error && !schedules.length ? '创建第一份定期简报' : '创建定期简报' }}</h1>
-        <div v-if="!loading && !error && !schedules.length" class="intro">
+    <header class="briefing-header">
+      <div class="overview">
+        <h1><CalendarClock class="calendar-icon" :size="26" aria-hidden="true" />定期简报</h1>
+        <div class="intro">
           <p>选一个想持续关注的话题，数据助手会定时调查，生成不超过200字的简报，保存到你的简报目录。</p>
           <p>例如，每天早上8:30跟踪全球半导体出口管制，了解过去24小时的新变化。</p>
         </div>
-        <div v-if="signedIn" class="entries">
-          <button class="primary" type="button" @click="openForm()"><Plus :size="17" aria-hidden="true" />新建定期简报</button>
-          <button class="secondary" type="button" @click="startBriefingSkill"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</button>
-        </div>
-        <button v-else-if="!loading" type="button" class="primary" @click="showLogin = true">登录后创建</button>
       </div>
+      <section v-if="signedIn || !loading" class="creation-card" aria-labelledby="briefing-create-heading">
+        <h2 id="briefing-create-heading">{{ !loading && !error && !schedules.length ? '创建第一份定期简报' : '创建定期简报' }}</h2>
+        <div class="entries">
+          <template v-if="signedIn">
+            <button class="primary" type="button" @click="openForm()"><Plus :size="17" aria-hidden="true" />新建定期简报</button>
+            <button class="secondary" type="button" @click="startBriefingSkill"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</button>
+          </template>
+          <button v-else type="button" class="primary" @click="showLogin = true">登录后创建</button>
+        </div>
+      </section>
     </header>
 
     <section class="task-section" aria-labelledby="briefing-tasks-heading">
@@ -246,13 +250,7 @@ function formatTime(value, timeZone) {
             </div>
           </li>
         </ul>
-        <details class="help">
-          <summary>使用说明</summary>
-          <div class="intro">
-            <p>选一个想持续关注的话题，数据助手会定时调查，生成不超过200字的简报，保存到你的简报目录。</p>
-            <p>例如，每天早上8:30跟踪全球半导体出口管制，了解过去24小时的新变化。</p>
-          </div>
-        </details>
+
       </template>
     </section>
 
@@ -278,18 +276,25 @@ function formatTime(value, timeZone) {
 <style scoped>
 .briefings {
   --briefing-accent: #135a72; --briefing-muted: #526575; --briefing-muted-bg: #f2f6f8;
-  width: min(100% - 36px, 1060px); margin: 0 auto; padding: 18px 0 36px;
+  width: calc(100% - 36px); margin: 0 auto; padding: 22px 0 36px;
   color: var(--text-primary, #1d2932);
 }
-.creation { display: flex; align-items: start; gap: 12px; padding: 10px 0 25px; }
-.creation.compact { padding: 4px 0 18px; }
-.creation-copy { flex: 1; min-width: 0; }
-.calendar-icon { flex: none; margin-top: 3px; color: var(--briefing-accent); }
+.briefing-header {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 24px;
+  padding-bottom: 22px;
+}
+.calendar-icon { flex: none; color: var(--briefing-accent); }
 h1, h2, h3 { margin: 0; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
-h1 { font-size: 1.5em; }
+h1 { display: flex; align-items: center; gap: 10px; font-size: 1.75em; }
+.creation-card {
+  justify-self: end; max-width: 100%; padding: 12px; border: 1px solid #dbe3e8;
+  border-radius: 8px; background: #fff;
+}
+.creation-card h2 { font-size: 1em; }
 h2 { font-size: 1.1em; }
 h3 { font-size: 1em; }
-.entries { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.entries { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.entries button { white-space: nowrap; }
 .primary, .secondary, .action-link {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px;
   padding: 6px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; font: inherit;
@@ -327,7 +332,7 @@ button:disabled { opacity: .55; cursor: default; }
 .more-actions button { padding: 7px 9px; border: 0; background: transparent; text-align: left; font: inherit; cursor: pointer; }
 .more-actions button:hover:not(:disabled) { background: var(--briefing-muted-bg); }
 .more-actions .destructive { color: #a42323; }
-.help summary { color: var(--briefing-accent); cursor: pointer; }
+
 dialog {
   position: fixed; inset: 0; margin: auto; width: min(100% - 24px, 560px); height: fit-content;
   max-height: calc(100% - 24px); max-height: calc(100dvh - 24px); overflow: auto; overscroll-behavior: contain;
@@ -343,8 +348,9 @@ dialog::backdrop { background: #18253066; }
   .tasks li { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px 8px; padding: 10px 0; }
   .topic, .row-actions { grid-column: 1 / -1; }
   .mobile-label { display: block; color: var(--briefing-muted); font-size: .9em; }
-  .creation { gap: 8px; }
-  .entries { margin-left: -34px; }
-  .entries button { font-size: .85em; padding-inline: 7px; }
+  .briefings { width: calc(100% - 24px); }
+  .briefing-header { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .creation-card { justify-self: start; }
+  .entries button { font-size: .875em; padding-inline: 7px; }
 }
 </style>
