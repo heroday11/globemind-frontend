@@ -1,6 +1,7 @@
 <script setup>
 import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { CalendarClock } from 'lucide-vue-next'
 import BriefingForm from '@/features/assistant/briefing/BriefingForm.vue'
 import { createBriefingDraft, buildBriefingSchedulePayload } from '@/features/assistant/briefing/model.js'
 import { createBriefingScheduleService } from '@/features/assistant/briefing/service.js'
@@ -388,7 +389,10 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <dialog ref="briefingDialog" class="briefing-dialog" aria-labelledby="briefing-draft-heading"
         @cancel.prevent="!briefingBusy && briefingDialog.close()">
-        <h2 id="briefing-draft-heading">定期简报任务草稿</h2>
+        <header class="briefing-heading">
+          <span class="briefing-icon"><CalendarClock :size="24" aria-hidden="true" /></span>
+          <h2 id="briefing-draft-heading">定期简报任务草稿</h2>
+        </header>
         <BriefingForm v-if="briefingDraft" v-model="briefingDraft" conversational :email="briefingEmail"
           :busy="briefingBusy" :error="briefingError" @close="briefingDialog.close()" @submit="saveBriefingDraft" />
       </dialog>
@@ -448,14 +452,66 @@ onBeforeUnmount(() => {
 .briefing-tools button { border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; }
 .briefing-tools a:hover, .briefing-tools button:hover { text-decoration: underline; }
 .briefing-dialog {
-  position: fixed; inset: 0; margin: auto;
-  width: min(560px, calc(100% - 24px));
-  height: fit-content; max-height: calc(100dvh - 24px);
-  overflow: auto; overscroll-behavior: contain;
-  padding: 20px; border: 1px solid #dbe3e8; border-radius: 8px;
+  --briefing-padding: 28px;
+  --briefing-accent: #11606a;
+  --briefing-muted: #526575;
+  --briefing-muted-bg: #f0f5f8;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  box-sizing: border-box;
+  width: min(920px, calc(100% - 24px));
+  height: fit-content;
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #dbe5e9;
+  border-radius: 16px;
+  background: #fff;
+  color: #172d36;
+  box-shadow: 0 20px 64px #122b3633;
 }
-.briefing-dialog h2 { margin: 0 0 14px; font-size: 1.15em; font-weight: 650; }
-.briefing-dialog::backdrop { background: #18253066; }
+.briefing-dialog[open] { display: flex; flex-direction: column; }
+.briefing-dialog::backdrop { background: #18253073; }
+.briefing-heading {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  padding: 22px var(--briefing-padding) 18px;
+  background: #fff;
+}
+.briefing-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #e4f4f4;
+  color: var(--briefing-accent);
+}
+.briefing-heading h2 {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.briefing-heading h2::after {
+  display: block;
+  width: 36px;
+  height: 3px;
+  margin-top: 8px;
+  border-radius: 2px;
+  background: #24939b;
+  content: '';
+}
+@media (max-width: 600px), (max-height: 600px) {
+  .briefing-dialog { --briefing-padding: 16px; }
+  .briefing-heading { padding-block: 14px 12px; }
+  .briefing-heading h2 { font-size: 1.25em; }
+  .briefing-icon { width: 40px; height: 40px; }
+}
 .assistant-notices { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
 .assistant-notices button { border: 0; background: transparent; color: #1d4ed8; cursor: pointer; text-decoration: underline; }
 .bridge-status { margin: 0; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
