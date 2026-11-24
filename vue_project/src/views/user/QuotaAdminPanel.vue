@@ -15,6 +15,8 @@ const users = ref([])
 const search = ref('')
 const appliedSearch = ref('')
 const page = ref(1)
+const pageInput = ref('1')
+const pageError = ref('')
 const totalPages = ref(1)
 const target = ref(null)
 const operation = ref('')
@@ -50,6 +52,7 @@ async function loadUsers(targetPage = page.value, needle = appliedSearch.value) 
   if (loading.value) return
   loading.value = true
   error.value = ''
+  pageError.value = ''
   try {
     let payload = await fetchPage(targetPage, needle)
     const lastPage = Math.max(1, Math.ceil(payload.total / PAGE_SIZE))
@@ -68,8 +71,24 @@ async function loadUsers(targetPage = page.value, needle = appliedSearch.value) 
   } catch (failure) {
     error.value = failure.message
   } finally {
+    pageInput.value = String(page.value)
     loading.value = false
   }
+}
+
+function jumpToPage() {
+  const input = pageInput.value.trim()
+  const requested = Number(input)
+  if (!/^\d+$/.test(input) || !Number.isSafeInteger(requested) || requested < 1 || requested > totalPages.value) {
+    pageError.value = `请输入 1 至 ${totalPages.value} 之间的整数`
+    return
+  }
+  pageError.value = ''
+  if (requested === page.value) {
+    pageInput.value = String(page.value)
+    return
+  }
+  void loadUsers(requested)
 }
 
 function refreshUsers() {
@@ -108,9 +127,9 @@ function showUsage(item) {
   void loadUsage(selectedUsage.value?.user_id)
 }
 
-function openOperation(item, kind) {
+function openOperation(item) {
   target.value = item
-  operation.value = kind
+  operation.value = 'choose'
 }
 
 function afterOperation(kind) {
@@ -188,8 +207,7 @@ onMounted(loadUsers)
             <td class="qam-muted">{{ item.period_end ? item.period_end.slice(0, 19).replace('T', ' ') : '—' }}</td>
             <td>
               <div class="qam-row-actions">
-                <button type="button" class="qam-btn" @click="openOperation(item, 'adjust')">调整额度</button>
-                <button type="button" class="qam-btn" @click="openOperation(item, 'subscribe')">开通套餐</button>
+                <button type="button" class="qam-btn" aria-haspopup="dialog" @click="openOperation(item)">操作</button>
                 <button v-if="item.user_id !== currentUserId" type="button" class="qam-btn" @click="openRole(item)">修改角色</button>
                 <button type="button" class="qam-link" :aria-expanded="selectedUsage?.user_id === item.user_id" @click="showUsage(item)">用量</button>
               </div>
@@ -223,9 +241,25 @@ onMounted(loadUsers)
 
     <nav class="qam-pagination" aria-label="额度账户分页">
       <button type="button" class="qam-btn" :disabled="loading || page <= 1" @click="loadUsers(page - 1)">上一页</button>
-      <span role="status">第 {{ page }} 页 / 共 {{ totalPages }} 页</span>
+      <form class="qam-page-form" @submit.prevent="jumpToPage">
+        <label for="quota-page-number">第</label>
+        <input
+          id="quota-page-number"
+          v-model="pageInput"
+          class="qam-input qam-page-input"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          aria-label="当前页码"
+          :aria-invalid="Boolean(pageError)"
+          :aria-describedby="pageError ? 'quota-page-error' : undefined"
+          :disabled="loading"
+        />
+        <span>页 / 共 {{ totalPages }} 页</span>
+      </form>
       <button type="button" class="qam-btn" :disabled="loading || page >= totalPages" @click="loadUsers(page + 1)">下一页</button>
     </nav>
+    <p v-if="pageError" id="quota-page-error" class="qam-error qam-page-error" role="alert">{{ pageError }}</p>
 
     <QuotaOperationDialog
       v-if="target"
@@ -233,6 +267,7 @@ onMounted(loadUsers)
       :username="target.username"
       :operation="operation"
       admin
+      @select="operation = $event"
       @close="operation = ''"
       @saved="afterOperation"
     />
@@ -272,7 +307,11 @@ onMounted(loadUsers)
 .qam-btn { padding: 9px 16px; border: 1px solid #d8dfec; border-radius: 9px; background: #fff; color: #33415f; font-size: 13px; font-weight: 600; cursor: pointer; }
 .qam-btn:hover:not(:disabled) { border-color: #b9c5ff; }
 .qam-btn:disabled { opacity: .6; cursor: default; }
-.qam-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 12px;  }
+.qam-pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.qam-page-form { display: flex; align-items: center; gap: 6px; }
+.qam-page-input { width: 4em; padding: 6px; text-align: center; }
+.qam-page-input[aria-invalid="true"] { border-color: #b42318; }
+.qam-page-error { text-align: right; }
 .qam-btn--primary { border-color: transparent; background: #5b72df; color: #fff; }
 .qam-table-wrap { overflow-x: auto; border: 1px solid #e4e8f2; border-radius: 12px; background: #fff; }
 .qam-table { width: 100%; border-collapse: collapse; font-size: 13px; }

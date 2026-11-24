@@ -1030,11 +1030,19 @@ onBeforeUnmount(() => {
               <span>已用 <strong>{{ formatQuotaMoney(quota.used_cny) }}</strong></span>
             </div>
             <template v-else>
-              <div class="pc-quota-values">
-                <span>剩余 <strong>{{ formatQuotaMoney(quota.remaining_cny) }}</strong></span>
-                <span>总额度 <strong>{{ formatQuotaMoney(quota.allowance_cny) }}</strong></span>
+              <div class="pc-quota-meter">
+                <progress
+                  class="pc-quota-progress"
+                  :value="remainingQuotaPercent"
+                  max="100"
+                  aria-label="剩余额度比例"
+                  aria-describedby="pc-quota-amounts"
+                />
+                <div id="pc-quota-amounts" class="pc-quota-values">
+                  <span>剩余 <strong>{{ formatQuotaMoney(quota.remaining_cny) }}</strong></span>
+                  <span>总额度 <strong>{{ formatQuotaMoney(quota.allowance_cny) }}</strong></span>
+                </div>
               </div>
-              <progress class="pc-quota-progress" :value="remainingQuotaPercent" max="100" aria-label="剩余额度比例" />
               <p class="pc-quota-muted">下次重置：{{ formatQuotaDate(quota.period_end) }}（北京时间）</p>
             </template>
           </template>
@@ -3824,12 +3832,20 @@ onBeforeUnmount(() => {
 .pc-quota-head h2 { margin: 0; font-size: .9rem; }
 .pc-quota-values { margin-top: 5px; font-size: .81rem; color: var(--pc-text-secondary); }
 .pc-quota-values strong { color: var(--pc-text); }
-.pc-quota-progress {
-  display: block;
-  width: 100%;
-  height: 8px;
+.pc-quota-meter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
   margin-top: 6px;
-  accent-color: #456ac7;
+}
+.pc-quota-meter .pc-quota-values { margin: 0; }
+.pc-quota-progress {
+  appearance: none;
+  display: block;
+  flex: 1 1 12rem;
+  min-width: 0;
+  height: 8px;
   overflow: hidden;
   border: 0;
   border-radius: 4px;

@@ -1,6 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { ElDialog } from 'element-plus'
+import 'element-plus/es/components/dialog/style/css'
+import 'element-plus/es/components/button/style/css'
 import { API_PREFIX } from '@/config/api'
 import { getToken } from '@/utils/auth'
 
@@ -10,7 +12,7 @@ const props = defineProps({
   operation: { type: String, default: '' },
   admin: Boolean,
 })
-const emit = defineEmits(['close', 'saved'])
+const emit = defineEmits(['close', 'saved', 'select'])
 const amount = ref('')
 const reason = ref('')
 const planId = ref('')
@@ -20,9 +22,12 @@ const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
 const adjusting = computed(() => props.operation === 'adjust')
-const title = computed(() => adjusting.value
-  ? (props.admin ? '调整额度' : '调整我的额度')
-  : '开通套餐')
+const choosing = computed(() => props.operation === 'choose')
+const title = computed(() => {
+  if (choosing.value) return '额度操作'
+  if (adjusting.value) return props.admin ? '调整额度' : '调整我的额度'
+  return '开通套餐'
+})
 
 async function request(path, body, signal) {
   const response = await fetch(`${API_PREFIX}/billing${path}`, {
@@ -96,14 +101,22 @@ async function submit() {
   <el-dialog
     :model-value="Boolean(operation)"
     :title="title"
+    class="quota-operation-dialog"
     width="min(420px, calc(100vw - 32px))"
+    append-to-body
+    align-center
+    :lock-scroll="false"
     :close-on-click-modal="!saving"
     :close-on-press-escape="!saving"
     :show-close="!saving"
     @update:model-value="!$event && emit('close')"
   >
-    <form class="quota-operation" @submit.prevent="submit">
-      <p v-if="admin && username" class="quota-operation__account">{{ username }}</p>
+    <p v-if="admin && username" class="quota-operation__account">{{ username }}</p>
+    <div v-if="choosing" class="quota-operation__choices">
+      <button class="el-button" type="button" @click="emit('select', 'adjust')">调整额度</button>
+      <button class="el-button" type="button" @click="emit('select', 'subscribe')">开通套餐</button>
+    </div>
+    <form v-else class="quota-operation" @submit.prevent="submit">
       <template v-if="adjusting">
         <label for="quota-adjust-amount">增减金额（元）</label>
         <input id="quota-adjust-amount" v-model="amount" type="number" required step="0.00000001" placeholder="例如 20 或 -5" />
@@ -125,7 +138,8 @@ async function submit() {
       </template>
       <p v-if="error" class="quota-operation__error" role="alert">{{ error }}</p>
       <div class="quota-operation__actions">
-        <button class="el-button" type="button" :disabled="saving" @click="emit('close')">取消</button>
+        <button v-if="admin" class="el-button" type="button" :disabled="saving" @click="emit('select', 'choose')">返回</button>
+        <button v-else class="el-button" type="button" :disabled="saving" @click="emit('close')">取消</button>
         <button class="el-button el-button--primary" type="submit" :disabled="saving || (!adjusting && !planId)">
           {{ saving ? '保存中…' : adjusting ? '保存调整' : '开通套餐' }}
         </button>
@@ -135,6 +149,12 @@ async function submit() {
 </template>
 
 <style scoped>
+:global(.quota-operation-dialog) {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+.quota-operation__choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.quota-operation__choices .el-button { margin-left: 0; }
 .quota-operation { display: grid; gap: 8px; }
 .quota-operation label { color: #344054; font-weight: 600; }
 .quota-operation input, .quota-operation select {
