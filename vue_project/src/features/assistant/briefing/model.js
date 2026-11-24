@@ -8,8 +8,9 @@ export const BRIEFING_SCHEDULE_FORM_DEFAULTS = Object.freeze({
   day_of_week: 0,
   interval_hours: 24,
   enabled: true,
-  report_type: 'brief',
+  report_type: 'periodic_brief',
   time_range: '24h',
+  send_email: false,
   perspective: '综合研判',
   include_sources: true,
   include_charts: false,
@@ -143,6 +144,7 @@ export function normalizeBriefingScheduleDto(row) {
     'perspective',
     'include_sources',
     'include_charts',
+    'send_email',
     'created_at',
     'updated_at',
     'last_run_at',
@@ -218,6 +220,7 @@ export function createBriefingScheduleForm(schedule = null) {
   return {
     title: schedule.title || schedule.topic || '',
     topic: schedule.topic || schedule.title || '',
+    send_email: schedule.send_email ?? null,
     prompt: schedule.prompt || '',
     cadence: schedule.cadence || 'daily',
     timezone: schedule.timezone || 'Asia/Shanghai',
@@ -231,6 +234,29 @@ export function createBriefingScheduleForm(schedule = null) {
     include_sources: schedule.include_sources !== false,
     include_charts: !!schedule.include_charts,
   }
+}
+
+export function createBriefingDraft(value) {
+  if (typeof value?.topic !== 'string' || !value.topic.trim()) return null
+  const draft = createBriefingScheduleForm()
+  for (const [field, limit] of [['topic', 300], ['title', 160], ['prompt', 6000], ['perspective', 100]]) {
+    if (typeof value[field] === 'string' && value[field].trim()) draft[field] = value[field].trim().slice(0, limit)
+  }
+  if (BRIEFING_CADENCE_OPTIONS.some(item => item.value === value.cadence)) draft.cadence = value.cadence
+  if (BRIEFING_TIME_RANGE_OPTIONS.some(item => item.value === value.time_range)) draft.time_range = value.time_range
+  if (typeof value.time_of_day === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value.time_of_day)) draft.time_of_day = value.time_of_day
+  if (typeof value.timezone === 'string' && value.timezone.length <= 80) {
+    try {
+      new Intl.DateTimeFormat('zh-CN', { timeZone: value.timezone })
+      draft.timezone = value.timezone
+    } catch { /* The default remains visible and editable. */ }
+  }
+  if (Number.isInteger(value.day_of_week) && value.day_of_week >= 0 && value.day_of_week <= 6) draft.day_of_week = value.day_of_week
+  if (Number.isInteger(value.interval_hours) && value.interval_hours >= 6 && value.interval_hours <= 720) draft.interval_hours = value.interval_hours
+  for (const field of ['enabled', 'send_email']) {
+    if (typeof value[field] === 'boolean') draft[field] = value[field]
+  }
+  return draft
 }
 
 export function briefingCadenceLabel(value) {
@@ -323,7 +349,7 @@ export function buildBriefingScheduleContext({
 export function buildBriefingSchedulePayload(form, context = {}) {
   const value = form && typeof form === 'object' ? form : BRIEFING_SCHEDULE_FORM_DEFAULTS
   return {
-    title: String(value.title || '').trim() || String(value.topic || '').trim(),
+    title: (String(value.title || '').trim() || String(value.topic || '').trim()).slice(0, 160),
     topic: String(value.topic || '').trim() || String(value.title || '').trim(),
     prompt: String(value.prompt || '').trim(),
     cadence: value.cadence,
@@ -337,6 +363,7 @@ export function buildBriefingSchedulePayload(form, context = {}) {
     perspective: value.perspective || '综合研判',
     include_sources: !!value.include_sources,
     include_charts: !!value.include_charts,
+    send_email: value.send_email ?? null,
     pinned_workspace: context.pinned_workspace || '',
     favorite_context: context.favorite_context || null,
     knowledge_context: context.knowledge_context || null,

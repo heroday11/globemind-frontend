@@ -52,6 +52,7 @@ const ROUTE_TITLES = Object.freeze({
   '/data-service/pipeline-monitor': '管线监控 · GlobeMind',
   '/sentiment-analysis': '涉华舆情分析 · GlobeMind',
   '/data-assistant': '数据助手 · GlobeMind',
+  '/data-assistant/briefings': '定期简报 · GlobeMind',
   '/financial-terminal': '数值分析预警 · GlobeMind',
   '/academic-data': 'Agent 能力与连接卡 · GlobeMind',
   '/research-workspace': '可追溯研究工作台 · GlobeMind',
@@ -331,6 +332,12 @@ const router = createRouter({
     {
       path: '/sentiment-analysis',
       component: routeViewLoaders.sentimentAnalysis,
+      meta: { hideNavbar: false }
+    },
+    {
+      path: '/data-assistant/briefings',
+      name: 'BriefingSchedules',
+      component: () => import('@/views/BriefingSchedules.vue'),
       meta: { hideNavbar: false }
     },
     {

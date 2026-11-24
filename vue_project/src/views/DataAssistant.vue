@@ -1,11 +1,16 @@
 <script setup>
-import { defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { CalendarClock } from 'lucide-vue-next'
+import BriefingForm from '@/features/assistant/briefing/BriefingForm.vue'
+import { createBriefingDraft, buildBriefingSchedulePayload } from '@/features/assistant/briefing/model.js'
+import { createBriefingScheduleService } from '@/features/assistant/briefing/service.js'
 import LoginModal from '@/components/LoginModal.vue'
-import { assistantErrorText } from '@/features/assistant/api.js'
+import { assistantErrorText, createAssistantApi } from '@/features/assistant/api.js'
 import { syncPendingCapabilities } from '@/bootstrap.js'
 import { useDisplayPreferences } from '@/composables/useDisplayPreferences.js'
 import { dshLaunchUrl, isDshFrame } from '@/utils/dshFrame.js'
-import { getToken, clearAuth, getAuthChangedEventName } from '@/utils/auth.js'
+import { getCurrentUser, getToken, clearAuth, getAuthChangedEventName } from '@/utils/auth.js'
 
 const ImageStudio = defineAsyncComponent(() => import('@/features/assistant/ImageStudio.vue'))
 
@@ -36,6 +41,48 @@ let generation = 0
 let frameTimeout = 0
 let launchController
 let syncController
+
+const route = useRoute()
+const briefingService = createBriefingScheduleService(createAssistantApi())
+const briefingDialog = ref(null), briefingDraft = ref(null), savedBriefing = ref(null)
+const briefingBusy = ref(false), briefingError = ref(''), briefingStartError = ref('')
+const briefingEmail = ref('')
+let briefingStartId = '', briefingDraftSession = '', briefingRequestId = ''
+
+function launchBriefingSkill() {
+  if (props.embedded || route.query.skill !== 'create-periodic-briefing' || briefingStartId || !bridge.ready) return
+  briefingStartError.value = ''
+  briefingStartId = crypto.randomUUID()
+  bridgePost('briefing-start', { requestId: briefingStartId })
+}
+async function openBriefingDraft() {
+  await nextTick()
+  if (briefingDraft.value && !briefingDialog.value?.open) briefingDialog.value?.showModal()
+}
+async function saveBriefingDraft() {
+  if (briefingBusy.value || !briefingDraft.value) return
+  briefingBusy.value = true
+  briefingError.value = ''
+  const token = getToken()
+  try {
+    const saved = await briefingService.save(null, {
+      ...buildBriefingSchedulePayload(briefingDraft.value),
+      create_request_id: briefingRequestId,
+    })
+    if (getToken() !== token) return
+    savedBriefing.value = saved
+    briefingDraft.value = null
+    briefingDialog.value?.close()
+  } catch (failure) {
+    if (getToken() === token) briefingError.value = assistantErrorText(failure, '创建定期简报失败')
+  } finally {
+    briefingBusy.value = false
+  }
+}
+watch(() => route.query.skill, () => {
+  briefingStartId = ''
+  launchBriefingSkill()
+})
 
 async function requestDshLaunch(token, signal) {
   const response = await fetch('/api/assistant/dsh-launch', {
@@ -90,14 +137,33 @@ function onBridgeMessage(event) {
     window.clearInterval(bridge.timer)
     bridgeFailed.value = false
     sessionId.value = data.sessionId || ''
+    launchBriefingSkill()
     bridgeStatus.value = '助手已连接，检索会同步到本页'
     if (bridge.context) bridgePost('context', { requestId: bridge.requestId, prompt: bridge.context.prompt })
   } else if (data.type === 'image-job-ack') {
     if (!bridge.imageRequests.has(data.requestId)) return
     bridge.imageRequests.delete(data.requestId)
     imageDelivery.value = data.ok ? '图片任务已发送到助手对话' : '发送到对话失败，可在图片归档中重新发送'
+  } else if (data.type === 'briefing-start-ack' && briefingStartId && data.requestId === briefingStartId) {
+    if (!data.ok) {
+      briefingStartId = ''
+      briefingStartError.value = '未能打开创建对话'
+    }
+  } else if (data.type === 'briefing-draft' && data.sessionId && data.sessionId === sessionId.value && !briefingBusy.value) {
+    const draft = createBriefingDraft(data.draft)
+    if (!draft) return
+    briefingDraftSession = data.sessionId
+    briefingRequestId = crypto.randomUUID()
+    briefingDraft.value = draft
+    briefingEmail.value = getCurrentUser()?.email || ''
+    briefingError.value = ''
+    void openBriefingDraft()
   } else if (data.type === 'session') {
     sessionId.value = data.sessionId
+    if (briefingDraftSession !== sessionId.value && !briefingBusy.value) {
+      briefingDraft.value = null
+      briefingDialog.value?.close()
+    }
   } else if (data.type === 'context-ack' && data.requestId === bridge.requestId) {
     if (data.ok) {
       bridge.context = null
@@ -229,6 +295,10 @@ function reconnect() {
   void loadDsh()
 }
 function authChanged() {
+  briefingStartId = ''
+  briefingDraft.value = null
+  savedBriefing.value = null
+  briefingDialog.value?.close()
   imageDelivery.value = ''
   bridge.imageRequests.clear()
   bridge.ready = false
@@ -263,6 +333,19 @@ onBeforeUnmount(() => {
 <template>
   <!-- The site owns the top navigation; DSH owns all assistant navigation. -->
   <main class="assistant-page" :class="{ 'assistant-page--embedded': props.embedded }" aria-label="数据助手">
+    <div v-if="!props.embedded || briefingDraft || savedBriefing" class="briefing-tools">
+      <RouterLink v-if="!props.embedded" :to="{ name: 'BriefingSchedules' }"><CalendarClock :size="16" aria-hidden="true" />定期简报</RouterLink>
+      <button v-if="briefingDraft" type="button" @click="openBriefingDraft">查看任务草稿</button>
+      <RouterLink v-if="savedBriefing" :to="{ name: 'BriefingSchedules', query: { task: savedBriefing.id } }">已创建 · 查看定期简报</RouterLink>
+      <span v-if="briefingStartError" role="status">{{ briefingStartError }}</span>
+      <button v-if="briefingStartError" type="button" @click="launchBriefingSkill">重试</button>
+    </div>
+    <dialog ref="briefingDialog" class="briefing-dialog" aria-labelledby="briefing-draft-heading"
+      @cancel.prevent="!briefingBusy && briefingDialog.close()">
+      <h2 id="briefing-draft-heading">定期简报任务草稿</h2>
+      <BriefingForm v-if="briefingDraft" v-model="briefingDraft" conversational :email="briefingEmail"
+        :busy="briefingBusy" :error="briefingError" @close="briefingDialog.close()" @submit="saveBriefingDraft" />
+    </dialog>
     <p v-if="props.embedded && bridgeStatus" class="bridge-status" role="status">
       {{ bridgeStatus }}
       <button v-if="bridgeFailed" type="button" @click="reconnect">重新连接</button>
@@ -312,6 +395,13 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: #f6f8fb;
 }
+.briefing-tools { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 6px 14px; border-bottom: 1px solid #dbe3e8; }
+.briefing-tools a, .briefing-tools button { display: inline-flex; align-items: center; gap: 6px; color: #135a72; text-decoration: none; }
+.briefing-tools button { border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; }
+.briefing-tools a:hover, .briefing-tools button:hover { text-decoration: underline; }
+.briefing-dialog { width: min(100% - 24px, 560px); max-height: calc(100dvh - 32px); padding: 20px; border: 1px solid #dbe3e8; border-radius: 8px; }
+.briefing-dialog h2 { margin: 0 0 14px; font-size: 1.15em; font-weight: 650; }
+.briefing-dialog::backdrop { background: #18253066; }
 .assistant-notices { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
 .assistant-notices button { border: 0; background: transparent; color: #1d4ed8; cursor: pointer; text-decoration: underline; }
 .bridge-status { margin: 0; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
