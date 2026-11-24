@@ -30,14 +30,16 @@
 }
 
 .header {
-  padding: 4px clamp(12px, 1.25vw, 24px);
+  --gm-header-search-width: clamp(110px, 7vw, 150px);
+  --gm-header-side-width: calc(250px + var(--gm-header-search-width));
+  padding: 10px clamp(12px, 1.25vw, 24px);
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   height: 64px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: var(--gm-header-side-width) minmax(0, 1fr) var(--gm-header-side-width);
   grid-template-rows: minmax(0, 1fr);
   align-items: center;
   gap: clamp(8px, 0.75vw, 16px);
@@ -51,7 +53,7 @@
 .logo-corner {
   grid-column: 1;
   height: 48px;
-  width: clamp(118px, 10vw, 204px);
+  width: clamp(170px, 14vw, 220px);
   flex: none;
   display: flex;
   align-items: center;
@@ -170,6 +172,7 @@
   display: flex;
   justify-content: center;
   min-width: 0;
+  container-type: inline-size;
 }
 
 .header-actions--right {
@@ -179,13 +182,17 @@
 }
 
 .nav-font-size {
-  --font-size-button-width: clamp(25px, 1.6vw, 30px);
-  --font-size-button-height: 32px;
+  --font-size-button-width: 22px;
+  --font-size-button-height: 28px;
+}
+
+.header .nav-font-size > output {
+  font-size: 11px;
 }
 
 .action-btn.guide-btn {
-  width: 34px;
-  height: 36px;
+  width: 30px;
+  height: 32px;
   padding: 0;
   color: #1d4ed8;
   background: rgba(255, 255, 255, 0.78);
@@ -196,7 +203,8 @@
   display: flex;
   align-items: center;
   max-width: 100%;
-  padding: 4px clamp(8px, 1.2vw, 22px);
+  min-height: 58px;
+  padding: 8px clamp(8px, 1vw, 22px);
   border-radius: 14px;
   border: none;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.5));
@@ -270,9 +278,10 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  width: clamp(100px, 10vw, 164px);
+  width: var(--gm-header-search-width);
+  min-width: 0;
   flex: 0 1 auto;
-  height: 36px;
+  height: 32px;
   padding: 0 4px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -301,8 +310,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 50%;
   cursor: pointer;
@@ -374,7 +383,7 @@
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 0 clamp(8px, 0.85vw, 24px);
+  gap: 0 clamp(8px, 0.58vw, 22px);
   margin: 0;
 }
 
@@ -389,13 +398,13 @@
   color: #334155;
   font-size: 15px;
   font-weight: 600;
-  line-height: 40px;
+  line-height: 42px;
   padding: 0;
   transition:
     color 0.2s ease,
     opacity 0.2s ease;
   white-space: nowrap;
-  display: inline-block;
+  display: block;
 }
 
 .nav-item a:hover {
@@ -475,13 +484,13 @@
   text-decoration: none;
   color: #667eea;
   border: 1px solid rgba(102, 126, 234, 0.55);
-  padding: 0 9px;
+  padding: 0 5px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.55);
-  transition: all 0.25s ease;
-  font-size: 14px;
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+  font-size: 12px;
   font-weight: 700;
-  height: 36px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
@@ -522,8 +531,8 @@
   color: #334155;
   font-size: 15px;
   font-weight: 600;
-  min-height: 40px;
-  line-height: 40px;
+  min-height: 42px;
+  line-height: 42px;
   padding: 0;
   transition: color 0.2s ease;
   text-decoration: none;
@@ -638,7 +647,7 @@
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
 .header-actions > :not(.header-search) {
@@ -652,7 +661,7 @@
   border-radius: 6px;
   cursor: pointer;
   color: #475569;
-  transition: all 0.3s ease;
+  transition: background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -677,7 +686,7 @@
 }
 
 .user-btn {
-  padding: 8px;
+  padding: 6px;
 }
 
 .user-btn:hover {
@@ -688,10 +697,10 @@
 .login-btn {
   background: linear-gradient(135deg, #667eea, #4e67d8);
   color: #fff;
-  padding: 0 10px;
-  font-size: 14px;
+  padding: 0 7px;
+  font-size: 13px;
   font-weight: 700;
-  height: 36px;
+  height: 32px;
   border-radius: 10px;
 }
 
@@ -717,22 +726,55 @@
 
 /* 顶部登录弹窗：覆盖当前页面，背景变暗，登录卡片居中 */
 
-/* Give wrapped links two rows inside the 64px header. */
-@media (min-width: 1024px) and (max-width: 1600px) {
+/* Keep wrapped links inside the original capsule height. */
+@container (width < 960px) {
   .middle {
-    padding-block: 0;
+    padding-block: 2px;
   }
 
   .nav-item a,
   .dropdown-trigger {
-    font-size: 14px;
-    min-height: 28px;
-    line-height: 28px;
+    min-height: 27px;
+    line-height: 27px;
   }
 
   .nav-item .router-link-active::after {
     bottom: 0;
     height: 2px;
+  }
+}
+
+@media (1024px <= width < 1720px) {
+  .header {
+    --gm-header-side-width: 210px;
+  }
+
+  .header-actions {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    gap: 2px 4px;
+  }
+
+  .header-actions :is(.about-us-link, .guide-btn, .header-search, .login-btn, .user-btn) {
+    height: 26px;
+  }
+
+  .nav-font-size {
+    --font-size-button-height: 24px;
+  }
+
+  .header-search {
+    grid-column: span 2;
+    width: 100%;
+  }
+
+  .header-search__submit {
+    width: 20px;
+    height: 20px;
+  }
+
+  .header-actions :is(.login-btn, .user-btn) {
+    justify-self: end;
   }
 }
 
