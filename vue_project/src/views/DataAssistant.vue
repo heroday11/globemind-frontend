@@ -122,8 +122,17 @@ function connectBridge() {
 }
 function onBridgeMessage(event) {
   const data = event.data
-  if (event.origin !== location.origin || event.source !== dshFrame.value?.contentWindow
-      || data?.channel !== BRIDGE_CHANNEL) return
+  if (event.origin !== location.origin || data?.channel !== BRIDGE_CHANNEL) return
+  if (data.type === 'start-briefing-skill') {
+    const briefingFrame = isDshFrame(dshFrame.value)
+      && dshFrame.value.contentDocument.querySelector('iframe[data-globemind-briefing-frame]')
+    if (briefingFrame && event.source === briefingFrame.contentWindow && !briefingStartId) {
+      skillRequested = true
+      launchBriefingSkill()
+    }
+    return
+  }
+  if (event.source !== dshFrame.value?.contentWindow) return
   if (data.type === 'image-studio' && !loading.value && isDshFrame(dshFrame.value)) {
     showImageStudio.value = true
     return
@@ -137,12 +146,6 @@ function onBridgeMessage(event) {
     return
   }
   if (data.nonce !== bridgeNonce.value) return
-  if (data.type === 'start-briefing-skill' && bridge.ready && isDshFrame(dshFrame.value)) {
-    skillRequested = true
-    briefingStartId = ''
-    launchBriefingSkill()
-    return
-  }
   if (data.type === 'ready') {
     bridge.ready = true
     for (const request of bridge.imageRequests.values()) bridgePost('image-job', request)
@@ -161,10 +164,9 @@ function onBridgeMessage(event) {
     bridge.imageRequests.delete(data.requestId)
     imageDelivery.value = data.ok ? '图片任务已发送到助手对话' : '发送到对话失败，可在图片归档中重新发送'
   } else if (data.type === 'briefing-start-ack' && briefingStartId && data.requestId === briefingStartId) {
-    if (!data.ok) {
-      briefingStartId = ''
-      briefingStartError.value = '未能打开创建对话'
-    }
+    briefingStartId = ''
+    if (data.ok) skillRequested = false
+    else briefingStartError.value = '未能打开创建对话'
   } else if (data.type === 'briefing-draft' && data.sessionId && data.sessionId === sessionId.value && !briefingBusy.value) {
     const draft = createBriefingDraft(data.draft)
     if (!draft) return
@@ -261,6 +263,7 @@ async function loadDsh() {
   capabilitySyncFailed.value = false
   bridge.ready = false
   openedBriefings = false
+  briefingStartId = ''
   clearFrameTimeout()
   window.clearInterval(bridge.timer)
   bridgeFailed.value = false

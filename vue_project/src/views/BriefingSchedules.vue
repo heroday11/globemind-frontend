@@ -1,7 +1,7 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { CalendarClock, MessageCircle, Plus } from 'lucide-vue-next'
+import { CalendarClock, Ellipsis, MessageCircle, Plus, X } from 'lucide-vue-next'
 import { createAssistantApi, assistantErrorText } from '@/features/assistant/api.js'
 import { createBriefingScheduleForm, buildBriefingSchedulePayload, briefingCadenceLabel } from '@/features/assistant/briefing/model.js'
 import { createBriefingScheduleService } from '@/features/assistant/briefing/service.js'
@@ -26,6 +26,10 @@ const dialog = ref(null)
 const busy = ref(false)
 const working = ref('')
 const selected = ref('')
+const moreMenu = ref('')
+const reportDialog = ref(null)
+const report = ref(null)
+const reportError = ref('')
 let generation = 0
 let createRequestId = ''
 
@@ -64,6 +68,9 @@ watch([() => route.query.task, loading], ([id, pending]) => {
 function authChanged() {
   form.value = null
   dialog.value?.close()
+  reportDialog.value?.close()
+  report.value = null
+  moreMenu.value = ''
   showLogin.value = false
   schedules.value = []
   void load()
@@ -113,6 +120,7 @@ async function save() {
 
 async function rowAction(row, action) {
   if (working.value) return
+  moreMenu.value = ''
   working.value = row.id
   actionError.value = ''
   const token = getToken()
@@ -131,7 +139,7 @@ function toggle(row) {
 }
 
 function startBriefingSkill() {
-  window.parent.postMessage({ channel: 'globemind-page-v1', type: 'start-briefing-skill' }, location.origin)
+  window.top.postMessage({ channel: 'globemind-page-v1', type: 'start-briefing-skill' }, location.origin)
 }
 
 function remove(row) {
@@ -141,13 +149,36 @@ function remove(row) {
 }
 
 async function openReport(row) {
+  if (working.value || !row.last_file?.file_name) return
   const file = row.last_file
   const token = getToken()
-  await rowAction(row, async () => {
+  moreMenu.value = ''
+  working.value = row.id
+  reportError.value = ''
+  report.value = { title: row.title, file, content: '' }
+  reportDialog.value?.showModal()
+  try {
+    const response = await api.readWorkspaceFile(file.workspace, file.file_name)
+    if (getToken() === token && reportDialog.value?.open) report.value.content = response.data?.content || ''
+  } catch (failure) {
+    if (getToken() === token) reportError.value = assistantErrorText(failure, '读取简报失败')
+  } finally {
+    working.value = ''
+  }
+}
+
+async function downloadReport() {
+  const file = report.value?.file
+  if (!file) return
+  const token = getToken()
+  reportError.value = ''
+  try {
     const response = await api.downloadWorkspaceFile(file.workspace, file.file_name)
     const blob = await response.blob()
     if (getToken() === token) triggerBrowserDownload(blob, file.file_name)
-  })
+  } catch (failure) {
+    if (getToken() === token) reportError.value = assistantErrorText(failure, '下载简报失败')
+  }
 }
 
 function formatTime(value, timeZone) {
@@ -163,58 +194,59 @@ function formatTime(value, timeZone) {
 </script>
 
 <template>
-  <main class="briefings">
-
-    <header>
-      <h1>定期简报</h1>
-      <div v-if="signedIn && (schedules.length || error)" class="entries">
-        <button class="primary" type="button" @click="openForm()"><Plus :size="18" aria-hidden="true" />新建定期简报</button>
-        <button type="button" class="secondary" @click="startBriefingSkill"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</button>
-      </div>
-    </header>
-
-    <p v-if="loading" role="status">正在加载定期简报…</p>
-    <div v-else-if="error" role="alert"><p>{{ error }}</p><button type="button" class="secondary" @click="load">重试</button></div>
-    <template v-else>
-      <template v-if="!schedules.length">
-        <div class="intro">
+  <main class="briefings" @click="moreMenu = ''" @keydown.esc="moreMenu = ''">
+    <header class="creation" :class="{ compact: schedules.length }">
+      <CalendarClock class="calendar-icon" :size="26" aria-hidden="true" />
+      <div class="creation-copy">
+        <h1>{{ !loading && !error && !schedules.length ? '创建第一份定期简报' : '创建定期简报' }}</h1>
+        <div v-if="!loading && !error && !schedules.length" class="intro">
           <p>选一个想持续关注的话题，数据助手会定时调查，生成不超过200字的简报，保存到你的简报目录。</p>
           <p>例如，每天早上8:30跟踪全球半导体出口管制，了解过去24小时的新变化。</p>
         </div>
-        <section class="empty">
-          <CalendarClock :size="28" aria-hidden="true" />
-          <h2>创建第一份定期简报</h2>
-          <div v-if="signedIn" class="entries">
-            <button class="primary" type="button" @click="openForm()"><Plus :size="18" aria-hidden="true" />新建定期简报</button>
-            <button type="button" class="secondary" @click="startBriefingSkill"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</button>
-          </div>
-          <button v-else type="button" class="primary" @click="showLogin = true">登录后创建</button>
-        </section>
-      </template>
+        <div v-if="signedIn" class="entries">
+          <button class="primary" type="button" @click="openForm()"><Plus :size="17" aria-hidden="true" />新建定期简报</button>
+          <button class="secondary" type="button" @click="startBriefingSkill"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</button>
+        </div>
+        <button v-else-if="!loading" type="button" class="primary" @click="showLogin = true">登录后创建</button>
+      </div>
+    </header>
+
+    <section class="task-section" aria-labelledby="briefing-tasks-heading">
+      <h2 id="briefing-tasks-heading">简报任务<span v-if="!loading && !error"> · {{ schedules.length }} 项</span></h2>
+      <p v-if="loading" class="list-message" role="status">正在加载定期简报…</p>
+      <div v-else-if="error" class="list-message" role="alert"><p>{{ error }}</p><button type="button" class="secondary" @click="load">重试</button></div>
+      <p v-else-if="!schedules.length" class="list-message">暂无定期简报</p>
       <template v-else>
         <p v-if="actionError && !dialog?.open" role="alert">{{ actionError }}</p>
-        <ul class="tasks" aria-label="简报任务">
+        <div class="task-columns" aria-hidden="true"><span>主题</span><span>执行周期</span><span>启用状态</span><span>下次运行时间</span><span>操作</span></div>
+        <ul class="tasks">
           <li v-for="row in schedules" :id="`briefing-${row.id}`" :key="row.id" tabindex="-1" :class="{ selected: row.id === selected }">
-            <div class="task-heading">
-              <h2>{{ row.title }}</h2>
-              <span :class="row.enabled ? 'on' : 'off'">{{ row.enabled ? '已启用' : '已暂停' }}</span>
+            <div class="topic">
+              <h3>{{ row.topic || row.title }}</h3>
+              <p v-if="row.title && row.topic && row.topic !== row.title">{{ row.title }}</p>
             </div>
-            <p v-if="row.topic !== row.title" class="topic-line">{{ row.topic }}</p>
-            <dl>
-              <div><dt>频率</dt><dd>{{ briefingCadenceLabel(row.cadence) }}</dd></div>
-              <div><dt>下次运行</dt><dd>{{ row.enabled ? formatTime(row.next_run_at, row.timezone) : '—' }}</dd></div>
-              <div><dt>最近简报</dt><dd>{{ row.last_file ? formatTime(row.last_file.created_at || row.last_run_at, row.timezone) : '尚未生成' }}</dd></div>
-            </dl>
+            <div class="task-cell"><span class="mobile-label">执行周期</span>{{ briefingCadenceLabel(row.cadence) }}</div>
+            <div class="task-cell"><span class="mobile-label">启用状态</span><span :class="row.enabled ? 'on' : 'off'">{{ row.enabled ? '已启用' : '已暂停' }}</span></div>
+            <div class="task-cell"><span class="mobile-label">下次运行时间</span>{{ row.enabled ? formatTime(row.next_run_at, row.timezone) : '—' }}</div>
             <div class="row-actions">
-              <button v-if="row.last_file?.file_name" class="secondary" type="button" :disabled="Boolean(working)" @click="openReport(row)">下载最近简报</button>
-              <button class="secondary" type="button" :disabled="Boolean(working)" @click="openForm(row)">编辑</button>
-              <button class="secondary" type="button" :disabled="Boolean(working)" @click="toggle(row)">{{ row.enabled ? '暂停' : '启用' }}</button>
-              <button class="secondary" type="button" :disabled="Boolean(working) || row.last_status === 'running'" @click="rowAction(row, () => service.run(row.id))">立即执行</button>
-              <button class="secondary" type="button" :disabled="Boolean(working)" @click="remove(row)">删除</button>
+              <button class="action-link" type="button" :disabled="!row.last_file?.file_name || Boolean(working)"
+                :title="row.last_file?.file_name ? undefined : '尚未生成简报'" @click="openReport(row)">查看简报</button>
+              <div class="more" @click.stop>
+                <button class="action-link" type="button" :aria-expanded="moreMenu === row.id" :aria-controls="`actions-${row.id}`"
+                  :disabled="Boolean(working)" @click="moreMenu = moreMenu === row.id ? '' : row.id">
+                  <Ellipsis :size="16" aria-hidden="true" />更多
+                </button>
+                <div v-if="moreMenu === row.id" :id="`actions-${row.id}`" class="more-actions">
+                  <button type="button" @click="moreMenu = ''; openForm(row)">编辑</button>
+                  <button type="button" @click="toggle(row)">{{ row.enabled ? '暂停' : '启用' }}</button>
+                  <button type="button" :disabled="row.last_status === 'running'" @click="rowAction(row, () => service.run(row.id))">立即执行</button>
+                  <button type="button" class="destructive" @click="moreMenu = ''; remove(row)">删除</button>
+                </div>
+              </div>
             </div>
           </li>
         </ul>
-        <details>
+        <details class="help">
           <summary>使用说明</summary>
           <div class="intro">
             <p>选一个想持续关注的话题，数据助手会定时调查，生成不超过200字的简报，保存到你的简报目录。</p>
@@ -222,12 +254,22 @@ function formatTime(value, timeZone) {
           </div>
         </details>
       </template>
-    </template>
+    </section>
 
     <dialog ref="dialog" aria-labelledby="briefing-form-heading" @cancel.prevent="!busy && dialog.close()" @close="form = null">
       <h2 id="briefing-form-heading">{{ editing ? '编辑定期简报' : '新建定期简报' }}</h2>
       <BriefingForm v-if="form" v-model="form" :editing="Boolean(editing)" :email="email" :busy="busy" :error="actionError"
         @close="dialog.close()" @submit="save" />
+    </dialog>
+    <dialog ref="reportDialog" class="report-dialog" aria-labelledby="briefing-report-heading" @close="report = null">
+      <header class="report-heading">
+        <h2 id="briefing-report-heading">{{ report?.title }}</h2>
+        <button class="action-link" type="button" aria-label="关闭简报" title="关闭简报" @click="reportDialog.close()"><X :size="20" aria-hidden="true" /></button>
+      </header>
+      <p v-if="reportError" role="alert">{{ reportError }}</p>
+      <p v-else-if="working && !report?.content" role="status">正在读取简报…</p>
+      <pre v-else-if="report?.content">{{ report.content }}</pre>
+      <button v-if="report" class="secondary" type="button" @click="downloadReport">下载简报</button>
     </dialog>
     <LoginModal :visible="showLogin" @close="showLogin = false" />
   </main>
@@ -236,37 +278,73 @@ function formatTime(value, timeZone) {
 <style scoped>
 .briefings {
   --briefing-accent: #135a72; --briefing-muted: #526575; --briefing-muted-bg: #f2f6f8;
-  width: min(100% - 36px, 1060px); margin: 0 auto; padding: 12px 0 36px;
+  width: min(100% - 36px, 1060px); margin: 0 auto; padding: 18px 0 36px;
   color: var(--text-primary, #1d2932);
 }
-details summary { color: var(--briefing-accent); cursor: pointer; }
-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 13px 0 18px; }
-h1 { font-size: 1.75em; font-weight: 680; margin: 0; }
-h2 { font-size: 1.1em; font-weight: 650; margin: 0; overflow-wrap: anywhere; }
-.entries, .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.primary, .secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 13px; border-radius: 6px; border: 1px solid transparent; text-decoration: none; cursor: pointer; font: inherit; }
+.creation { display: flex; align-items: start; gap: 12px; padding: 10px 0 25px; }
+.creation.compact { padding: 4px 0 18px; }
+.creation-copy { flex: 1; min-width: 0; }
+.calendar-icon { flex: none; margin-top: 3px; color: var(--briefing-accent); }
+h1, h2, h3 { margin: 0; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
+h1 { font-size: 1.5em; }
+h2 { font-size: 1.1em; }
+h3 { font-size: 1em; }
+.entries { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.primary, .secondary, .action-link {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px;
+  padding: 6px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; font: inherit;
+}
 .primary { background: var(--briefing-accent); color: white; }
 .secondary { border-color: #cdd6df; color: var(--briefing-accent); background: transparent; }
-.secondary:disabled { opacity: .55; cursor: default; }
-.intro { max-width: 46em; line-height: 1.75; }
-.intro p { margin: 0 0 8px; }
-.empty { display: grid; justify-items: start; gap: 12px; border-top: 1px solid #dbe3e8; padding: 24px 0; margin-top: 22px; }
-.empty > svg { color: var(--briefing-accent); }
-.tasks { padding: 0; margin: 0 0 18px; list-style: none; }
-.tasks li { padding: 15px 12px; border-top: 1px solid #dbe3e8; }
-.tasks li:last-child { border-bottom: 1px solid #dbe3e8; }
+.action-link { padding-inline: 4px; background: transparent; color: var(--briefing-accent); }
+.action-link:hover:not(:disabled) { background: var(--briefing-muted-bg); }
+button:disabled { opacity: .55; cursor: default; }
+.intro { max-width: 46em; color: var(--briefing-muted); line-height: 1.65; margin-top: 8px; }
+.intro p { margin: 0 0 4px; }
+.task-section { border-top: 1px solid #dbe3e8; }
+.task-section > h2 { padding: 14px 0; }
+.task-section > h2 span { color: var(--briefing-muted); font-weight: 450; }
+.list-message { margin: 0; padding: 16px 0; border-top: 1px solid #dbe3e8; color: var(--briefing-muted); }
+.task-columns, .tasks li {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, .9fr) minmax(0, .85fr) minmax(0, 1.3fr) max-content;
+  align-items: center; gap: 12px; padding: 10px 8px; border-top: 1px solid #dbe3e8;
+}
+.task-columns { color: var(--briefing-muted); font-size: .85em; }
+.task-columns span:last-child { min-width: 115px; text-align: right; }
+.tasks { padding: 0; margin: 0 0 14px; list-style: none; border-bottom: 1px solid #dbe3e8; }
 .tasks .selected { background: var(--briefing-muted-bg); }
-.task-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
-.on, .off { font-size: .85em; }
+.topic p { margin: 3px 0 0; color: var(--briefing-muted); font-size: .85em; overflow-wrap: anywhere; }
+.task-cell, .row-actions { font-size: .875em; overflow-wrap: anywhere; }
+.mobile-label { display: none; }
 .on { color: #17623d; }
-.off, .topic-line, dt { color: var(--briefing-muted); }
-.topic-line { margin: 4px 0 0; overflow-wrap: anywhere; }
-dl { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 9px 0 12px; font-size: .9em; }
-dl div { display: flex; flex-wrap: wrap; gap: 6px; }
-dd { margin: 0; }
-.row-actions { font-size: .875em; }
-details .intro { margin-top: 8px; }
-dialog { width: min(100% - 24px, 560px); max-height: calc(100dvh - 32px); padding: 20px; border: 1px solid #dbe3e8; border-radius: 8px; color: inherit; }
+.off { color: var(--briefing-muted); }
+.row-actions { display: flex; justify-content: end; gap: 4px; min-width: 115px; }
+.more { position: relative; }
+.more-actions {
+  position: absolute; z-index: 2; right: 0; top: 100%; display: grid; min-width: 106px;
+  padding: 4px; border: 1px solid #dbe3e8; border-radius: 6px; background: #fff; box-shadow: 0 4px 12px #1825301f;
+}
+.more-actions button { padding: 7px 9px; border: 0; background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.more-actions button:hover:not(:disabled) { background: var(--briefing-muted-bg); }
+.more-actions .destructive { color: #a42323; }
+.help summary { color: var(--briefing-accent); cursor: pointer; }
+dialog {
+  position: fixed; inset: 0; margin: auto; width: min(100% - 24px, 560px); height: fit-content;
+  max-height: calc(100% - 24px); max-height: calc(100dvh - 24px); overflow: auto; overscroll-behavior: contain;
+  box-sizing: border-box; padding: 20px; border: 1px solid #dbe3e8; border-radius: 8px; color: inherit;
+}
 dialog h2 { margin-bottom: 14px; }
 dialog::backdrop { background: #18253066; }
+.report-dialog { width: min(100% - 24px, 720px); }
+.report-heading { display: flex; gap: 12px; align-items: start; justify-content: space-between; }
+.report-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0 0 16px; }
+@media (max-width: 680px) {
+  .task-columns { display: none; }
+  .tasks li { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px 8px; padding: 10px 0; }
+  .topic, .row-actions { grid-column: 1 / -1; }
+  .mobile-label { display: block; color: var(--briefing-muted); font-size: .9em; }
+  .creation { gap: 8px; }
+  .entries { margin-left: -34px; }
+  .entries button { font-size: .85em; padding-inline: 7px; }
+}
 </style>
