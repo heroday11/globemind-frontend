@@ -316,14 +316,6 @@ onBeforeUnmount(() => {
 .assistant-notices button { border: 0; background: transparent; color: #1d4ed8; cursor: pointer; text-decoration: underline; }
 .bridge-status { margin: 0; padding: 5px 10px; font-size: 12px; color: #345579; background: #edf4ff; }
 .assistant-page--embedded .dsh-frame { flex: 1 1 0; height: 0; }
-/* The iframe viewport also drives the responsive layouts of the assistant's subpages. */
-@media (min-width: 1366px) {
-  .assistant-page:not(.assistant-page--embedded) {
-    max-width: 1366px;
-    max-height: 704px;
-    margin-inline: auto;
-  }
-}
 .dsh-frame {
   flex: 1;
   min-height: 0;
