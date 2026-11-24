@@ -503,15 +503,15 @@ function handleMouseMove(e) {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  gap: 3px;
-  width: 82px;
-  padding: 6px 0;
+  gap: 6px;
+  width: 112px;
+  padding: 10px 0;
   border-radius: 999px;
   background: #327df8;
   color: #fff;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 16px;
+  line-height: 24px;
   transition: background 0.3s ease;
 }
 
@@ -521,6 +521,8 @@ function handleMouseMove(e) {
 }
 
 .card-cta-arrow {
+  width: 20px;
+  height: 20px;
   transition: transform 0.3s ease;
 }
 
