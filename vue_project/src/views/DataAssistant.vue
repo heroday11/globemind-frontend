@@ -1,6 +1,6 @@
 <script setup>
 import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { CalendarClock } from 'lucide-vue-next'
 import BriefingForm from '@/features/assistant/briefing/BriefingForm.vue'
 import { createBriefingDraft, buildBriefingSchedulePayload } from '@/features/assistant/briefing/model.js'
@@ -43,6 +43,7 @@ let launchController
 let syncController
 
 const route = useRoute()
+const router = useRouter()
 const briefingService = createBriefingScheduleService(createAssistantApi())
 const briefingDialog = ref(null), briefingDraft = ref(null), savedBriefing = ref(null)
 const briefingBusy = ref(false), briefingError = ref(''), briefingStartError = ref('')
@@ -131,6 +132,10 @@ function onBridgeMessage(event) {
     return
   }
   if (data.nonce !== bridgeNonce.value) return
+  if (data.type === 'open-briefings' && bridge.ready && isDshFrame(dshFrame.value)) {
+    void router.push({ name: 'BriefingSchedules' })
+    return
+  }
   if (data.type === 'ready') {
     bridge.ready = true
     for (const request of bridge.imageRequests.values()) bridgePost('image-job', request)
@@ -364,6 +369,7 @@ onBeforeUnmount(() => {
       :inert="loading"
       :aria-hidden="loading"
       data-globemind-assistant
+      data-globemind-briefings
       :data-globemind-drawer="props.embedded ? '' : undefined"
       :src="frameUrl"
       title="GlobeMind 数据助手"

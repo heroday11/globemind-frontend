@@ -130,6 +130,12 @@ function toggle(row) {
   return rowAction(row, () => service.save(row.id, buildBriefingSchedulePayload({ ...createBriefingScheduleForm(row), enabled: !row.enabled }, row)))
 }
 
+function remove(row) {
+  if (window.confirm(`删除定期简报「${row.title}」？`)) {
+    void rowAction(row, () => service.remove(row.id))
+  }
+}
+
 async function openReport(row) {
   const file = row.last_file
   const token = getToken()
@@ -157,7 +163,7 @@ function formatTime(value, timeZone) {
     <RouterLink class="back" to="/data-assistant">返回数据助手</RouterLink>
     <header>
       <h1>定期简报</h1>
-      <div v-if="signedIn && schedules.length" class="entries">
+      <div v-if="signedIn && (schedules.length || error)" class="entries">
         <button class="primary" type="button" @click="openForm()"><Plus :size="18" aria-hidden="true" />新建定期简报</button>
         <RouterLink class="secondary" :to="{ name: 'DataAssistant', query: { skill: 'create-periodic-briefing' } }"><MessageCircle :size="16" aria-hidden="true" />与助手对话创建</RouterLink>
       </div>
@@ -199,6 +205,8 @@ function formatTime(value, timeZone) {
               <button v-if="row.last_file?.file_name" class="secondary" type="button" :disabled="Boolean(working)" @click="openReport(row)">下载最近简报</button>
               <button class="secondary" type="button" :disabled="Boolean(working)" @click="openForm(row)">编辑</button>
               <button class="secondary" type="button" :disabled="Boolean(working)" @click="toggle(row)">{{ row.enabled ? '暂停' : '启用' }}</button>
+              <button class="secondary" type="button" :disabled="Boolean(working) || row.last_status === 'running'" @click="rowAction(row, () => service.run(row.id))">立即执行</button>
+              <button class="secondary" type="button" :disabled="Boolean(working)" @click="remove(row)">删除</button>
             </div>
           </li>
         </ul>
