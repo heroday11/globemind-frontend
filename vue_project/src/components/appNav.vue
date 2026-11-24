@@ -54,7 +54,7 @@ const mobileDrawerClose = ref(null)
 // 移动端子菜单展开
 const mobileExpandedMenus = ref({})
 
-const mobileLayout = window.matchMedia('(max-width: 1200px)')
+const mobileLayout = window.matchMedia('(width < 1024px)')
 
 function handleMobileLayoutChange(event) {
   if (!event.matches) void closeMobileMenu({ restoreFocus: false })
