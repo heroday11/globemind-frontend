@@ -27,7 +27,11 @@ const fontSizeLabel = computed(() => {
     '-1': '较小',
     1: '稍大',
     2: '较大',
-    3: '最大',
+    3: '大',
+    4: '更大',
+    5: '特大',
+    6: '超大',
+    7: '最大',
   }
   return labels[offset]
 })

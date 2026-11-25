@@ -62,7 +62,7 @@ output {
   place-items: center;
   inline-size: var(--font-size-button-height, 36px);
   block-size: var(--font-size-button-height, 36px);
-  background: #f8fafc;
+  background: var(--font-size-readout-background, #f8fafc);
   font-size: .6875rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

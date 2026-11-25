@@ -183,7 +183,8 @@
 
 .nav-font-size {
   --font-size-button-width: 22px;
-  --font-size-button-height: 32px;
+  --font-size-button-height: 30px;
+  --font-size-readout-background: transparent;
   --gm-header-readout-size: 10px;
 }
 
@@ -1222,4 +1223,38 @@ a.mobile-nav-item.router-link-active,
   .logo-img {
     height: 32px;
   }
+}
+
+.header-actions--right > :is(.nav-font-size, .about-us-link, .header-search, .guide-btn, .user-btn) {
+  height: 32px;
+  border: 1px solid var(--header-control-border, #cbd5e1);
+  border-radius: 8px;
+  background: var(--header-control-background, rgba(255, 255, 255, 0.82));
+  box-shadow: none;
+}
+
+.header-showcase {
+  --header-control-border: rgba(148, 197, 255, 0.36);
+  --header-control-background: rgba(1, 8, 40, 0.55);
+}
+
+.header-showcase .header-actions--right > :is(.nav-font-size, .about-us-link, .guide-btn, .user-btn) {
+  color: #e2e8f0;
+}
+
+.header-actions--right > :is(.about-us-link, .guide-btn, .user-btn):hover,
+.header-actions--right > .about-us-link.router-link-active {
+  border-color: #7ba2df;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.header-actions--right > .header-search:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.header-actions--right > .user-btn {
+  width: 32px;
+  padding: 0;
 }

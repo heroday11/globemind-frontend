@@ -40,7 +40,7 @@ test('display preferences normalize user input and isolate storage by account', 
 
   assert.deepEqual(
     normalizeDisplayPreferences({ fontFamily: 'serif', fontSizeOffset: 99, lineHeight: 'relaxed' }),
-    { version: 1, fontFamily: 'serif', fontSizeOffset: 3, lineHeight: 'relaxed' },
+    { version: 1, fontFamily: 'serif', fontSizeOffset: 7, lineHeight: 'relaxed' },
   )
   assert.deepEqual(normalizeDisplayPreferences({ fontFamily: 'unknown', fontSizeOffset: 'bad' }), {
     ...DEFAULT_DISPLAY_PREFERENCES,
