@@ -267,12 +267,12 @@ function handleMouseMove(e) {
   z-index: 1;
   width: 100%;
   max-width: 1280px;
-  padding: 0 32px;
+  padding: clamp(3rem, 9svh, 6rem) 32px;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   opacity: 0;
   transform: translateY(20px);
   transition:
@@ -292,7 +292,7 @@ function handleMouseMove(e) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: clamp(2.5rem, 7.5svh, 5rem) 0 1.5rem;
+  margin: 0 0 1.5rem;
   text-align: center;
 }
 
@@ -331,7 +331,6 @@ function handleMouseMove(e) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
   width: 100%;
-  margin-bottom: 32px;
 }
 
 @media (max-width: 860px) {
@@ -576,11 +575,8 @@ function handleMouseMove(e) {
   }
 
   .home-content {
-    padding: 0 16px;
-  }
-
-  .hero {
-    margin-top: clamp(2rem, 5.25svh, 3.25rem);
+    padding-block: clamp(2.5rem, 6.5svh, 4rem);
+    padding-inline: 16px;
   }
 
   .hero-title {
@@ -599,7 +595,6 @@ function handleMouseMove(e) {
 
   .bento {
     gap: 20px;
-    margin-bottom: 28px;
   }
 
   .card {
@@ -642,7 +637,7 @@ function handleMouseMove(e) {
   }
 
   .home-content {
-    padding: 0 12px;
+    padding-inline: 12px;
   }
 
   .hero-title {
