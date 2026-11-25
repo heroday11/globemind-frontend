@@ -191,7 +191,7 @@ function openNewUserGuide() {
 
 @media (min-width: 1100px) {
   .uc-main--personal {
-    margin-inline: var(--uc-sidebar-width);
+    margin-inline: calc(var(--uc-sidebar-width) + 32px) calc(var(--uc-sidebar-width) - 32px);
   }
 }
 
