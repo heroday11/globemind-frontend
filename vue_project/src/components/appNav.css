@@ -738,11 +738,12 @@
 
 @media (1180px <= width < 1360px) {
   .header {
+    --header-nav-font-size: 14px;
     --gm-header-search-width: clamp(66px, calc(12vw - 57px), 76px);
   }
 
   .nav-list {
-    column-gap: 4px;
+    column-gap: 3px;
   }
 
   .header-actions {
