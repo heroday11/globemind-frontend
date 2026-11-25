@@ -23,11 +23,10 @@ const baseSettingsTabs = Object.freeze([
   { id: 'basic-info', label: '基本资料' },
   { id: 'password', label: '修改密码' },
   { id: 'security', label: '登录安全' },
-  { id: 'api-config', label: 'API 配置' },
   { id: 'assistant-memory', label: '助手记忆' },
   { id: 'privacy', label: '隐私权利' },
   { id: 'display', label: '显示设置' },
-  { id: 'report-delivery', label: '报告投递' },
+  { id: 'report-delivery', label: '通知与投递' },
 ])
 const currentUserId = ref(Number(getCurrentUser()?.id) || 0)
 const accountRole = ref(getCurrentUser()?.role || 'user')
@@ -65,7 +64,6 @@ const mfaConfirmCode = ref('')
 const disableMode = ref('totp')
 const disableForm = reactive({ password: '', code: '', recovery_code: '' })
 let securityLoadGeneration = 0
-const savingApi = ref(false)
 const memoryLoading = ref(false)
 const clearingMemory = ref(false)
 const privacyLoading = ref(false)
@@ -73,9 +71,6 @@ const exportingPersonalData = ref(false)
 const creatingDeletionRequest = ref(false)
 const cancellingDeletionRequestId = ref('')
 const deletionRequests = ref([])
-const deletionPlanLoading = ref(false)
-const deletionPlan = ref(null)
-const deletionPlanError = ref('')
 const deletionForm = reactive({ password: '', acknowledgement: '' })
 const activeTab = ref(normalizeSettingsTab(route.query.tab))
 const activeTabIndex = computed(() =>
@@ -83,33 +78,6 @@ const activeTabIndex = computed(() =>
     0,
     settingsTabs.value.findIndex((tab) => tab.id === activeTab.value),
   ),
-)
-const deletionDispositionLabels = Object.freeze({
-  delete: '计划删除',
-  anonymize: '计划匿名化',
-  retain: '计划保留',
-  review_required: '需要复核',
-  unavailable: '范围不可用',
-})
-const deletionPlanSummary = computed(() => {
-  const summary = deletionPlan.value?.disposition_summary
-  if (!summary || typeof summary !== 'object') return []
-  return Object.keys(deletionDispositionLabels).map((disposition) => {
-    const item = summary[disposition] || {}
-    return {
-      disposition,
-      label: deletionDispositionLabels[disposition],
-      scopes: Number(item.scope_count) || 0,
-      records: Number(item.exact_record_count) || 0,
-      unavailable: Number(item.unavailable_scope_count) || 0,
-    }
-  })
-})
-const deletionPlanItems = computed(() =>
-  Array.isArray(deletionPlan.value?.impact_items) ? deletionPlan.value.impact_items : [],
-)
-const deletionPlanBlockers = computed(() =>
-  Array.isArray(deletionPlan.value?.external_blockers) ? deletionPlan.value.external_blockers : [],
 )
 const formData = reactive({ full_name: '', email: '', phone: '' })
 const profile = reactive({
@@ -130,124 +98,6 @@ const remainingQuotaPercent = computed(() => {
 })
 const passwordForm = reactive({ old_password: '', new_password: '', confirm_password: '' })
 const assistantMemory = reactive({ memory_summary: '', updated_at: '', created_at: '' })
-const apiConfig = reactive({
-  active_provider: '',
-  default_model: '',
-  base_url: '',
-})
-const apiKeyStatus = reactive({})
-const apiKeysToClear = ref([])
-const advancedApiKeysDraft = ref('')
-const apiDraft = reactive({
-  api_key: '',
-})
-const imageApiDraft = reactive({
-  backend: 'openai',
-  api_key: '',
-  base_url: '',
-  model: 'gpt-image-2',
-})
-const showRawApiJson = ref(false)
-const imageBackendOptions = [
-  { value: 'openai', label: 'OpenAI-compatible / gpt-image-2' },
-  { value: 'qwen', label: 'Qwen / DashScope' },
-]
-const imageBackendTemplates = {
-  openai: {
-    model: 'gpt-image-2',
-    baseLabel: 'OpenAI-compatible API 地址（可选）',
-    basePlaceholder: 'https://img-cn.65535.space/v1',
-    help: '填写兼容 OpenAI Images API 的 /v1 地址；留空时使用平台公共 65535 图片账号。',
-  },
-  qwen: {
-    model: 'qwen-image-plus',
-    baseLabel: 'DashScope API 地址（可选）',
-    basePlaceholder: 'https://your-workspace.cn-beijing.maas.aliyuncs.com/api/v1',
-    help: '填 DashScope 原生地址，不要填 OpenAI 兼容地址；系统会自动补齐文生图 generation 路径。',
-  },
-}
-const providerOptions = [
-  { value: 'deepseek', label: 'DeepSeek', badge: '推荐' },
-  { value: 'hermes', label: 'Hermes', badge: '助手' },
-  { value: 'openai', label: 'OpenAI', badge: '兼容' },
-  { value: 'anthropic', label: 'Anthropic', badge: '兼容' },
-  { value: 'custom', label: '自定义', badge: '高级' },
-]
-const providerTemplates = {
-  deepseek: {
-    title: 'DeepSeek OpenAI 兼容模板',
-    desc: '适合直接驱动数据助手，保存后下一次提问立即使用。',
-    keyName: 'deepseek',
-    keyLabel: 'DeepSeek API Key（可选）',
-    keyPlaceholder: '留空使用公共 DeepSeek Flash',
-    baseUrl: 'https://api.deepseek.com',
-    anthropicBaseUrl: 'https://api.deepseek.com/anthropic',
-    models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
-    defaultModel: 'deepseek-v4-flash',
-    basePlaceholder: 'https://api.deepseek.com',
-    note: 'API Key 留空时使用公共账户 deepseek-v4-flash；填写个人 Key 后优先使用个人配置。',
-    code: `client = OpenAI(
-    api_key=os.environ.get("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com",
-)
-
-response = client.chat.completions.create(
-    model="deepseek-v4-pro",
-    messages=[{"role": "user", "content": "Hello"}],
-    reasoning_effort="high",
-    extra_body={"thinking": {"type": "enabled"}},
-)`,
-  },
-  hermes: {
-    title: 'Hermes 网关模板',
-    desc: '用于 GlobeMind 数据助手的 Hermes / OpenAI-compatible 网关。',
-    keyName: 'hermes',
-    keyLabel: 'Hermes API Key',
-    keyPlaceholder: '输入 Hermes 网关密钥',
-    baseUrl: '',
-    models: [],
-    defaultModel: '',
-    basePlaceholder: 'https://your-hermes-gateway/v1',
-    note: '请填写 Hermes 的 OpenAI-compatible /v1 地址和模型名。',
-  },
-  openai: {
-    title: 'OpenAI 模板',
-    desc: '使用标准 OpenAI Chat Completions 兼容接口。',
-    keyName: 'openai',
-    keyLabel: 'OpenAI API Key',
-    keyPlaceholder: 'sk-...',
-    baseUrl: 'https://api.openai.com/v1',
-    models: ['gpt-4o', 'gpt-4.1', 'gpt-4.1-mini'],
-    defaultModel: 'gpt-4o',
-    basePlaceholder: 'https://api.openai.com/v1',
-    note: '如果使用代理网关，可把端点替换为代理的 /v1 地址。',
-  },
-  anthropic: {
-    title: 'Anthropic 兼容模板',
-    desc: '适合兼容 Anthropic 格式的网关；若要用于当前数据助手，请确保网关也支持 OpenAI Chat Completions。',
-    keyName: 'anthropic',
-    keyLabel: 'Anthropic API Key',
-    keyPlaceholder: 'sk-ant-...',
-    baseUrl: 'https://api.anthropic.com',
-    models: ['claude-sonnet-4-6', 'claude-sonnet-4-5'],
-    defaultModel: 'claude-sonnet-4-6',
-    basePlaceholder: 'https://api.anthropic.com',
-    note: '当前数据助手主链路调用 OpenAI-compatible /chat/completions；纯 Anthropic endpoint 仅保存配置。',
-  },
-  custom: {
-    title: '自定义 OpenAI-compatible 模板',
-    desc: '用于公司内网、转发网关或其他兼容服务。',
-    keyName: 'api_key',
-    keyLabel: 'API Key',
-    keyPlaceholder: '输入服务密钥',
-    baseUrl: '',
-    models: [],
-    defaultModel: '',
-    basePlaceholder: 'https://gateway.example.com/v1',
-    note: '需要兼容 /v1/chat/completions。保存后数据助手下一轮请求会读取该配置。',
-  },
-}
-
 function selectSettingsTab(tab) {
   const normalized = normalizeSettingsTab(tab)
   activeTab.value = normalized
@@ -422,76 +272,6 @@ async function revokeOtherSessions() {
   }
 }
 
-function getTemplate(provider = apiConfig.active_provider) {
-  return providerTemplates[provider] || providerTemplates.custom
-}
-
-function parseApiKeys(raw) {
-  if (!raw || !raw.trim()) return {}
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function syncImageApiDraftFromConfig(publicConfig = {}) {
-  const keys = publicConfig && typeof publicConfig === 'object' ? publicConfig : {}
-  const image =
-    keys.image && typeof keys.image === 'object' && !Array.isArray(keys.image) ? keys.image : {}
-  imageApiDraft.backend = image.backend || keys.image_backend || 'openai'
-  const tpl = getImageBackendTemplate(imageApiDraft.backend)
-  imageApiDraft.api_key = ''
-  imageApiDraft.base_url =
-    image.base_url ||
-    image.openai_base_url ||
-    image.qwen_base_url ||
-    keys.image_base_url ||
-    keys.image_openai_base_url ||
-    keys.image_qwen_base_url ||
-    ''
-  imageApiDraft.model =
-    image.model ||
-    image.openai_model ||
-    image.qwen_model ||
-    keys.image_model ||
-    keys.image_openai_model ||
-    keys.image_qwen_model ||
-    tpl.model
-}
-
-function replaceApiKeyStatus(status = {}) {
-  Object.keys(apiKeyStatus).forEach((key) => delete apiKeyStatus[key])
-  Object.entries(status || {}).forEach(([key, value]) => {
-    if (value) apiKeyStatus[key] = true
-  })
-}
-
-function hasStoredApiKey(path) {
-  return Boolean(apiKeyStatus[path]) && !apiKeysToClear.value.includes(path)
-}
-
-function clearStoredApiKey(path) {
-  if (!apiKeysToClear.value.includes(path)) apiKeysToClear.value.push(path)
-  if (path === getTemplate().keyName) apiDraft.api_key = ''
-  if (path === 'image.api_key') imageApiDraft.api_key = ''
-}
-
-function keepStoredApiKey(path) {
-  apiKeysToClear.value = apiKeysToClear.value.filter((item) => item !== path)
-}
-
-function getImageBackendTemplate(backend = imageApiDraft.backend) {
-  return imageBackendTemplates[backend] || imageBackendTemplates.openai
-}
-
-function handleImageBackendChange(backend) {
-  const tpl = getImageBackendTemplate(backend)
-  imageApiDraft.model = tpl.model
-  imageApiDraft.base_url = ''
-}
-
 function formatMemoryTime(value) {
   if (!value) return '暂无更新'
   const text = String(value)
@@ -500,48 +280,6 @@ function formatMemoryTime(value) {
     .replace(/\.\d+/, '')
     .replace(/\+00:00$/, '')
     .slice(0, 19)
-}
-
-function applyProviderTemplate(provider, { preserveKey = true, force = false } = {}) {
-  const previousProvider = apiConfig.active_provider
-  const previousKey = apiDraft.api_key
-  apiConfig.active_provider = provider
-  const tpl = getTemplate(provider)
-  if (!preserveKey || previousProvider !== provider) apiDraft.api_key = ''
-  if (force || !apiConfig.base_url) apiConfig.base_url = tpl.baseUrl || ''
-  if (force || !apiConfig.default_model) apiConfig.default_model = tpl.defaultModel || ''
-  if (preserveKey && previousProvider === provider && previousKey) {
-    apiDraft.api_key = previousKey
-  }
-}
-
-function handleProviderChange(provider) {
-  applyProviderTemplate(provider, { preserveKey: true, force: true })
-}
-
-function buildApiKeysPayload() {
-  const tpl = getTemplate()
-  const keys = parseApiKeys(advancedApiKeysDraft.value)
-  const cleanKey = (apiDraft.api_key || '').trim()
-  if (cleanKey) {
-    keys[tpl.keyName] = cleanKey
-    keepStoredApiKey(tpl.keyName)
-  }
-  const backend = imageApiDraft.backend || 'openai'
-  const image =
-    keys.image && typeof keys.image === 'object' && !Array.isArray(keys.image) ? keys.image : {}
-  keys.image = {
-    ...image,
-    backend,
-    base_url: (imageApiDraft.base_url || '').trim(),
-    model: (imageApiDraft.model || getImageBackendTemplate(backend).model).trim(),
-  }
-  const imageKey = (imageApiDraft.api_key || '').trim()
-  if (imageKey) {
-    keys.image.api_key = imageKey
-    keepStoredApiKey('image.api_key')
-  }
-  return JSON.stringify(keys, null, 2)
 }
 
 async function loadProfile() {
@@ -561,18 +299,6 @@ async function loadProfile() {
     formData.full_name = profile.full_name
     formData.email = profile.email
     formData.phone = profile.phone
-    // API 配置
-    apiConfig.active_provider = data.active_provider || 'deepseek'
-    apiConfig.default_model = data.default_model || ''
-    apiConfig.base_url = data.base_url || ''
-    if (!apiConfig.default_model || !apiConfig.base_url) {
-      applyProviderTemplate(apiConfig.active_provider, { preserveKey: true, force: false })
-    }
-    apiDraft.api_key = ''
-    advancedApiKeysDraft.value = ''
-    apiKeysToClear.value = []
-    replaceApiKeyStatus(data.api_key_status)
-    syncImageApiDraftFromConfig(data.api_config_public)
     setCurrentUser(data)
     currentUserId.value = Number(data.id) || 0
     accountRole.value = data.role || 'user'
@@ -666,40 +392,6 @@ async function handlePasswordSubmit() {
   }
 }
 
-async function handleSaveApi() {
-  savingApi.value = true
-  try {
-    const normalizedKeys = buildApiKeysPayload()
-    const res = await fetch(`${API_PREFIX}/user/api-config`, {
-      method: 'PUT',
-      headers: authHeaders(),
-      body: JSON.stringify({
-        api_keys: normalizedKeys,
-        clear_api_keys: apiKeysToClear.value,
-        active_provider: apiConfig.active_provider,
-        default_model: apiConfig.default_model,
-        base_url: apiConfig.base_url,
-      }),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.detail || '保存失败')
-    apiDraft.api_key = ''
-    imageApiDraft.api_key = ''
-    advancedApiKeysDraft.value = ''
-    apiKeysToClear.value = []
-    replaceApiKeyStatus(data.api_key_status)
-    syncImageApiDraftFromConfig(data.api_config_public)
-    setCurrentUser(data)
-    currentUserId.value = Number(data.id) || 0
-    accountRole.value = data.role || 'user'
-    ElMessage.success('API 配置已保存，数据助手下一次提问会立即使用')
-  } catch (e) {
-    ElMessage.error(e.message || '保存失败')
-  } finally {
-    savingApi.value = false
-  }
-}
-
 async function loadAssistantMemory() {
   memoryLoading.value = true
   try {
@@ -721,7 +413,7 @@ async function loadAssistantMemory() {
 async function clearAssistantMemory() {
   try {
     await ElMessageBox.confirm(
-      '清空后，Hermes 将不再保留对你长期偏好和背景的摘要。此操作不会删除历史会话。',
+      '清空后，助手将不再保留对你长期偏好和背景的摘要。此操作不会删除历史会话。',
       '清空助手记忆',
       {
         confirmButtonText: '清空记忆',
@@ -770,36 +462,6 @@ async function loadDeletionRequests() {
   } finally {
     privacyLoading.value = false
   }
-}
-
-async function loadDeletionImpactPlan() {
-  deletionPlanLoading.value = true
-  deletionPlanError.value = ''
-  try {
-    const res = await fetch(`${API_PREFIX}/user/privacy/deletion-impact-plan`, {
-      headers: authHeaders(),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.detail || '账号删除影响预检失败')
-    if (
-      data.schema_version !== 'account-deletion-impact-plan-v1' ||
-      data.deletion_performed !== false ||
-      data.execution_state !== 'blocked' ||
-      data.operation_mode !== 'read_only_preflight'
-    ) {
-      throw new Error('账号删除影响预检返回了不安全的执行状态')
-    }
-    deletionPlan.value = data
-  } catch (e) {
-    deletionPlan.value = null
-    deletionPlanError.value = e.message || '账号删除影响预检失败'
-  } finally {
-    deletionPlanLoading.value = false
-  }
-}
-
-async function loadPrivacyOverview() {
-  await Promise.all([loadDeletionRequests(), loadDeletionImpactPlan()])
 }
 
 async function exportPersonalData() {
@@ -900,7 +562,7 @@ async function cancelDeletionRequest(requestId) {
 }
 
 watch(activeTab, (tab) => {
-  if (tab === 'privacy') loadPrivacyOverview()
+  if (tab === 'privacy') loadDeletionRequests()
   if (tab === 'security') loadSecurity()
 })
 
@@ -908,7 +570,7 @@ onMounted(async () => {
   await loadProfile()
   await loadQuota()
   await loadAssistantMemory()
-  if (activeTab.value === 'privacy') await loadPrivacyOverview()
+  if (activeTab.value === 'privacy') await loadDeletionRequests()
   if (activeTab.value === 'security') await loadSecurity()
 })
 
@@ -1403,245 +1065,6 @@ onBeforeUnmount(() => {
             </details>
           </section>
 
-          <!-- API Config Form -->
-          <el-form
-            v-if="activeTab === 'api-config'"
-            :model="apiConfig"
-            label-width="0"
-            class="pc-form pc-api-form"
-          >
-            <div class="pc-api-head">
-              <div>
-                <span class="pc-api-kicker">AI ROUTING</span>
-                <h2 class="pc-api-title">数据助手 API</h2>
-              </div>
-              <span class="pc-api-status">保存后立即用于下一次对话</span>
-            </div>
-
-            <div class="pc-provider-grid">
-              <button
-                v-for="opt in providerOptions"
-                :key="opt.value"
-                type="button"
-                class="pc-provider-card"
-                :class="{ 'is-selected': apiConfig.active_provider === opt.value }"
-                @click="handleProviderChange(opt.value)"
-              >
-                <span class="pc-provider-name">{{ opt.label }}</span>
-                <span class="pc-provider-badge">{{ opt.badge }}</span>
-              </button>
-            </div>
-
-            <section class="pc-api-template">
-              <div class="pc-api-template-main">
-                <div class="pc-api-template-title-row">
-                  <h3 class="pc-api-template-title">{{ getTemplate().title }}</h3>
-                  <button
-                    type="button"
-                    class="pc-template-apply"
-                    @click="
-                      applyProviderTemplate(apiConfig.active_provider, {
-                        preserveKey: true,
-                        force: true,
-                      })
-                    "
-                  >
-                    应用模板
-                  </button>
-                </div>
-                <p class="pc-api-template-desc">{{ getTemplate().desc }}</p>
-                <div class="pc-api-note">{{ getTemplate().note }}</div>
-              </div>
-              <div v-if="apiConfig.active_provider === 'deepseek'" class="pc-endpoint-table">
-                <div class="pc-endpoint-row">
-                  <span>base_url (OpenAI)</span>
-                  <code>https://api.deepseek.com</code>
-                </div>
-                <div class="pc-endpoint-row">
-                  <span>base_url (Anthropic)</span>
-                  <code>https://api.deepseek.com/anthropic</code>
-                </div>
-              </div>
-            </section>
-
-            <div class="pc-field">
-              <label class="pc-field-label">{{ getTemplate().keyLabel }}</label>
-              <el-input
-                v-model="apiDraft.api_key"
-                type="password"
-                show-password
-                :placeholder="getTemplate().keyPlaceholder"
-                class="pc-input"
-                autocomplete="off"
-              />
-              <span v-if="hasStoredApiKey(getTemplate().keyName)" class="pc-field-help">
-                已保存密钥，出于安全不会回显。留空会继续保留。
-                <el-button link type="danger" @click="clearStoredApiKey(getTemplate().keyName)"
-                  >移除</el-button
-                >
-              </span>
-              <span
-                v-else-if="apiKeysToClear.includes(getTemplate().keyName)"
-                class="pc-field-help"
-              >
-                保存后将移除该密钥。
-                <el-button link @click="keepStoredApiKey(getTemplate().keyName)">撤销</el-button>
-              </span>
-            </div>
-
-            <div class="pc-api-row">
-              <div class="pc-field">
-                <label class="pc-field-label">默认模型</label>
-                <el-select
-                  v-if="getTemplate().models.length"
-                  v-model="apiConfig.default_model"
-                  placeholder="选择模型"
-                  class="pc-input"
-                  filterable
-                  allow-create
-                >
-                  <el-option
-                    v-for="model in getTemplate().models"
-                    :key="model"
-                    :label="model"
-                    :value="model"
-                  />
-                </el-select>
-                <el-input
-                  v-else
-                  v-model="apiConfig.default_model"
-                  placeholder="输入模型名"
-                  class="pc-input"
-                />
-              </div>
-
-              <div class="pc-field">
-                <label class="pc-field-label">API 端点地址</label>
-                <el-input
-                  v-model="apiConfig.base_url"
-                  :placeholder="getTemplate().basePlaceholder"
-                  class="pc-input"
-                />
-              </div>
-            </div>
-
-            <div v-if="apiConfig.active_provider === 'deepseek'" class="pc-code-sample">
-              <div class="pc-code-title">DeepSeek OpenAI SDK 示例</div>
-              <pre><code>{{ getTemplate().code }}</code></pre>
-            </div>
-
-            <section class="pc-image-api-panel">
-              <div class="pc-image-api-head">
-                <div>
-                  <span class="pc-api-kicker">IMAGE TOOL</span>
-                  <h3 class="pc-image-api-title">图片生成 API</h3>
-                </div>
-                <span class="pc-image-api-mode">公共账号优先，个人配置兜底</span>
-              </div>
-              <p class="pc-image-api-desc">
-                留空时仅使用平台公共图片账号；填写个人 Key
-                后，公共账号额度不足、失效或限流时会自动重试个人配置。
-              </p>
-
-              <div class="pc-api-row">
-                <div class="pc-field">
-                  <label class="pc-field-label">图片服务</label>
-                  <el-select
-                    v-model="imageApiDraft.backend"
-                    class="pc-input"
-                    @change="handleImageBackendChange"
-                  >
-                    <el-option
-                      v-for="opt in imageBackendOptions"
-                      :key="opt.value"
-                      :label="opt.label"
-                      :value="opt.value"
-                    />
-                  </el-select>
-                </div>
-
-                <div class="pc-field">
-                  <label class="pc-field-label">图片模型</label>
-                  <el-input
-                    v-model="imageApiDraft.model"
-                    :placeholder="getImageBackendTemplate().model"
-                    class="pc-input"
-                  />
-                </div>
-              </div>
-
-              <div class="pc-field">
-                <label class="pc-field-label">图片 API Key（可选）</label>
-                <el-input
-                  v-model="imageApiDraft.api_key"
-                  type="password"
-                  show-password
-                  placeholder="留空使用公共图片账号"
-                  class="pc-input"
-                  autocomplete="off"
-                />
-                <span v-if="hasStoredApiKey('image.api_key')" class="pc-field-help">
-                  已保存图片密钥，出于安全不会回显。留空会继续保留。
-                  <el-button link type="danger" @click="clearStoredApiKey('image.api_key')"
-                    >移除</el-button
-                  >
-                </span>
-                <span v-else-if="apiKeysToClear.includes('image.api_key')" class="pc-field-help">
-                  保存后将移除图片密钥。
-                  <el-button link @click="keepStoredApiKey('image.api_key')">撤销</el-button>
-                </span>
-              </div>
-
-              <div class="pc-field">
-                <label class="pc-field-label">{{ getImageBackendTemplate().baseLabel }}</label>
-                <el-input
-                  v-model="imageApiDraft.base_url"
-                  :placeholder="getImageBackendTemplate().basePlaceholder"
-                  class="pc-input"
-                />
-                <span class="pc-field-help">
-                  {{ getImageBackendTemplate().help }}
-                </span>
-              </div>
-            </section>
-
-            <button
-              type="button"
-              class="pc-advanced-toggle"
-              @click="showRawApiJson = !showRawApiJson"
-            >
-              {{ showRawApiJson ? '收起高级 JSON' : '显示高级 JSON' }}
-            </button>
-
-            <div v-if="showRawApiJson" class="pc-field">
-              <label class="pc-field-label">高级 API Key 增量 JSON</label>
-              <el-input
-                v-model="advancedApiKeysDraft"
-                type="textarea"
-                :rows="4"
-                placeholder='{"deepseek":"sk-xxx","image":{"backend":"openai","api_key":"sk-xxx","base_url":"https://img-cn.65535.space/v1","model":"gpt-image-2"}}'
-                class="pc-input"
-              />
-              <span class="pc-field-help">仅提交本次更新，服务端不会回显或覆盖未填写的密钥。</span>
-            </div>
-
-            <div v-if="apiConfig.active_provider === 'deepseek'" class="pc-field pc-field--compact">
-              <label class="pc-field-label">兼容说明</label>
-              <span class="pc-field-help"
-                >数据助手使用 OpenAI 兼容地址；需要 Anthropic SDK 时请在对应工具中使用
-                <code>https://api.deepseek.com/anthropic</code>。</span
-              >
-            </div>
-
-            <div class="pc-actions">
-              <el-button type="primary" :loading="savingApi" @click="handleSaveApi" class="pc-btn">
-                <span class="pc-btn-text">保存 API 配置</span>
-                <span class="pc-btn-shimmer" aria-hidden="true"></span>
-              </el-button>
-              <span class="pc-actions-hint">无需重启，下一次打开数据助手或发送消息即生效</span>
-            </div>
-          </el-form>
-
           <div
             v-if="activeTab === 'assistant-memory'"
             class="pc-form pc-memory-panel"
@@ -1649,7 +1072,6 @@ onBeforeUnmount(() => {
           >
             <div class="pc-api-head">
               <div>
-                <span class="pc-api-kicker">HERMES MEMORY</span>
                 <h2 class="pc-api-title">助手长期记忆</h2>
               </div>
               <span class="pc-api-status"
@@ -1666,14 +1088,13 @@ onBeforeUnmount(() => {
                 assistantMemory.memory_summary
               }}</pre>
               <div v-else class="pc-memory-empty">
-                Hermes
                 暂未形成长期记忆。后续对话中，系统只会保存稳定偏好、常用工作方式和长期背景摘要。
               </div>
             </section>
 
             <div class="pc-memory-notes">
               <span>记忆按登录账号隔离，用于让数据助手理解你的偏好和长期上下文。</span>
-              <span>清空记忆不会删除历史会话，也不会影响 API 配置。</span>
+              <span>清空记忆后，历史会话仍可查看。</span>
             </div>
 
             <div class="pc-actions">
@@ -1688,7 +1109,6 @@ onBeforeUnmount(() => {
                 <span class="pc-btn-shimmer" aria-hidden="true"></span>
               </el-button>
               <el-button @click="loadAssistantMemory">刷新</el-button>
-              <span class="pc-actions-hint">当前仅显示你自己的 Hermes 记忆</span>
             </div>
           </div>
 
@@ -1699,20 +1119,14 @@ onBeforeUnmount(() => {
           >
             <div class="pc-api-head">
               <div>
-                <span class="pc-api-kicker">PRIVACY RIGHTS</span>
                 <h2 class="pc-api-title">个人数据访问与删除申请</h2>
               </div>
-              <span class="pc-api-status">本人账号范围</span>
             </div>
 
             <section class="pc-privacy-card" aria-labelledby="personal-export-title">
               <h3 id="personal-export-title">导出当前可访问的数据</h3>
               <p>
-                JSON
-                导出包含账号资料、搜索记录、收藏、助手会话和助手记忆，以及可安全证明归属的工作区文件元数据、文件哈希与下载路径、定时任务和已引用报告元数据、当前项目权限下的项目元数据与本人提交内容；不包含密码哈希、重置令牌或
-                API Key
-                值。工作区或报告正文、敏感任务上下文、其他项目成员私密字段及无法安全验证的范围会明确列为
-                unavailable。
+                下载账号资料、收藏和助手记录等个人数据。文件会列明无法导出的范围。
               </p>
               <el-button
                 type="primary"
@@ -1725,99 +1139,12 @@ onBeforeUnmount(() => {
             </section>
 
             <section
-              class="pc-privacy-card pc-deletion-plan"
-              aria-labelledby="deletion-impact-title"
-              :aria-busy="deletionPlanLoading"
-            >
-              <div class="pc-deletion-plan-head">
-                <div>
-                  <h3 id="deletion-impact-title">账号删除影响预检（只读）</h3>
-                  <p>
-                    仅统计当前能安全证明属于本人的数据范围并生成受阻执行计划；不会登记申请，也不会删除、匿名化或改写任何数据。
-                  </p>
-                </div>
-                <strong class="pc-deletion-plan-state">执行受阻</strong>
-              </div>
-
-              <p
-                v-if="deletionPlanError"
-                class="pc-deletion-plan-error"
-                role="alert"
-                aria-live="assertive"
-              >
-                {{ deletionPlanError }}。未能证明的范围不会按 0 条处理。
-              </p>
-              <p
-                v-else-if="deletionPlanLoading"
-                class="pc-memory-empty"
-                role="status"
-                aria-live="polite"
-              >
-                正在执行只读影响预检…
-              </p>
-              <div v-else-if="deletionPlan" class="pc-deletion-plan-result" aria-live="polite">
-                <p class="pc-deletion-plan-boundary" role="status">
-                  deletion_performed=false ·
-                  execution_state=blocked。保留期限、法律依据、可恢复检查点和人工授权全部完成前，本计划不可执行。
-                </p>
-                <ul class="pc-deletion-plan-summary" aria-label="处置分类汇总">
-                  <li
-                    v-for="summary in deletionPlanSummary"
-                    :key="summary.disposition"
-                    :class="`is-${summary.disposition}`"
-                  >
-                    <strong>{{ summary.label }}</strong>
-                    <span>{{ summary.scopes }} 个范围 · {{ summary.records }} 条精确记录</span>
-                    <small v-if="summary.unavailable">
-                      {{ summary.unavailable }} 个范围计数不可用
-                    </small>
-                  </li>
-                </ul>
-
-                <details class="pc-deletion-plan-details">
-                  <summary>查看范围分类明细</summary>
-                  <ul>
-                    <li v-for="item in deletionPlanItems" :key="item.scope">
-                      <span>{{ item.scope }}</span>
-                      <strong>{{
-                        deletionDispositionLabels[item.disposition] || '需要复核'
-                      }}</strong>
-                      <small>
-                        {{
-                          item.count_status === 'exact' ? `${item.record_count} 条` : '计数不可用'
-                        }}
-                      </small>
-                    </li>
-                  </ul>
-                </details>
-
-                <details class="pc-deletion-plan-details">
-                  <summary>查看外部执行阻塞项</summary>
-                  <ul>
-                    <li v-for="blocker in deletionPlanBlockers" :key="blocker.code">
-                      <span>{{ blocker.category }}</span>
-                      <strong>未完成</strong>
-                      <small>{{ blocker.required_authority }}</small>
-                    </li>
-                  </ul>
-                </details>
-              </div>
-              <el-button
-                class="pc-deletion-plan-refresh"
-                :loading="deletionPlanLoading"
-                @click="loadDeletionImpactPlan"
-              >
-                刷新只读预检
-              </el-button>
-            </section>
-
-            <section
               class="pc-privacy-card pc-privacy-card--warning"
               aria-labelledby="deletion-request-title"
             >
               <h3 id="deletion-request-title">登记账号删除申请</h3>
               <p>
-                当前流程只安全登记和撤销申请，不会声称已经删除。工作区、运行中的定时任务、研究项目权限和法定保留范围完成核验前，状态会保持“待人工执行”。
+                申请提交后由人工处理。处理前可在下方撤销申请。
               </p>
               <div class="pc-field">
                 <label class="pc-field-label" for="privacy-password">当前密码</label>
@@ -1890,8 +1217,10 @@ onBeforeUnmount(() => {
           </div>
 
           <DisplayPreferencesPanel v-if="activeTab === 'display'" />
-          <DshSoundPreferencesPanel v-if="activeTab === 'display'" />
-          <DshEmailPreferencesPanel v-if="activeTab === 'report-delivery'" />
+          <div v-if="activeTab === 'report-delivery'" class="pc-notifications">
+            <DshEmailPreferencesPanel />
+            <DshSoundPreferencesPanel />
+          </div>
           <QuotaAdminPanel
             v-if="activeTab === 'quota-admin' && canManageQuota && currentUserId"
             :current-user-id="currentUserId"
@@ -2404,29 +1733,12 @@ onBeforeUnmount(() => {
   margin-bottom: 18px;
 }
 
-.pc-api-form {
-  --api-ink: #172033;
-  --api-line: #dfe6f3;
-  --api-soft: #f5f8fc;
-  --api-blue: #2563eb;
-  --api-teal: #0f766e;
-}
-
 .pc-api-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
-}
-
-.pc-api-kicker {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--api-teal);
-  font-size: 0.66rem;
-  font-weight: 750;
-  letter-spacing: 0;
 }
 
 .pc-api-title {
@@ -2446,241 +1758,6 @@ onBeforeUnmount(() => {
   color: #0f766e;
   font-size: 0.74rem;
   font-weight: 650;
-}
-
-.pc-provider-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 18px;
-}
-
-.pc-provider-card {
-  min-width: 0;
-  height: 58px;
-  padding: 8px 10px;
-  border: 1px solid var(--api-line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--pc-text-secondary);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 3px;
-  font-family: inherit;
-  transition:
-    border-color var(--pc-transition),
-    background var(--pc-transition),
-    box-shadow var(--pc-transition);
-}
-
-.pc-provider-card:hover {
-  border-color: #b8c7df;
-  background: var(--api-soft);
-}
-
-.pc-provider-card.is-selected {
-  border-color: rgba(37, 99, 235, 0.55);
-  background: #eff6ff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
-}
-
-.pc-provider-name {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--api-ink);
-  font-size: 0.86rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.pc-provider-badge {
-  color: #64748b;
-  font-size: 0.68rem;
-  font-weight: 650;
-}
-
-.pc-api-template {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-  padding: 16px;
-  border: 1px solid var(--api-line);
-  border-radius: 8px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f7faff 100%);
-}
-
-.pc-api-template-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.pc-api-template-title {
-  margin: 0;
-  color: var(--api-ink);
-  font-size: 0.98rem;
-  line-height: 1.3;
-  font-weight: 730;
-}
-
-.pc-template-apply,
-.pc-advanced-toggle {
-  border: 1px solid var(--api-line);
-  border-radius: 7px;
-  background: #fff;
-  color: #334155;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 650;
-  transition:
-    background var(--pc-transition),
-    border-color var(--pc-transition),
-    color var(--pc-transition);
-}
-
-.pc-template-apply {
-  flex-shrink: 0;
-  padding: 6px 10px;
-}
-
-.pc-template-apply:hover,
-.pc-advanced-toggle:hover {
-  border-color: rgba(37, 99, 235, 0.35);
-  background: #eff6ff;
-  color: var(--api-blue);
-}
-
-.pc-api-template-desc {
-  margin: 8px 0 0;
-  color: var(--pc-text-secondary);
-  font-size: 0.84rem;
-  line-height: 1.6;
-}
-
-.pc-api-note {
-  margin-top: 10px;
-  padding-left: 10px;
-  border-left: 3px solid #99f6e4;
-  color: #475569;
-  font-size: 0.78rem;
-  line-height: 1.55;
-}
-
-.pc-endpoint-table {
-  display: grid;
-  gap: 6px;
-}
-
-.pc-endpoint-row {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  padding: 5px 10px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid #e6edf7;
-}
-
-.pc-endpoint-row span {
-  color: #64748b;
-  font-size: 0.74rem;
-  font-weight: 650;
-}
-
-.pc-endpoint-row code {
-  min-width: 0;
-  color: #0f172a;
-  font-size: 0.78rem;
-  overflow-wrap: anywhere;
-}
-
-.pc-api-row {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr);
-  gap: 14px;
-}
-
-.pc-code-sample {
-  margin: -2px 0 18px;
-  border: 1px solid #d8e1ee;
-  border-radius: 8px;
-  background: #101827;
-  overflow: hidden;
-}
-
-.pc-code-title {
-  padding: 9px 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-  color: #cbd5e1;
-  font-size: 0.76rem;
-  font-weight: 700;
-}
-
-.pc-code-sample pre {
-  margin: 0;
-  padding: 12px;
-  max-height: 220px;
-  overflow: auto;
-  color: #dbeafe;
-  font-size: 0.76rem;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.pc-image-api-panel {
-  margin: 0 0 18px;
-  padding: 16px;
-  border: 1px solid var(--api-line);
-  border-radius: 8px;
-  background: #fbfdff;
-}
-
-.pc-image-api-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 8px;
-}
-
-.pc-image-api-title {
-  margin: 0;
-  color: var(--api-ink);
-  font-size: 0.98rem;
-  line-height: 1.3;
-  font-weight: 730;
-}
-
-.pc-image-api-mode {
-  flex-shrink: 0;
-  padding: 5px 9px;
-  border-radius: 7px;
-  background: #ecfdf5;
-  color: #047857;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.pc-image-api-desc {
-  margin: 0 0 14px;
-  color: #64748b;
-  font-size: 0.8rem;
-  line-height: 1.6;
-}
-
-.pc-advanced-toggle {
-  margin: 0 0 16px;
-  padding: 7px 11px;
 }
 
 .pc-memory-panel {
@@ -2746,6 +1823,11 @@ onBeforeUnmount(() => {
   line-height: 1.55;
 }
 
+.pc-notifications {
+  display: grid;
+  gap: 16px;
+}
+
 .pc-privacy-panel {
   --api-ink: #172033;
   --api-line: #dfe6f3;
@@ -2777,151 +1859,6 @@ onBeforeUnmount(() => {
   color: #64748b;
   font-size: 0.82rem;
   line-height: 1.7;
-}
-
-.pc-deletion-plan {
-  border-color: #c7d2fe;
-  background: #f8faff;
-}
-
-.pc-deletion-plan-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.pc-deletion-plan-head > div {
-  display: grid;
-  gap: 8px;
-}
-
-.pc-deletion-plan-state {
-  flex: 0 0 auto;
-  border-radius: 999px;
-  padding: 7px 11px;
-  color: #9a3412;
-  font-size: 0.74rem;
-  background: #ffedd5;
-}
-
-.pc-deletion-plan-result {
-  display: grid;
-  gap: 12px;
-}
-
-.pc-deletion-plan-boundary {
-  border-left: 3px solid #f59e0b;
-  padding: 9px 11px;
-  color: #78350f !important;
-  background: #fffbeb;
-}
-
-.pc-deletion-plan-error {
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: #991b1b !important;
-  background: #fef2f2;
-}
-
-.pc-deletion-plan-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pc-deletion-plan-summary li {
-  display: grid;
-  gap: 4px;
-  border: 1px solid #dfe6f3;
-  border-radius: 8px;
-  padding: 10px 11px;
-  background: #fff;
-}
-
-.pc-deletion-plan-summary strong {
-  color: #334155;
-  font-size: 0.78rem;
-}
-
-.pc-deletion-plan-summary span,
-.pc-deletion-plan-summary small {
-  color: #64748b;
-  font-size: 0.72rem;
-  line-height: 1.45;
-}
-
-.pc-deletion-plan-summary .is-unavailable {
-  border-color: #fed7aa;
-  background: #fffaf5;
-}
-
-.pc-deletion-plan-details {
-  border: 1px solid #dfe6f3;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.pc-deletion-plan-details summary {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 12px;
-  color: #334155;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.pc-deletion-plan-details summary:focus-visible {
-  border-radius: 8px;
-  outline: 3px solid #818cf8;
-  outline-offset: 2px;
-}
-
-.pc-deletion-plan-details ul {
-  display: grid;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid #e8eef8;
-  list-style: none;
-}
-
-.pc-deletion-plan-details li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-bottom: 1px solid #eef2f7;
-  color: #475569;
-  font-size: 0.72rem;
-}
-
-.pc-deletion-plan-details li:last-child {
-  border-bottom: 0;
-}
-
-.pc-deletion-plan-details li span {
-  overflow-wrap: anywhere;
-}
-
-.pc-deletion-plan-details li strong {
-  color: #334155;
-}
-
-.pc-deletion-plan-details li small {
-  color: #64748b;
-}
-
-.pc-deletion-plan-refresh {
-  justify-self: start;
-  min-width: 44px;
-  min-height: 44px;
 }
 
 .pc-privacy-requests {
@@ -3357,24 +2294,6 @@ onBeforeUnmount(() => {
     align-self: flex-start;
   }
 
-  .pc-image-api-head {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .pc-provider-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pc-api-row,
-  .pc-endpoint-row {
-    grid-template-columns: 1fr;
-  }
-
-  .pc-endpoint-row {
-    gap: 4px;
-  }
-
   .pc-actions {
     flex-direction: column;
     align-items: flex-start;
@@ -3386,17 +2305,6 @@ onBeforeUnmount(() => {
   .pc-session-list li {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .pc-deletion-plan-head,
-  .pc-deletion-plan-details li {
-    align-items: stretch;
-    grid-template-columns: 1fr;
-    flex-direction: column;
-  }
-
-  .pc-deletion-plan-state {
-    align-self: flex-start;
   }
 
   .pc-recovery-codes ul {

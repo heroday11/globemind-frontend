@@ -74,7 +74,7 @@ function openNewUserGuide() {
 }
 
 .uc-side-head {
-  padding: 12px 20px 8px;
+  padding: 12px 24px 16px;
   border-bottom: 1px solid var(--uc-border-soft);
 }
 
@@ -89,15 +89,16 @@ function openNewUserGuide() {
 .uc-nav {
   display: flex;
   flex-direction: column;
-  padding: 6px 12px;
-  gap: 2px;
+  padding: 12px;
+  gap: 8px;
 }
 
 .uc-nav-link {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 14px;
+  padding: 10px 14px;
+  min-height: 44px;
   border-radius: var(--uc-radius-sm);
   text-decoration: none;
   color: var(--uc-muted);
@@ -174,6 +175,7 @@ function openNewUserGuide() {
   .uc-sidebar {
     position: fixed;
     inset: 64px auto 0 0;
+    padding-top: clamp(24px, calc(33svh - 185px), 160px);
     z-index: 20;
     max-height: none;
   }
