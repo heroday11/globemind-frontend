@@ -864,7 +864,7 @@ function clearWorkspaceState({ clearSelection = false } = {}) {
 
 function displayStoryTitle(story) {
   if (!story) return ''
-  return cleanStoryTitle(story.story_title || story.title) || '未命名事件'
+  return cleanStoryTitle(story.story_title || story.display_title || story.title) || '未命名事件'
 }
 
 function storyDateRange(start, end) {
@@ -1443,7 +1443,7 @@ function clampText(value, max = 11000) {
 
 .intel-shell {
   display: grid;
-  grid-template-columns: minmax(220px, 270px) minmax(0, 1fr);
+  grid-template-columns: clamp(300px, 26vw, 380px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
@@ -1558,10 +1558,6 @@ function clampText(value, max = 11000) {
 }
 
 .intel-story-row strong {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   overflow-wrap: anywhere;
   font-size: 13px;
   font-weight: 700;
@@ -1997,7 +1993,7 @@ function clampText(value, max = 11000) {
 
 @media (max-width: 1060px) {
   .intel-shell {
-    grid-template-columns: minmax(200px, 230px) minmax(0, 1fr);
+    grid-template-columns: clamp(245px, 30vw, 315px) minmax(0, 1fr);
   }
 
   .intel-workspace__header {

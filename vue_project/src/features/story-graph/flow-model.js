@@ -128,8 +128,8 @@ export function buildMacroLaneOffsets(laneMap) {
   const laneOrder = ['diplomacy', 'political', 'economic', 'context', 'conflict'].filter(
     (lane) => lane !== trunkLane && laneMap.has(lane),
   )
-  const slots = [-220, 220, -400, 400, -560, 560]
-  laneOrder.forEach((lane, index) => offsets.set(lane, slots[index] ?? 240 + index * 180))
+  const slots = [-270, 270, -510, 510, -750, 750]
+  laneOrder.forEach((lane, index) => offsets.set(lane, slots[index]))
   return offsets
 }
 
@@ -144,7 +144,7 @@ export function buildMacroTimelineX(nodes) {
     if (index > 0) {
       const previous = sorted[index - 1]
       const gapDays = Math.max(0, (macroNodeTime(node) - macroNodeTime(previous)) / 86400000)
-      cursor += 208 + clamp(Math.log1p(gapDays) * 16, 0, 48)
+      cursor += 330 + clamp(Math.log1p(gapDays) * 16, 0, 48)
     }
     points.push({ id: node.id, x: cursor })
   })

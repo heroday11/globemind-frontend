@@ -13,6 +13,7 @@ export function filterStorySummaries(stories, query) {
   return stories.filter((story) => {
     const haystack = [
       story.title,
+      story.display_title,
       story.event_type,
       story.family_group,
       story.event_family,
@@ -126,6 +127,73 @@ export function formatCountLabel(value, { unit = '项', unknown = '数量未知'
 
 export function getFallbackStoryTitle(mode, id) {
   return mode === 'l3' ? `大事件 ${id}` : `走势链 ${id}`
+}
+
+// Public L3 topics in the current catalog, keyed by the stable macro identifier.
+const MACRO_TITLES = new Map([
+  ['us_iran_regional_conflict', '美国与伊朗的战争、核谈判与地区战事'],
+  ['russia_ukraine_war', '俄乌战争与国际斡旋'],
+  ['israel_gaza_war', '加沙战争、停火与人质谈判'],
+  ['china_us_strategic_competition', '中美关税交锋与芯片争端'],
+  ['china_taiwan_cross_strait', '台海军事动态与对台军售'],
+  ['cambodia_thailand_border_conflict', '泰柬边境冲突与停火进程'],
+  ['us_venezuela_pressure', '美国对委内瑞拉施压与马杜罗被捕'],
+  ['security:iran_us', '美伊军事交锋与停火进程'],
+  ['security:russia_ukraine', '俄乌前线战事与俄军空袭'],
+  ['security:iran_israel', '伊朗与以色列交火及停火进展'],
+  ['security:hezbollah_israel', '以色列与黎巴嫩真主党交火及停火'],
+  ['security:gaza_israel', '以军在加沙的军事行动'],
+  ['security:hezbollah_iran', '真主党解除武装争议与伊朗介入'],
+  ['political_diplomacy:china_india', '中印边境磋商与关系缓和'],
+  ['political_diplomacy:iran_us', '美伊和平方案与停战谈判'],
+  ['political_diplomacy:russia_ukraine', '俄乌伊斯坦布尔谈判与停火磋商'],
+  ['security:israel_lebanon', '以色列与黎巴嫩的停火磋商'],
+  ['political_diplomacy:ukraine_us', '美国斡旋结束俄乌战争'],
+  ['economic_security:russia_us', '美国对俄石油制裁豁免'],
+  ['security:nato_us', '北约军费目标与格陵兰安全安排'],
+  ['security:north korea_south korea', '朝韩无人机争端与边境扩音器撤除'],
+  ['political_diplomacy:cambodia_thailand', '泰柬边境调停与东盟观察团'],
+  ['economic_security:canada_us', '美加关税争端与贸易谈判中止'],
+  ['political_diplomacy:china_us', '中美元首会晤与高层对话'],
+  ['economic_security:iran_us', '美国对伊朗制裁与金融市场反应'],
+  ['economic_security:india_us', '美印关税争端与贸易谈判'],
+  ['political_diplomacy:iran_pakistan', '巴基斯坦斡旋美伊谈判'],
+  ['political_diplomacy:china_north korea', '中朝领导人会晤与双边关系'],
+  ['security:china_taiwan', '解放军台海演训与美方威胁评估'],
+  ['security:china_japan', '日本海联合军演与中日海上摩擦'],
+  ['security:gulf_iran', '伊朗战事外溢与海湾国家应对'],
+  ['security:gaza_hamas', '加沙城控制计划与哈马斯停火回应'],
+  ['economic_security:thailand_us', '泰国与美国的关税谈判'],
+  ['security:hamas_israel', '以色列袭击哈马斯领导层与人质交接'],
+  ['political_diplomacy:china_iran', '伊朗石油出口与中国的制裁交涉'],
+  ['economic_security:eu_us', '美欧关税协议与汽车关税争端'],
+  ['security:us_venezuela', '美国对委内瑞拉的军事行动'],
+  ['political_diplomacy:china_russia', '中俄元首会晤与外长磋商'],
+  ['political_diplomacy:china_taiwan', '台湾在野党访陆与对外外交争议'],
+  ['security:china_iran', '中国对伊朗港口封锁的表态与战时争议'],
+  ['economic_security:china_us', '中美关税休战与 TikTok 谈判'],
+  ['political_diplomacy:us_venezuela', '美国对委内瑞拉政局的表态与恢复使馆运作'],
+  ['security:iran_saudi arabia', '伊朗战事波及沙特能源设施'],
+  ['economic_security:us_venezuela', '委内瑞拉石油出口与美国能源政策'],
+  ['political_diplomacy:uk_us', '英国王室与美国的国事访问外交'],
+  ['security:north korea_russia', '朝鲜参战与俄朝军事合作'],
+  ['economic_security:india_russia', '印度进口俄油引发美国关税争端'],
+  ['security:cambodia_thailand', '泰柬边境交火与停火监督'],
+  ['political_diplomacy:russia_us', '美俄围绕乌克兰问题的会谈'],
+  ['economic_security:south korea_us', '美韩贸易谈判与造船合作'],
+  ['economic_security:japan_us', '美日汽车关税与贸易谈判'],
+  ['political_diplomacy:india_russia', '普京访问印度与印俄双边磋商'],
+  ['security:ukraine_us', '美国对乌军援与停火斡旋'],
+  ['security:russia_us', '美俄核试验争议与核威慑表态'],
+  ['political_diplomacy:gaza_israel', '加沙战后安排与国际调查'],
+  ['security:nato_russia', '俄罗斯无人机越境争议与北约应对'],
+  ['political_diplomacy:china_south korea', '中韩高层会晤与关系修复'],
+  ['political_diplomacy:china_japan', '中日涉台争议与外交交涉'],
+  ['security:israel_syria', '以色列空袭叙利亚南部与德鲁兹冲突'],
+])
+
+export function macroStoryTitle(macro) {
+  return MACRO_TITLES.get(macro.macro_key) || cleanStoryTitle(macro.title)
 }
 
 export function cleanStoryTitle(title) {

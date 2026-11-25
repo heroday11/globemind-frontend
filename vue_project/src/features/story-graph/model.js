@@ -1,6 +1,6 @@
 import { L2_RUN_ID, L3_RUN_ID } from './config.js'
 import { normalizeStoryRelationClaim } from './claims.js'
-import { cleanEntityLabel, cleanStoryTitle } from './presentation.js'
+import { cleanEntityLabel, cleanStoryTitle, macroStoryTitle } from './presentation.js'
 import { normalizeGraphSampling } from './sampling.js'
 import { normalizeStoryRelation } from '../../governance/storyRelations.js'
 
@@ -18,6 +18,7 @@ export function normalizeL3MacroSummary(macro) {
     ...macro,
     id: macro.macro_id,
     title: macro.title,
+    display_title: macroStoryTitle(macro),
     event_type: macro.family_group,
     article_count: countOrNull(macro.article_count),
     segment_count: countOrNull(macro.segment_count),
@@ -45,7 +46,7 @@ export function normalizeL2ChainSummary(chain) {
 export function transformL3MacroResponse(payload) {
   const macro = payload.macro || {}
   const macroId = String(macro.macro_id || payload.macro_id || '')
-  const storyTitle = cleanStoryTitle(macro.title) || '未命名大事件'
+  const storyTitle = macroStoryTitle(macro) || '未命名大事件'
   const rawNodes = payload.nodes || []
   const storyNodes = rawNodes.map((node, index) => ({
     id: node.l2_chain_id || `l3-node-${index + 1}`,

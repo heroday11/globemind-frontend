@@ -337,7 +337,7 @@ function StoryEventNode({ data, selected }) {
       style: {
         '--event-stroke': data.stroke,
         width: `${data.width}px`,
-        height: `${data.height}px`,
+        minHeight: `${data.height}px`,
       },
     },
     [
@@ -420,10 +420,16 @@ function IntelEdge(props) {
     sourcePosition,
     targetPosition,
   }
-  const [path] = getBezierPath({
+  const [directPath] = getBezierPath({
     ...pathArgs,
     curvature: data.curvature ?? (data.layer === 'context' ? 0.36 : 0.24),
   })
+  const railY = data.arc < 0
+    ? Math.min(sourceY, targetY) + data.arc
+    : Math.max(sourceY, targetY) + data.arc
+  const path = data.arc
+    ? `M ${sourceX} ${sourceY} C ${sourceX} ${railY}, ${targetX} ${railY}, ${targetX} ${targetY}`
+    : directPath
 
   return h(BaseEdge, {
     id,
@@ -521,7 +527,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
   })
 
   for (const story of [primaryStory, ...branches]) {
-    const { width: nodeWidth, height: nodeHeight } = getNodeSize(story.storyRole)
+    const { width: nodeWidth, height: nodeHeight } = getNodeSize()
     story.orderedNodes.forEach((node) => {
       const override = positionOverrides[node.id]
       if (!override) return
@@ -562,7 +568,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
     story.orderedNodes.forEach((node) => {
       const point = positions.get(node.id)
       const stroke = EVENT_PALETTES[eventPaletteKey(node.event_type)].stroke
-      const { width: nodeWidth, height: nodeHeight } = getNodeSize(story.storyRole)
+      const { width: nodeWidth, height: nodeHeight } = getNodeSize()
       const inspectorPayload = buildStoryGraphNodeInspector(node, { storyId: story.storyId })
       const timeLabel = formatNodeTimeRange(node.start_date, node.end_date)
       const articleLabel = formatCountLabel(node.article_count, { unit: '条报道', unknown: '' })
@@ -604,13 +610,25 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
     ? buildMacroDisplayEdges(primaryStory, visibleEdges)
     : visibleEdges
   const eventTitles = new Map(eventNodes.map((node) => [node.id, node.data.title]))
+  const pairEdges = new Map()
 
   flowEdges.forEach((edge) => {
     const sourcePoint = positions.get(edge.from_id)
     const targetPoint = positions.get(edge.to_id)
     if (!sourcePoint || !targetPoint) return
 
-    const handles = chooseHandles(sourcePoint, targetPoint)
+    const pair = [edge.from_id, edge.to_id].sort().join(':')
+    const parallelIndex = pairEdges.get(pair) ?? 0
+    pairEdges.set(pair, parallelIndex + 1)
+    const span = Math.abs(targetPoint.x - sourcePoint.x)
+    const arcDirection = ((sourcePoint.timelineIndex ?? 0) + parallelIndex) % 2 ? 1 : -1
+    const arc = span > 470 || parallelIndex
+      ? arcDirection * (128 + Math.min(span * 0.13, 290) + 65 * parallelIndex)
+      : 0
+    const verticalHandle = arc > 0 ? 'bottom' : 'top'
+    const handles = arc
+      ? { source: verticalHandle, target: verticalHandle }
+      : chooseHandles(sourcePoint, targetPoint)
     const isContext = edge.layer === 'context'
     const isMacroSequence =
       (sourcePoint.isMacro || targetPoint.isMacro) &&
@@ -660,6 +678,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
               ? '11 8'
               : '9 8',
         opacity: isContext ? 0.54 : 0.62,
+        arc,
         curvature: isContext ? 0.34 : isMacroStoryEdge ? (isMacroSequence ? 0.22 : 0.3) : 0.22,
       },
     })
@@ -672,8 +691,12 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
   }
 }
 
-function getNodeSize(storyRole) {
-  return storyRole === 'primary' ? { width: 210, height: 116 } : { width: 210, height: 116 }
+function getNodeSize() {
+  return { width: 274, height: 114 }
+}
+
+function staggerOffset(index, amplitude) {
+  return [0, -amplitude, amplitude, -amplitude / 2, amplitude / 2][index % 5]
 }
 
 function layoutPrimaryStory(story, positions) {
@@ -684,13 +707,14 @@ function layoutPrimaryStory(story, positions) {
   const count = story.orderedNodes.length
   if (!count) return
 
-  const gap = 236
+  const gap = 330
   const startX = -((count - 1) * gap) / 2
 
   story.orderedNodes.forEach((node, index) => {
     positions.set(node.id, {
       x: startX + index * gap,
-      y: 0,
+      y: count > 1 ? staggerOffset(index, 124) : 0,
+      timelineIndex: index,
       defaultSourcePosition: Position.Right,
       defaultTargetPosition: Position.Left,
     })
@@ -718,10 +742,9 @@ function layoutMacroStory(story, positions) {
       0,
       laneNodes.findIndex((item) => item.id === node.id),
     )
-    const laneWave = Math.sin(laneIndex * 0.9 + index * 0.13) * 20
-    const timeWave = Math.cos(index * 0.47) * 12
+    const laneWave = staggerOffset(laneIndex, laneMap.size === 1 ? 154 : 94)
     let x = (xById.get(node.id) || 0) + macroLaneXPull(lane)
-    let y = (laneOffsets.get(lane) || 0) + laneWave + timeWave
+    let y = (laneOffsets.get(lane) || 0) + laneWave
 
     const collision = avoidMacroCollisions(x, y, placed)
     x = collision.x
@@ -744,7 +767,7 @@ function layoutBranchStory(story, positions, anchorX, side, lane) {
   const count = story.orderedNodes.length
   if (!count) return
 
-  const gap = 218
+  const gap = 330
   const centerY = side < 0 ? -(260 + lane * 230) : 260 + lane * 230
   const startX = anchorX - ((count - 1) * gap) / 2
 
@@ -779,7 +802,7 @@ function resolveAnchorX(storyId, bridgeEdges, positions, primaryStoryId, index, 
 }
 
 function computeStoryBounds(story, positions) {
-  const { width: nodeWidth, height: nodeHeight } = getNodeSize(story.storyRole)
+  const { width: nodeWidth, height: nodeHeight } = getNodeSize()
   const points = story.orderedNodes.map((node) => positions.get(node.id)).filter(Boolean)
   const xs = points.map((point) => point.x)
   const ys = points.map((point) => point.y)
@@ -983,7 +1006,7 @@ function applyViewportToEventNodes(instance, nodes, container, options = FIT_VIE
   const { clientWidth: width, clientHeight: height } = container
   if (!width || !height || measuredNodes.length !== nodes.length) return false
   const fitNodes = options.initial
-    ? measuredNodes.slice(0, Math.max(1, Math.floor(width / 225)))
+    ? measuredNodes.slice(0, Math.max(1, Math.floor(width / 320)))
     : measuredNodes
   const bounds = getNodesBounds(fitNodes)
   if (
