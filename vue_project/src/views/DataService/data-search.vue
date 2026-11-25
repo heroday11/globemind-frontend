@@ -16,11 +16,6 @@
     >
       <div class="sidebar-head">
         <div class="sidebar-title">新闻事件检索台</div>
-        <div class="sidebar-badges">
-          <span>新库检索</span>
-          <span>事件热度</span>
-          <span>2026.06</span>
-        </div>
       </div>
       <button
         type="button"
@@ -36,7 +31,6 @@
       <div class="folder-toolbar">
         <div>
           <div class="folder-toolbar-title">工作文件夹</div>
-          <p>星标新闻会保存到当前文件夹</p>
         </div>
         <button type="button" class="folder-add-btn" @click="addNewTheme" title="新增文件夹">+</button>
       </div>
@@ -56,58 +50,36 @@
             :aria-pressed="folder.name === themeName"
             @click="switchTheme(folder.name)"
           />
-          <span class="folder-tab" aria-hidden="true" />
-          <div class="folder-main">
-            <span class="folder-mark" aria-hidden="true" />
-            <div class="folder-copy">
-              <div v-if="isEditingTheme && folder.name === themeName" class="folder-edit-row">
-                <label class="search-sr-only" for="search-folder-name">文件夹名称</label>
-                <input
-                  id="search-folder-name"
-                  name="folderName"
-                  class="folder-edit-input"
-                  v-model="themeNameDraft"
-                  @click.stop
-                  @keyup.enter="saveThemeName"
-                  @blur="saveThemeName"
-                />
-              </div>
-              <button
-                v-else
-                type="button"
-                class="folder-name"
-                @click.stop="folder.name === themeName ? startEditThemeName() : switchTheme(folder.name)"
-                :title="folder.name === themeName ? '重命名当前文件夹' : '切换文件夹'"
-              >
-                {{ folder.displayName }}
-              </button>
-              <div class="folder-meta">
-                <span>{{ folder.count }} 条收藏</span>
-                <span>{{ folder.latestLabel }}</span>
-              </div>
+          <span class="folder-mark" aria-hidden="true" />
+          <div class="folder-copy">
+            <div v-if="isEditingTheme && folder.name === themeName" class="folder-edit-row">
+              <label class="search-sr-only" for="search-folder-name">文件夹名称</label>
+              <input
+                id="search-folder-name"
+                v-model="themeNameDraft"
+                name="folderName"
+                class="folder-edit-input"
+                @keyup.enter="saveThemeName"
+                @blur="saveThemeName"
+              />
             </div>
-            <button
-              v-if="themeList.length > 1"
-              type="button"
-              class="folder-del"
-              @click.stop="deleteTheme(folder.name)"
-              title="删除该文件夹及其收藏"
-            >
-              ×
-            </button>
-          </div>
-          <div class="folder-preview" :class="{ empty: !folder.latestTitle }">
-            {{ folder.latestTitle || '空文件夹，等待星标新闻' }}
+            <span v-else class="folder-name">{{ folder.displayName }}</span>
+            <span class="folder-meta">{{ folder.count }} 条收藏</span>
           </div>
         </article>
       </div>
 
       <div class="sidebar-block sidebar-block--favorites">
         <div class="sidebar-block-title">当前文件夹</div>
-        <div v-if="favoriteCards.length === 0" class="favorite-empty">暂无收藏，点击新闻列表右侧星标即可加入。</div>
+        <div class="current-folder-heading">
+          <strong>{{ displayFolderName(themeName) }}</strong>
+          <button type="button" class="current-folder-action" title="重命名当前文件夹" aria-label="重命名当前文件夹" @click="startEditThemeName">✎</button>
+          <button v-if="themeList.length > 1" type="button" class="current-folder-action" title="删除当前文件夹" aria-label="删除当前文件夹" @click="deleteTheme(themeName)">×</button>
+        </div>
+        <div v-if="favoriteCards.length === 0" class="favorite-empty">暂无收藏</div>
         <div v-else class="favorite-cards">
           <div
-            v-for="card in favoriteCards.slice(0, 8)"
+            v-for="card in favoriteCards"
             :key="`fav-${card.id}`"
             class="favorite-card-shell"
           >
@@ -115,7 +87,7 @@
               <div class="favorite-card-title">{{ card.title || '无标题' }}</div>
               <div class="favorite-card-meta">
                 <span>{{ card.source || '未知来源' }}</span>
-                <span>新闻发布日期：{{ formatDateTime(publishedTimeValue(card)) }}</span>
+                <span>{{ formatDateTime(publishedTimeValue(card)) }}</span>
               </div>
             </router-link>
             <button
