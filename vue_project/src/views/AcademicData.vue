@@ -234,7 +234,7 @@
               <div><dt>运行时</dt><dd>DSH</dd></div>
             </dl>
             <div v-if="pluginCanBeAdded(plugin)" class="skill-footer">
-              <button class="use-skill-btn" type="button" @click.stop="openPluginDetail(plugin)" @keydown.stop>
+              <button class="use-skill-btn" type="button" @click.stop="openPluginDetail(plugin)" @keydown.enter.stop @keydown.space.stop>
                 <Plus />
                 添加
               </button>
