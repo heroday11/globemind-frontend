@@ -287,7 +287,7 @@ function formatTime(value, timeZone) {
   padding-bottom: 30px;
 }
 .overview {
-  --overview-scale: 2;
+  --overview-scale: 1;
   --overview-icon-size: calc(54px * var(--overview-scale));
   display: grid; grid-template-columns: var(--overview-icon-size) minmax(0, 1fr); align-items: start;
   gap: calc(14px * var(--overview-scale));
@@ -295,12 +295,12 @@ function formatTime(value, timeZone) {
 .overview-icon, .creation-icon { display: grid; place-items: center; }
 .overview-icon {
   width: var(--overview-icon-size); height: var(--overview-icon-size);
-  border-radius: 12px; background: #e7f1ff; color: #1768e5;
+  border-radius: 6px; background: #e7f1ff; color: #1768e5;
 }
 .overview-icon svg {
   width: calc(28px * var(--overview-scale)); height: calc(28px * var(--overview-scale));
 }
-.section-label { margin: 0 0 4px; color: #1768e5; font-size: .85em; font-weight: 650; line-height: 1.35; }
+.section-label { margin: 0 0 2px; color: #1768e5; font-size: .425em; font-weight: 650; line-height: 1.35; }
 h1, h2, h3 { margin: 0; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
 .overview h1 { font-size: calc(1.85em * var(--overview-scale)); }
 .creation-card {
@@ -330,7 +330,7 @@ button:disabled { opacity: .55; cursor: default; }
 .intro { font-size: calc(1em * var(--overview-scale)); }
 .example { position: relative; font-size: calc(.9em * var(--overview-scale)); }
 .example::before {
-  position: absolute; inset: .15em auto .15em -8px; width: 2px; background: #bbd7fb; content: '';
+  position: absolute; inset: .15em auto .15em -4px; width: 1px; background: #bbd7fb; content: '';
 }
 .task-section { border-top: 1px solid #dbe3e8; }
 .task-section > h2 { padding: 14px 0; }
@@ -371,7 +371,7 @@ dialog::backdrop { background: #18253066; }
 .report-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0 0 16px; }
 @media (max-width: 980px) {
   .briefing-header { grid-template-columns: minmax(0, 1fr); }
-  .overview { --overview-scale: 1.6; }
+  .overview { --overview-scale: .8; }
   .creation-card { justify-self: start; }
 }
 @media (max-width: 680px) {
@@ -382,7 +382,7 @@ dialog::backdrop { background: #18253066; }
   .briefings { width: calc(100% - 24px); }
   .briefing-header { gap: 14px; }
   .creation-card { padding: 12px; }
-  .overview { --overview-scale: 1.35; gap: 12px; }
+  .overview { --overview-scale: .675; gap: 6px; }
   .entries button { font-size: .875em; padding-inline: 7px; }
 }
 </style>
