@@ -13,7 +13,7 @@
 
       <label class="vault-search">
         <Search />
-        <input v-model="searchKeyword" type="search" placeholder="检索领域、skill、任务或来源" />
+        <input v-model="searchKeyword" type="search" :placeholder="isPluginDomain ? '搜索所有 DSH 插件' : '检索领域、skill、任务或来源'" @input="searchAllPlugins" />
       </label>
 
       <nav class="domain-nav" aria-label="专家领域">
@@ -167,14 +167,34 @@
         </header>
         <p v-if="pluginStatusError" class="form-error" role="alert">{{ pluginStatusError }}</p>
         <p v-if="pluginNotice" class="db-privacy-note" role="status">{{ pluginNotice }}</p>
-        <div v-if="pluginIndex?.categories.length" class="modal-chip-list dsh-category-filter">
-          <label for="dsh-plugin-category">用途</label>
-          <select id="dsh-plugin-category" v-model="pluginCategory">
-            <option value="">全部插件</option>
-            <option v-for="category in pluginIndex.categories" :key="category.id" :value="category.id">
-              {{ pluginText(category.title) }}
-            </option>
-          </select>
+        <div v-if="pluginIndex" class="dsh-market-filters">
+          <div class="dsh-market-views" role="group" aria-label="插件目录">
+            <button
+              class="use-skill-btn"
+              type="button"
+              :aria-pressed="pluginGroup === 'featured'"
+              @click="selectPluginGroup('featured')"
+            >
+              精选 <span>{{ featuredPluginCount }}</span>
+            </button>
+            <button
+              class="use-skill-btn"
+              type="button"
+              :aria-pressed="pluginGroup === 'all'"
+              @click="selectPluginGroup('all')"
+            >
+              全部插件 <span>{{ pluginIndex.plugins.length }}</span>
+            </button>
+          </div>
+          <div class="modal-chip-list dsh-category-filter">
+            <label for="dsh-plugin-category">用途</label>
+            <select id="dsh-plugin-category" v-model="pluginCategory">
+              <option value="">全部用途</option>
+              <option v-for="category in pluginIndex.categories" :key="category.id" :value="category.id">
+                {{ pluginText(category.title) }}
+              </option>
+            </select>
+          </div>
         </div>
         <div v-if="pluginLoading || pluginError" class="empty-state catalog-state" :role="pluginError ? 'alert' : 'status'">
           <RefreshCw v-if="pluginLoading" class="catalog-spinner" />
@@ -199,6 +219,7 @@
                 {{ pluginStateLabel(plugin) }}
               </span>
               <span class="license-badge">{{ plugin.author }}</span>
+              <span v-if="plugin.featured && pluginGroup === 'all'" class="license-badge">精选</span>
             </div>
             <div class="skill-card-top">
               <div class="skill-icon"><PlugZap /></div>
@@ -212,6 +233,12 @@
               <div><dt>推荐版本</dt><dd>{{ pluginStates[plugin.name]?.defaultVersion || plugin.versions[0]?.version }}</dd></div>
               <div><dt>运行时</dt><dd>DSH</dd></div>
             </dl>
+            <div v-if="pluginCanBeAdded(plugin)" class="skill-footer">
+              <button class="use-skill-btn" type="button" @click.stop="openPluginDetail(plugin)" @keydown.stop>
+                <Plus />
+                添加
+              </button>
+            </div>
           </article>
         </div>
         <div v-else class="empty-state"><PlugZap /><strong>没有匹配的插件</strong></div>
@@ -628,6 +655,8 @@
                 <dl class="modal-fact-list dsh-plugin-facts">
                   <div><dt>发布者</dt><dd>{{ detailPlugin.author }}</dd></div>
                   <div><dt>安装来源</dt><dd><a :href="safeExternalHttpUrl(detailPlugin.homepage)" target="_blank" rel="noopener noreferrer">{{ detailPlugin.name }}</a></dd></div>
+                  <div v-if="detailPlugin.requirements"><dt>运行条件</dt><dd>{{ detailPlugin.requirements }}</dd></div>
+                  <div v-if="detailPlugin.unavailable"><dt>添加限制</dt><dd>{{ detailPlugin.unavailable }}</dd></div>
                   <div>
                     <dt><label for="dsh-plugin-version">版本</label></dt>
                     <dd><select id="dsh-plugin-version" v-model="pluginVersion" :disabled="pluginState?.installed || pluginState?.provided || Boolean(pendingPluginAction) || pluginActionBusy">
@@ -642,7 +671,7 @@
             <p v-if="pluginActionMessage" class="db-privacy-note" role="status">{{ pluginActionMessage }}</p>
             <p v-if="pluginActionError" class="form-error" role="alert">{{ pluginActionError }}</p>
             <div class="modal-actions">
-              <router-link v-if="!getToken()" class="use-skill-btn" :to="pluginLoginRoute">登录后管理插件</router-link>
+              <router-link v-if="!getToken() && !detailPlugin.unavailable" class="use-skill-btn" :to="pluginLoginRoute">登录后管理插件</router-link>
               <template v-else-if="pendingPluginAction">
                 <button class="use-skill-btn" type="button" :disabled="pluginActionBusy" @click="pendingPluginAction = ''">取消</button>
                 <button class="modal-use-btn" type="button" :disabled="pluginActionBusy" @click="applyPluginAction">
@@ -652,7 +681,7 @@
               <template v-else-if="pluginState">
                 <button v-if="pluginState.removable" class="use-skill-btn" type="button" @click="pendingPluginAction = 'remove'">卸载</button>
                 <button v-if="primaryPluginAction" class="modal-use-btn" type="button" @click="pendingPluginAction = primaryPluginAction">
-                  {{ pluginActionLabels[primaryPluginAction] }}
+                  {{ primaryPluginAction === 'disable' ? '停用' : '添加' }}
                 </button>
               </template>
             </div>
@@ -779,6 +808,7 @@ const pluginIndex = ref(null)
 const pluginLoading = ref(false)
 const pluginError = ref('')
 const pluginCategory = ref('')
+const pluginGroup = ref('featured')
 const pluginStates = ref({})
 const pluginStatusLoading = ref(false)
 const pluginStatusError = ref('')
@@ -1295,30 +1325,51 @@ function pluginCategoryTitle(categoryId) {
   return pluginText(pluginIndex.value?.categories.find(category => category.id === categoryId)?.title)
 }
 
+const featuredPluginCount = computed(() => (pluginIndex.value?.plugins || []).filter(plugin => plugin.featured).length)
+
+function selectPluginGroup(group) {
+  pluginCategory.value = ''
+  pluginGroup.value = group
+}
+
+function searchAllPlugins(event) {
+  if (isPluginDomain.value && event.target.value.trim() && pluginGroup.value !== 'all') selectPluginGroup('all')
+}
+
 const filteredPlugins = computed(() => {
-  const query = searchKeyword.value.trim().toLowerCase()
-  return (pluginIndex.value?.plugins || []).filter(plugin =>
-    (!pluginCategory.value || plugin.category === pluginCategory.value) &&
-    [plugin.name, plugin.author, pluginText(plugin.title), pluginText(plugin.description),
-      pluginCategoryTitle(plugin.category)].join(' ').toLowerCase().includes(query),
-  )
+  const terms = searchKeyword.value.normalize('NFKC').toLowerCase().trim().split(/\s+/).filter(Boolean)
+  return (pluginIndex.value?.plugins || []).filter(plugin => {
+    if (pluginGroup.value === 'featured' && !plugin.featured) return false
+    if (pluginCategory.value && plugin.category !== pluginCategory.value) return false
+    const text = [plugin.name, plugin.author, pluginText(plugin.title), plugin.title?.en,
+      pluginText(plugin.description), plugin.description?.en, plugin.requirements,
+      pluginCategoryTitle(plugin.category)].join(' ').normalize('NFKC').toLowerCase()
+    return terms.every(term => text.includes(term))
+  })
 })
 const pluginState = computed(() => pluginStates.value[detailPlugin.value?.name])
 const pluginCompatibility = computed(() => pluginState.value?.versions.find(version =>
   version.version === (pluginState.value.installedVersion || pluginVersion.value),
 )?.compatibility)
 const pluginCompatibilityLabel = computed(() => {
+  if (detailPlugin.value?.unavailable && !pluginCompatibility.value) return '查看添加限制'
   if (!pluginCompatibility.value) return '连接数据助手后检查'
   return pluginCompatibility.value.compatible ? '兼容当前 DSH' : '与当前 DSH 版本不兼容'
 })
 const primaryPluginAction = computed(() => {
   if (pluginState.value?.enabled) return 'disable'
-  if (!pluginCompatibility.value?.compatible) return ''
+  if (detailPlugin.value?.unavailable || pluginState.value?.error || !pluginCompatibility.value?.compatible) return ''
   return pluginState.value?.installed || pluginState.value?.provided ? 'enable' : 'install'
 })
 
+function pluginCanBeAdded(plugin) {
+  const state = pluginStates.value[plugin.name]
+  return !plugin.unavailable && !state?.enabled && (!state || Boolean(state.defaultVersion && !state.error))
+}
+
 function pluginStateLabel(plugin) {
   const state = pluginStates.value[plugin.name]
+  if (plugin.unavailable && !state?.enabled) return '仅浏览'
   if (!state) return getToken() ? '等待连接' : 'DSH 插件'
   if (state.error === 'incompatible-version' || !state.defaultVersion) return '版本不兼容'
   if (state.error) return '状态异常'
@@ -1333,7 +1384,7 @@ async function loadPluginIndex() {
   pluginLoading.value = true
   pluginError.value = ''
   try {
-    const response = await fetch(pluginApi + '/index.json')
+    const response = await fetch(pluginApi + '/catalog')
     if (!response.ok) throw new Error(String(response.status))
     pluginIndex.value = await response.json()
   } catch {
@@ -1361,6 +1412,7 @@ async function loadPluginStatus() {
 
 function openPluginMarket() {
   activeDomainId.value = 'dsh-plugins'
+  if (searchKeyword.value.trim()) selectPluginGroup('all')
   if (!pluginIndex.value) void loadPluginIndex()
   void loadPluginStatus()
 }
@@ -1441,9 +1493,26 @@ onBeforeUnmount(() => {
 
 <style src="./AcademicData.css" scoped></style>
 <style scoped>
+.dsh-market-filters,
+.dsh-market-views {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.dsh-market-filters {
+  justify-content: space-between;
+  margin: 0 0 1rem;
+}
+.dsh-market-views button {
+  min-height: 36px;
+}
+.dsh-market-views button[aria-pressed='true'] {
+  border-color: currentColor;
+  font-weight: 700;
+}
 .dsh-category-filter {
   align-items: center;
-  margin: 0 0 1rem;
 }
 .dsh-category-filter select,
 .dsh-plugin-facts select {
