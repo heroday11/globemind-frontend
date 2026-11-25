@@ -52,18 +52,7 @@
           />
           <span class="folder-mark" aria-hidden="true" />
           <div class="folder-copy">
-            <div v-if="isEditingTheme && folder.name === themeName" class="folder-edit-row">
-              <label class="search-sr-only" for="search-folder-name">文件夹名称</label>
-              <input
-                id="search-folder-name"
-                v-model="themeNameDraft"
-                name="folderName"
-                class="folder-edit-input"
-                @keyup.enter="saveThemeName"
-                @blur="saveThemeName"
-              />
-            </div>
-            <span v-else class="folder-name">{{ folder.displayName }}</span>
+            <span class="folder-name">{{ folder.displayName }}</span>
             <span class="folder-meta">{{ folder.count }} 条收藏</span>
           </div>
         </article>
@@ -72,9 +61,20 @@
       <div class="sidebar-block sidebar-block--favorites">
         <div class="sidebar-block-title">当前文件夹</div>
         <div class="current-folder-heading">
-          <strong>{{ displayFolderName(themeName) }}</strong>
-          <button type="button" class="current-folder-action" title="重命名当前文件夹" aria-label="重命名当前文件夹" @click="startEditThemeName">✎</button>
-          <button v-if="themeList.length > 1" type="button" class="current-folder-action" title="删除当前文件夹" aria-label="删除当前文件夹" @click="deleteTheme(themeName)">×</button>
+          <input
+            v-if="isEditingTheme"
+            id="search-folder-name"
+            v-model="themeNameDraft"
+            aria-label="文件夹名称"
+            class="folder-edit-input"
+            @keydown.enter.prevent="saveThemeName"
+            @keydown.esc.prevent="isEditingTheme = false"
+            @blur="saveThemeName"
+          />
+          <button v-else type="button" class="current-folder-name" title="重命名当前文件夹" @click="startEditThemeName">
+            {{ displayFolderName(themeName) }}
+          </button>
+          <button v-if="themeList.length > 1" type="button" class="current-folder-action" title="删除当前文件夹" aria-label="删除当前文件夹" @click="deleteTheme(themeName)"><Trash2 :size="16" /></button>
         </div>
         <div v-if="favoriteCards.length === 0" class="favorite-empty">暂无收藏</div>
         <div v-else class="favorite-cards">
@@ -1008,7 +1008,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch, reactive } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Trash2 } from 'lucide-vue-next'
 import { AssistantDrawer } from '@/features/assistant/index.js'
 import {
   graphMetricExplanation,
@@ -2558,6 +2559,17 @@ const deleteTheme = async (topic) => {
   }
 
   const favs = getReportFavoritesForTopic(t)
+  try {
+    await ElMessageBox.confirm(`「${displayFolderName(t)}」及其中的收藏将被删除。`, '删除文件夹', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      confirmButtonClass: 'el-button--danger',
+    })
+  } catch {
+    return
+  }
+  if (!themeList.value.includes(t) || themeList.value.length <= 1) return
   const warns = getWarningsForTopic(t)
   if (localStorage.getItem('access_token')) {
     for (const x of favs) {
@@ -2622,9 +2634,11 @@ const addNewTheme = () => {
 const startEditThemeName = () => {
   themeNameDraft.value = displayFolderName(themeName.value)
   isEditingTheme.value = true
+  nextTick(() => document.getElementById('search-folder-name')?.select())
 }
 
 const saveThemeName = () => {
+  if (!isEditingTheme.value) return
   const prev = normalizeFolderName(themeName.value)
   const next = normalizeFolderName(themeNameDraft.value)
   if (prev !== next) {
