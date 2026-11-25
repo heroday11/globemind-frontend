@@ -288,20 +288,22 @@ function formatTime(value, timeZone) {
   padding-bottom: 30px;
 }
 .overview {
-  --overview-scale: 1;
+  --overview-scale: 1.1;
   --overview-icon-size: calc(54px * var(--overview-scale));
   display: grid; grid-template-columns: var(--overview-icon-size) minmax(0, 1fr); align-items: start;
   gap: calc(14px * var(--overview-scale));
+  padding: 12px 14px; border: 1px solid #c9dbf4; border-radius: 8px;
+  background: #e1ecff;
 }
 .overview-icon, .creation-icon { display: grid; place-items: center; }
 .overview-icon {
   width: var(--overview-icon-size); height: var(--overview-icon-size);
-  border-radius: 6px; background: #e7f1ff; color: #1768e5;
+  border-radius: 6px; background: #cfe2ff; color: #1759ba;
 }
 .overview-icon svg {
   width: calc(28px * var(--overview-scale)); height: calc(28px * var(--overview-scale));
 }
-.section-label { margin: 0 0 2px; color: #1768e5; font-size: .425em; font-weight: 650; line-height: 1.35; }
+.section-label { margin: 0 0 2px; color: #1759ba; font-size: .5em; font-weight: 650; line-height: 1.35; }
 h1, h2, h3 { margin: 0; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
 .overview h1 { font-size: calc(1.85em * var(--overview-scale)); }
 .creation-card {
@@ -377,15 +379,14 @@ dialog::backdrop { background: #18253066; }
   }
   .overview {
     align-self: stretch; align-content: center; padding: clamp(12px, 2.5vh, 24px) 24px;
-    border: 1px solid #dbe3e8; border-radius: 8px; background: var(--briefing-muted-bg);
   }
   .section-label { margin-bottom: 6px; }
   .intro { margin-top: 12px; }
   .example { margin-top: 14px; }
 }
 @media (min-width: 981px) and (max-width: 1200px) {
-  .briefing-header { column-gap: 16px; padding-bottom: 14px; }
-  .overview { row-gap: 0; padding: 10px 14px; }
+  .briefing-header { column-gap: 12px; padding-bottom: 14px; }
+  .overview { --overview-scale: 1.08; row-gap: 0; padding: 10px 12px; }
   .overview-copy { display: contents; }
   .overview-icon { grid-row: 1 / 3; }
   .intro, .example { grid-column: 1 / -1; }
@@ -394,7 +395,7 @@ dialog::backdrop { background: #18253066; }
 }
 @media (max-width: 980px) {
   .briefing-header { grid-template-columns: minmax(0, 1fr); }
-  .overview { --overview-scale: .8; }
+  .overview { --overview-scale: .88; }
   .creation-card { justify-self: start; }
 }
 @media (max-width: 680px) {
@@ -405,7 +406,7 @@ dialog::backdrop { background: #18253066; }
   .briefings { width: calc(100% - 24px); }
   .briefing-header { gap: 14px; }
   .creation-card { padding: 12px; }
-  .overview { --overview-scale: .675; gap: 6px; }
+  .overview { --overview-scale: .75; gap: 8px; }
   .entries button { font-size: .875em; padding-inline: 7px; }
 }
 </style>
