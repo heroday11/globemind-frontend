@@ -96,6 +96,11 @@
           </div>
         </header>
 
+        <div v-if="graphLoadFailed" class="intel-graph-notice" role="status">
+          <span>图谱暂时无法显示，已切换到时间线。</span>
+          <button class="intel-btn" type="button" @click="reloadPage">刷新页面</button>
+        </div>
+
         <div v-show="workspaceView === 'graph'" class="intel-graph">
           <div ref="graphContainer" class="intel-canvas" role="region" aria-label="事件图谱"></div>
           <div v-if="graph" class="intel-graph-tools" role="group" aria-label="画布工具">
@@ -303,6 +308,7 @@ const error = ref('')
 const queryStatus = ref(buildStoryGraphQueryStatus('idle', { mode: graphMode.value }))
 const leftCollapsed = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches)
 const workspaceView = ref('graph')
+const graphLoadFailed = ref(false)
 const showContextLinks = ref(true)
 const layoutSaved = ref(false)
 const agentMessages = ref([])
@@ -838,6 +844,7 @@ function invalidateEvidenceRequest() {
 function clearWorkspacePresentation() {
   invalidateEvidenceRequest()
   currentStory.value = null
+  graphLoadFailed.value = false
   selectedInspector.value = null
   focusPanelOpen.value = false
   layoutSaved.value = false
@@ -890,15 +897,24 @@ function evidenceNewsMeta(item) {
 
 async function renderWorkspaceGraph(requestToken = null, story = currentStory.value) {
   if (!graphContainer.value || !story || workspaceView.value !== 'graph') return
-  if (!reactFlowFactoryPromise) {
-    reactFlowFactoryPromise = loadStoryGraphRenderer()
+  const isCurrentGraph = () =>
+    (requestToken === null || workspaceRequestGate.isCurrent(requestToken))
+    && currentStory.value === story
+    && workspaceView.value === 'graph'
+  const factory = (reactFlowFactoryPromise ??= loadStoryGraphRenderer())
+  let createStoryGraphRenderer
+  try {
+    createStoryGraphRenderer = await factory
+  } catch {
+    if (reactFlowFactoryPromise === factory) reactFlowFactoryPromise = null
+    if (isCurrentGraph()) {
+      graphLoadFailed.value = true
+      workspaceView.value = 'timeline'
+    }
+    return
   }
-  const createStoryGraphRenderer = await reactFlowFactoryPromise
-  if (
-    (requestToken !== null && !workspaceRequestGate.isCurrent(requestToken))
-    || currentStory.value !== story
-    || workspaceView.value !== 'graph'
-  ) return
+  if (!isCurrentGraph()) return
+  graphLoadFailed.value = false
 
   if (!graph.value) {
     graph.value = createStoryGraphRenderer(graphContainer.value)
@@ -988,6 +1004,10 @@ function closeFocusPanel() {
 
 function toggleContextLinks() {
   showContextLinks.value = !showContextLinks.value
+}
+
+function reloadPage() {
+  window.location.reload()
 }
 
 function fitCanvas() {
@@ -1597,6 +1617,17 @@ function clampText(value, max = 11000) {
 
 .intel-workspace__title p {
   margin: 8px 0 0;
+}
+
+.intel-graph-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 0 20px;
+  background: var(--sidebar);
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .intel-graph {
