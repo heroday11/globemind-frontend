@@ -55,6 +55,14 @@ export function createGroundNewsApi({ client = axios, apiRoot = defaultApiRoot()
       return response.data
     },
 
+    async getOverview({ country, place, query, signal } = {}) {
+      const response = await client.get(`${groundNewsRoot}/overview`, {
+        params: { country: country || undefined, place: place || undefined, q: query || undefined },
+        signal,
+      })
+      return response.data
+    },
+
     async getBlindspots({ pageSize = 80 } = {}) {
       const response = await client.get(`${groundNewsRoot}/blindspots`, {
         params: { page_size: pageSize },

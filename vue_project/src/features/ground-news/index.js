@@ -1,3 +1,7 @@
+import { defineAsyncComponent } from 'vue'
+
+export const GroundNewsOverview = defineAsyncComponent(() => import('./GroundNewsOverview.vue'))
+
 export {
   buildGroundNewsListParams,
   createGroundNewsApi,

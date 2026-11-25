@@ -11,13 +11,13 @@
         <span class="heading-icon"><Globe :size="30" :stroke-width="1.7" /></span>
         <div>
           <h1>{{ isRegional ? '粤港澳事件总览' : '全球事件总览' }}</h1>
-          <p>{{ isRegional ? '聚焦广东、香港与澳门，优先呈现外国媒体报道，兼顾本地新闻' : '聚合多源报道，梳理事件脉络与关联线索' }}</p>
+          <p v-if="isRegional">聚焦广东、香港与澳门，优先呈现外国媒体报道，兼顾本地新闻</p>
         </div>
       </div>
       <div class="hero-actions">
-        <button class="ghost-link" type="button" :disabled="loading" @click="refreshHome">
-          <RefreshCw :size="16" :class="{ spinning: loading }" />{{
-            loading ? '刷新中' : '刷新事件流'
+        <button class="ghost-link" type="button" :disabled="overviewLoading" @click="refreshHome">
+          <RefreshCw :size="16" :class="{ spinning: overviewLoading }" />{{
+            overviewLoading ? '刷新中' : '刷新事件流'
           }}
         </button>
         <RouterLink class="primary-link" to="/data-service/ground-news-desk"
@@ -28,7 +28,7 @@
         <RouterLink to="/data-service/ground-news" :class="{ 'is-selected': !isRegional }" :aria-current="!isRegional ? 'page' : undefined">全球事件总览</RouterLink>
         <RouterLink to="/data-service/ground-news-gba" :class="{ 'is-selected': isRegional }" :aria-current="isRegional ? 'page' : undefined">粤港澳事件总览</RouterLink>
       </nav>
-      <div class="freshness-banner" role="status">
+      <div v-if="isRegional" class="freshness-banner" role="status">
         <Clock :size="16" />
         <strong
           >{{ historicalMode ? '历史数据视图' : '已收录事件' }} · 多源数据截止
@@ -38,7 +38,8 @@
       </div>
     </section>
 
-    <nav v-if="sectionNavItems.length" class="section-nav" aria-label="新闻栏目">
+    <GroundNewsOverview v-if="!isRegional" ref="globalOverview" />
+    <nav v-if="isRegional && sectionNavItems.length" class="section-nav" aria-label="新闻栏目">
       <button
         v-for="item in sectionNavItems"
         :key="item.id"
@@ -51,16 +52,16 @@
       </button>
     </nav>
 
-    <section v-if="loading && !home" class="home-loading" role="status">
+    <section v-if="isRegional && loading && !home" class="home-loading" role="status">
       <RefreshCw class="spinning" :size="26" />
       <p>正在加载首页事件流…</p>
     </section>
-    <section v-else-if="error && !home" class="home-error" role="alert">
+    <section v-else-if="isRegional && error && !home" class="home-error" role="alert">
       <Info :size="28" /><strong>首页事件流加载失败</strong>
       <p>{{ error }}</p>
       <button class="primary-link" type="button" @click="loadHome">重新加载</button>
     </section>
-    <template v-else>
+    <template v-else-if="isRegional">
       <p v-if="error" class="refresh-error" role="alert">
         刷新失败，保留上次内容：{{ error }} <button type="button" @click="loadHome">重试</button>
       </p>
@@ -515,7 +516,7 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import {
   ArrowRight,
@@ -539,6 +540,7 @@ import {
 } from '@/features/operations/index.js'
 import {
   buildGroundNewsHomeModel,
+  GroundNewsOverview,
   groundNewsApi,
   homeBiasBuckets as normalizeBiasBuckets,
   homeBiasSummary as biasSummary,
@@ -566,6 +568,8 @@ import {
 
 const route = useRoute()
 const isRegional = computed(() => route.meta.groundNewsScope === 'gba')
+const globalOverview = ref(null)
+const overviewLoading = computed(() => isRegional.value ? loading.value : globalOverview.value?.loading)
 const overviewPath = computed(() => isRegional.value ? '/data-service/ground-news-gba' : '/data-service/ground-news')
 let homeRequestId = 0
 const loading = ref(false)
@@ -765,18 +769,20 @@ const BiasBar = defineComponent({
   },
 })
 
-onMounted(() => {
-  void refreshFreshness()
-})
-
 watch(isRegional, () => {
+  homeRequestId += 1
   home.value = null
   error.value = ''
   activeSection.value = 'front-news'
   failedCoverIds.value = new Set()
   loadedCoverIds.value = new Set()
   sectionObserver?.disconnect()
-  void loadHome()
+  if (isRegional.value) {
+    void refreshFreshness()
+    void loadHome()
+  } else {
+    loading.value = false
+  }
 }, { immediate: true })
 
 async function loadHome() {
@@ -784,7 +790,7 @@ async function loadHome() {
   loading.value = true
   error.value = ''
   try {
-    const result = await groundNewsApi.getHome({ candidateLimit: 180, minArticles: 2, scope: isRegional.value ? 'gba' : 'global' })
+    const result = await groundNewsApi.getHome({ candidateLimit: 180, minArticles: 2, scope: 'gba' })
     if (requestId !== homeRequestId) return
     home.value = result
   } catch (err) {
@@ -800,6 +806,10 @@ async function loadHome() {
 }
 
 function refreshHome() {
+  if (!isRegional.value) {
+    void globalOverview.value?.refresh()
+    return
+  }
   void refreshFreshness()
   void loadHome()
 }

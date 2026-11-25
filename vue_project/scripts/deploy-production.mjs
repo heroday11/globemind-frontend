@@ -10,6 +10,7 @@ const deployRoot = path.join(frontendRoot, '.deploy')
 const lockPath = path.join(deployRoot, 'lock')
 const buildId = process.env.VITE_BUILD_ID || new Date().toISOString().replaceAll(/[:.]/g, '-')
 const liveDist = path.join(frontendRoot, 'dist')
+const mainOnly = process.argv.includes('--main-only')
 
 function run(command, args, extraEnv = {}) {
   const result = spawnSync(command, args, {
@@ -38,10 +39,17 @@ try {
   const stagedDist = path.join(transactionRoot, 'staged')
   const rollbackDist = path.join(transactionRoot, 'live')
 
-  run('node', ['scripts/build-release.mjs'], {
-    GLOBEMIND_FRONTEND_OUT_DIR: stagedDist,
-    VITE_BUILD_ID: buildId,
-  })
+  if (mainOnly) {
+    run('npm', ['run', 'build:main-only'], { VITE_OUT_DIR: stagedDist, VITE_BUILD_ID: buildId })
+    fs.cpSync(path.join(liveDist, 'fin-terminal'), path.join(stagedDist, 'fin-terminal'), {
+      recursive: true,
+    })
+  } else {
+    run('node', ['scripts/build-release.mjs'], {
+      GLOBEMIND_FRONTEND_OUT_DIR: stagedDist,
+      VITE_BUILD_ID: buildId,
+    })
+  }
 
   for (const required of [
     path.join(stagedDist, 'index.html'),

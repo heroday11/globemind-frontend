@@ -36,15 +36,15 @@ const commonSteps = [
   },
   {
     chapter: '发现', route: '/data-service/ground-news', selector: '[data-tour="ground-news-overview"]',
-    eyebrow: '全球新闻观察台 · 总览', title: '先判断已收录事件中哪些值得关注',
-    description: '事件首页按已收录时间和多源覆盖展示国际焦点，顶部同时给出故事卡、新闻量和最近有效日期。',
-    tips: ['优先查看多源事件', '注意数据最新日期', '刷新事件流不会改变你的筛选偏好'],
+    eyebrow: '全球新闻观察台 · 总览', title: '从全球事件中找到重点',
+    description: '总览按重要性展示近期事件，并标明数据截止日期。',
+    tips: ['查看事件的信源和报道量', '打开事件可以核对原始报道'],
   },
   {
     chapter: '发现', route: '/data-service/ground-news', selector: '[data-tour="ground-news-edition"]',
-    eyebrow: '全球新闻观察台 · 新闻版面', title: '从快讯、多源报道和走势链交叉判断',
-    description: '快讯列表用于查看已收录事件，多源版面帮助比较报道覆盖，L2 走势链用于理解连续演变。',
-    tips: ['先看来源数量而不是只看标题', '打开事件后继续核对原始报道'],
+    eyebrow: '全球新闻观察台 · 事件视角', title: '按地图或关键词聚焦',
+    description: '在地图上选地区，或切换到关键词查找主题、人物和地点。',
+    tips: ['地图放大后可以选择城市', '切换视角时同一事件的分数保持一致'],
   },
   {
     chapter: '发现', route: '/data-service/ground-news-desk', selector: '[data-tour="ground-desk-filters"]', placement: 'right',
