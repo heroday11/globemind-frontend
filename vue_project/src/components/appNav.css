@@ -142,24 +142,23 @@
   color: rgba(239, 244, 255, 0.75);
 }
 
-.header-showcase .dropdown-menu {
+.header-showcase #desktop-user-center-menu {
   background: rgba(1, 8, 40, 0.96);
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
-.header-showcase .dropdown-item-content {
+.header-showcase #desktop-user-center-menu .dropdown-item-content {
   color: rgba(239, 244, 255, 0.88);
 }
 
-.header-showcase .dropdown-item-content:hover,
-.header-showcase .dropdown-item-content:focus-visible,
-.header-showcase .dropdown-item-content.router-link-active {
+.header-showcase #desktop-user-center-menu .dropdown-item-content:hover,
+.header-showcase #desktop-user-center-menu .dropdown-item-content:focus-visible {
   background-color: rgba(111, 255, 0, 0.12);
   color: #eff4ff;
 }
 
-.header-showcase .dropdown-item-icon {
+.header-showcase #desktop-user-center-menu .dropdown-item-icon {
   color: #6fff00;
 }
 
@@ -585,6 +584,14 @@
   right: 0;
 }
 
+#desktop-more-menu {
+  width: max-content;
+}
+
+#desktop-more-menu .dropdown-item-content {
+  line-height: normal;
+}
+
 /* 消除触发器与下拉菜单之间的悬空缝隙，避免鼠标下移时误触发关闭 */
 .dropdown-menu::before {
   content: '';
@@ -644,11 +651,6 @@
 .dropdown-item-content:focus-visible {
   background-color: #f1f5f9;
   color: #0f172a;
-}
-
-.dropdown-item-content.router-link-active {
-  background-color: #eff6ff;
-  color: #1d4ed8;
 }
 
 .dropdown-item-icon {

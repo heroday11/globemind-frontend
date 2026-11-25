@@ -2,13 +2,17 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
+  Blocks,
   ChevronDown,
   CircleHelp,
   Crosshair,
+  Database,
   FileText,
   Folder,
+  Globe,
   Info,
   LogOut,
+  MessageCircle,
   Search,
   User,
   X,
@@ -31,10 +35,10 @@ const navLogoUrl = '/imgs/logo2_orig.png'
 const DROPDOWN_CLOSE_DELAY = 280
 const PRIMARY_PRELOAD_DELAY = 120
 const moreLinks = [
-  { path: '/sentiment-analysis', label: '涉华舆情分析' },
-  { path: '/data-service/ground-news', label: '全球新闻观察台' },
-  { path: '/data-service/data-search', label: '数据服务' },
-  { path: '/academic-data', label: 'Agent 能力市场' },
+  { path: '/sentiment-analysis', label: '涉华舆情分析', icon: MessageCircle },
+  { path: '/data-service/ground-news', label: '全球新闻观察台', icon: Globe },
+  { path: '/data-service/data-search', label: '数据服务', icon: Database },
+  { path: '/academic-data', label: 'Agent 能力市场', icon: Blocks },
 ]
 
 const preloadController = createRoutePreloadController(props.routePreloaders, {
@@ -456,7 +460,8 @@ const submitGlobalSearch = () => {
               @focus="preloadRoute(link.path)"
               @click="closeDropdowns"
             >
-              {{ link.label }}
+              <component :is="link.icon" class="nav-icon dropdown-item-icon" :size="16" aria-hidden="true" />
+              <span>{{ link.label }}</span>
             </router-link>
           </div>
         </li>
