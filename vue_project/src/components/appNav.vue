@@ -358,38 +358,6 @@ const submitGlobalSearch = () => {
         <li class="nav-item"><router-link to="/data-assistant" @pointerenter="preloadRoute('/data-assistant')" @focus="preloadRoute('/data-assistant')" @click="closeDropdowns">数据助手</router-link></li>
         <li class="nav-item"><router-link to="/financial-terminal" @pointerenter="preloadRoute('/financial-terminal')" @focus="preloadRoute('/financial-terminal')" @click="closeDropdowns">数值分析预警</router-link></li>
         <li
-          ref="desktopMoreItem"
-          class="nav-item"
-          :class="{ 'nav-item-active': isMoreActive }"
-          @focusout="closeMoreOnFocusOut"
-          @keydown.esc="closeMoreOnEscape"
-        >
-          <button
-            ref="desktopMoreTrigger"
-            type="button"
-            class="dropdown-trigger"
-            :aria-expanded="isMoreOpen"
-            aria-controls="desktop-more-menu"
-            @click="toggleMoreDropdown"
-          >
-            <span>更多</span>
-            <ChevronDown class="nav-icon dropdown-icon" :class="{ rotate: isMoreOpen }" :size="14" aria-hidden="true" />
-          </button>
-          <div id="desktop-more-menu" v-show="isMoreOpen" class="dropdown-menu" :class="{ show: isMoreOpen }">
-            <router-link
-              v-for="link in moreLinks"
-              :key="link.path"
-              :to="link.path"
-              class="dropdown-item-content"
-              @pointerenter="preloadRoute(link.path)"
-              @focus="preloadRoute(link.path)"
-              @click="closeDropdowns"
-            >
-              {{ link.label }}
-            </router-link>
-          </div>
-        </li>
-        <li
           v-if="hasToken"
           class="nav-item dropdown-item"
           @pointerenter="enterUserCenterDropdown"
@@ -458,6 +426,38 @@ const submitGlobalSearch = () => {
               <LogOut class="nav-icon dropdown-item-icon" :size="16" />
               <span>退出登录</span>
             </button>
+          </div>
+        </li>
+        <li
+          ref="desktopMoreItem"
+          class="nav-item"
+          :class="{ 'nav-item-active': isMoreActive }"
+          @focusout="closeMoreOnFocusOut"
+          @keydown.esc="closeMoreOnEscape"
+        >
+          <button
+            ref="desktopMoreTrigger"
+            type="button"
+            class="dropdown-trigger"
+            :aria-expanded="isMoreOpen"
+            aria-controls="desktop-more-menu"
+            @click="toggleMoreDropdown"
+          >
+            <span>更多</span>
+            <ChevronDown class="nav-icon dropdown-icon" :class="{ rotate: isMoreOpen }" :size="14" aria-hidden="true" />
+          </button>
+          <div id="desktop-more-menu" v-show="isMoreOpen" class="dropdown-menu dropdown-menu--end" :class="{ show: isMoreOpen }">
+            <router-link
+              v-for="link in moreLinks"
+              :key="link.path"
+              :to="link.path"
+              class="dropdown-item-content"
+              @pointerenter="preloadRoute(link.path)"
+              @focus="preloadRoute(link.path)"
+              @click="closeDropdowns"
+            >
+              {{ link.label }}
+            </router-link>
           </div>
         </li>
           </ul>
@@ -564,31 +564,6 @@ const submitGlobalSearch = () => {
               <span>数值分析预警</span>
             </router-link>
 
-            <div class="mobile-nav-item">
-              <button
-                type="button"
-                class="mobile-nav-item-row"
-                :class="{ 'mobile-nav-item-row--active': isMoreActive }"
-                :aria-expanded="Boolean(mobileExpandedMenus.more)"
-                aria-controls="mobile-more-menu"
-                @click="toggleMobileSubmenu('more')"
-              >
-                <span>更多</span>
-                <ChevronDown class="nav-icon mobile-nav-arrow" :class="{ 'arrow-open': mobileExpandedMenus.more }" :size="14" aria-hidden="true" />
-              </button>
-              <div id="mobile-more-menu" v-show="mobileExpandedMenus.more" class="mobile-submenu">
-                <router-link
-                  v-for="link in moreLinks"
-                  :key="link.path"
-                  :to="link.path"
-                  class="mobile-submenu-item"
-                  @click="closeMobileMenuForNavigation"
-                >
-                  {{ link.label }}
-                </router-link>
-              </div>
-            </div>
-
             <!-- 用户中心（含子菜单） -->
             <template v-if="hasToken">
               <div class="mobile-nav-item mobile-nav-item--has-children">
@@ -626,6 +601,31 @@ const submitGlobalSearch = () => {
                 </div>
               </div>
             </template>
+
+            <div class="mobile-nav-item">
+              <button
+                type="button"
+                class="mobile-nav-item-row"
+                :class="{ 'mobile-nav-item-row--active': isMoreActive }"
+                :aria-expanded="Boolean(mobileExpandedMenus.more)"
+                aria-controls="mobile-more-menu"
+                @click="toggleMobileSubmenu('more')"
+              >
+                <span>更多</span>
+                <ChevronDown class="nav-icon mobile-nav-arrow" :class="{ 'arrow-open': mobileExpandedMenus.more }" :size="14" aria-hidden="true" />
+              </button>
+              <div id="mobile-more-menu" v-show="mobileExpandedMenus.more" class="mobile-submenu">
+                <router-link
+                  v-for="link in moreLinks"
+                  :key="link.path"
+                  :to="link.path"
+                  class="mobile-submenu-item"
+                  @click="closeMobileMenuForNavigation"
+                >
+                  {{ link.label }}
+                </router-link>
+              </div>
+            </div>
 
             <router-link class="mobile-nav-item-row" to="/about-us" @click="closeMobileMenuForNavigation">
               <span>关于我们</span>
