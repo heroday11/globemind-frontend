@@ -293,20 +293,26 @@ function formatTime(value, timeZone) {
 h1, h2, h3 { margin: 0; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
 h1 { font-size: 1.85em; }
 .creation-card {
-  display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 8px 9px;
-  justify-self: end; max-width: 100%; padding: 16px 20px; border: 1px solid #dbe3e8;
-  border-radius: 8px; background: #fff;
+  display: grid; grid-template-columns: 45px minmax(0, 1fr); align-items: center; gap: 12px 13.5px;
+  justify-self: end; box-sizing: border-box; max-width: 100%; padding: 24px 30px;
+  border: 1px solid #dbe3e8; border-radius: 8px; background: #fff; font-size: 1.5em;
 }
-.creation-icon { width: 30px; height: 30px; border-radius: 6px; background: #e5f3f4; color: var(--briefing-accent); }
+.creation-icon { width: 45px; height: 45px; border-radius: 9px; background: #e5f3f4; color: var(--briefing-accent); }
+.creation-icon svg { width: 27px; height: 27px; }
 .creation-card h2 { font-size: 1em; }
 h2 { font-size: 1.1em; }
 h3 { font-size: 1em; }
-.entries { display: flex; flex-wrap: wrap; grid-column: 2; gap: 8px; }
-.entries button { white-space: nowrap; }
+.entries { display: flex; flex-wrap: wrap; grid-column: 2; gap: 12px; }
 .primary, .secondary, .action-link {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px;
   padding: 6px 10px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; font: inherit;
 }
+.entries button {
+  max-width: 100%; min-height: 51px; padding: 9px 15px; border-radius: 9px; gap: 7.5px;
+  overflow-wrap: anywhere;
+}
+.entries button svg { width: 24px; height: 24px; flex: none; }
+.entries .primary svg { width: 25.5px; height: 25.5px; }
 .primary { background: var(--briefing-accent); color: white; }
 .secondary { border-color: #cdd6df; color: var(--briefing-accent); background: transparent; }
 .action-link { padding-inline: 4px; background: transparent; color: var(--briefing-accent); }
@@ -354,15 +360,19 @@ dialog::backdrop { background: #18253066; }
 .report-dialog { width: min(100% - 24px, 720px); }
 .report-heading { display: flex; gap: 12px; align-items: start; justify-content: space-between; }
 .report-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0 0 16px; }
+@media (max-width: 920px) {
+  .briefing-header { grid-template-columns: minmax(0, 1fr); }
+  .creation-card { justify-self: start; }
+}
 @media (max-width: 680px) {
   .task-columns { display: none; }
   .tasks li { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px 8px; padding: 10px 0; }
   .topic, .row-actions { grid-column: 1 / -1; }
   .mobile-label { display: block; color: var(--briefing-muted); font-size: .9em; }
   .briefings { width: calc(100% - 24px); }
-  .briefing-header { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .creation-card { justify-self: start; padding: 12px; }
+  .briefing-header { gap: 14px; }
+  .creation-card { padding: 18px; }
   .overview { gap: 12px; }
-  .entries button { font-size: .875em; padding-inline: 7px; }
+  .entries button { font-size: .875em; padding-inline: 10.5px; }
 }
 </style>
