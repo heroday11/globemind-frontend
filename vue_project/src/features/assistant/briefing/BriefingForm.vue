@@ -123,6 +123,12 @@ async function submit() {
             <option v-if="editing" :value="null">跟随账号设置</option>
             <option :value="false">关闭</option><option :value="true">发送到账号绑定邮箱</option>
           </select></label>
+          <label v-if="conversational">
+            <span class="check"><input v-model="form.include_sources" type="checkbox" />引用来源</span>
+          </label>
+          <label v-if="conversational">
+            <span class="check"><input v-model="form.include_charts" type="checkbox" />包含图表</span>
+          </label>
           <div v-if="conversational" class="setting">
             <span>保存位置</span>
             <span class="destination">简报目录</span>

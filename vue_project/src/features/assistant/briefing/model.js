@@ -253,10 +253,38 @@ export function createBriefingDraft(value) {
   }
   if (Number.isInteger(value.day_of_week) && value.day_of_week >= 0 && value.day_of_week <= 6) draft.day_of_week = value.day_of_week
   if (Number.isInteger(value.interval_hours) && value.interval_hours >= 6 && value.interval_hours <= 720) draft.interval_hours = value.interval_hours
-  for (const field of ['enabled', 'send_email']) {
+  for (const field of ['enabled', 'send_email', 'include_sources', 'include_charts']) {
     if (typeof value[field] === 'boolean') draft[field] = value[field]
   }
   return draft
+}
+
+export function briefingRuntimeLabel(form) {
+  const zone = form.timezone === 'Asia/Shanghai' ? '北京时间' : form.timezone
+  if (form.cadence === 'daily') return `每天 ${form.time_of_day}（${zone}）`
+  if (form.cadence === 'weekly') {
+    const weekday = BRIEFING_WEEKDAY_OPTIONS.find(item => item.value === form.day_of_week)?.label
+    return `每${weekday} ${form.time_of_day}（${zone}）`
+  }
+  if (form.cadence === 'custom_hours') return `每 ${form.interval_hours} 小时`
+  return briefingCadenceLabel(form.cadence)
+}
+
+export function briefingDraftPreview(form) {
+  return [
+    ['任务名称', form.title || form.topic],
+    ['关注主题', form.topic],
+    ['补充要求', form.prompt || '无'],
+    ['覆盖窗口', BRIEFING_TIME_RANGE_OPTIONS.find(item => item.value === form.time_range)?.label || form.time_range],
+    ['运行安排', briefingRuntimeLabel(form)],
+    ['时区', form.timezone],
+    ['研判视角', form.perspective],
+    ['引用来源', form.include_sources ? '包含' : '关闭'],
+    ['图表', form.include_charts ? '包含' : '关闭'],
+    ['邮件投递', form.send_email ? '账号绑定邮箱' : '关闭'],
+    ['任务状态', form.enabled ? '启用' : '暂停'],
+    ['保存位置', '简报目录'],
+  ]
 }
 
 export function briefingCadenceLabel(value) {

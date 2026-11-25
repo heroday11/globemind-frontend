@@ -1,9 +1,10 @@
 <script setup>
-import { defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { CalendarClock } from 'lucide-vue-next'
 import BriefingForm from '@/features/assistant/briefing/BriefingForm.vue'
-import { createBriefingDraft, buildBriefingSchedulePayload } from '@/features/assistant/briefing/model.js'
+import BriefingChoices from '@/features/assistant/briefing/BriefingChoices.vue'
+import { briefingDraftPreview, createBriefingDraft, buildBriefingSchedulePayload } from '@/features/assistant/briefing/model.js'
 import { createBriefingScheduleService } from '@/features/assistant/briefing/service.js'
 import LoginModal from '@/components/LoginModal.vue'
 import { assistantErrorText, createAssistantApi } from '@/features/assistant/api.js'
@@ -46,6 +47,9 @@ const route = useRoute()
 
 const briefingService = createBriefingScheduleService(createAssistantApi())
 const briefingDialog = ref(null), briefingDraft = ref(null), savedBriefing = ref(null)
+const briefingChoices = ref(null), briefingSubmission = ref(null), briefingSubmissionError = ref('')
+let briefingSubmitTimer = 0
+const briefingPreview = computed(() => briefingDraft.value ? briefingDraftPreview(briefingDraft.value) : [])
 const briefingBusy = ref(false), briefingError = ref(''), briefingStartError = ref('')
 const briefingStarting = ref(false)
 let briefingStartTimer = 0
@@ -86,6 +90,28 @@ async function openBriefingDraft() {
   await nextTick()
   if (briefingDraft.value && !briefingDialog.value?.open) briefingDialog.value?.showModal()
 }
+function clearBriefingSubmission() {
+  window.clearTimeout(briefingSubmitTimer)
+  briefingSubmission.value = null
+  briefingSubmissionError.value = ''
+}
+function submitBriefingPanel(type, panelId, answers) {
+  if (!bridge.ready || !panelId || briefingSubmission.value) return
+  briefingSubmission.value = panelId
+  briefingSubmissionError.value = ''
+  bridgePost(type, { sessionId: sessionId.value, panelId, answers })
+  briefingSubmitTimer = window.setTimeout(() => {
+    clearBriefingSubmission()
+    briefingSubmissionError.value = '提交超时，请重试。'
+  }, 12000)
+}
+function clearBriefingPanel() {
+  clearBriefingSubmission()
+  briefingChoices.value = null
+  briefingDraft.value = null
+  briefingDraftId = ''
+  briefingDialog.value?.close()
+}
 async function saveBriefingDraft() {
   if (briefingBusy.value || !briefingDraft.value) return
   briefingBusy.value = true
@@ -98,8 +124,8 @@ async function saveBriefingDraft() {
     })
     if (getToken() !== token) return
     savedBriefing.value = saved
-    briefingDraft.value = null
-    briefingDialog.value?.close()
+    bridgePost('briefing-saved', { sessionId: briefingDraftSession, panelId: briefingDraftId })
+    clearBriefingPanel()
   } catch (failure) {
     if (getToken() === token) briefingError.value = assistantErrorText(failure, '创建定期简报失败')
   } finally {
@@ -186,25 +212,36 @@ function onBridgeMessage(event) {
     imageDelivery.value = data.ok ? '图片任务已发送到助手对话' : '发送到对话失败，可在图片归档中重新发送'
   } else if (data.type === 'briefing-start-ack' && briefingStartId && data.requestId === briefingStartId) {
     finishBriefingStart(data.ok ? '' : '未能打开创建对话，请确认有可用工作区')
+  } else if (data.type === 'briefing-choices' && data.sessionId && data.sessionId === sessionId.value && !briefingBusy.value
+      && typeof data.panelId === 'string' && data.panelId !== briefingChoices.value?.id) {
+    const entries = ['scope', 'focus', 'timing', 'output'].map(key => [
+      key, [...new Set(Array.isArray(data.options?.[key]) ? data.options[key].filter(label => typeof label === 'string').map(label => label.trim()).filter(Boolean) : [])],
+    ])
+    if (entries.some(([, labels]) => !labels.length)) return
+    const options = Object.fromEntries(entries)
+    if (!options.focus.includes('综合追踪')) options.focus.push('综合追踪')
+    clearBriefingPanel()
+    briefingDraftSession = data.sessionId
+    briefingChoices.value = { id: data.panelId, options }
   } else if (data.type === 'briefing-draft' && data.sessionId && data.sessionId === sessionId.value && !briefingBusy.value
       && typeof data.draftId === 'string' && data.draftId !== briefingDraftId) {
     const draft = createBriefingDraft(data.draft)
     if (!draft) return
+    clearBriefingPanel()
     briefingDraftSession = data.sessionId
     briefingDraftId = data.draftId
     briefingRequestId = crypto.randomUUID()
     briefingDraft.value = draft
     briefingEmail.value = getCurrentUser()?.email || ''
     briefingError.value = ''
-    briefingDialog.value?.close()
-  } else if (data.type === 'briefing-approved' && data.sessionId === sessionId.value && data.draftId === briefingDraftId) {
-    void openBriefingDraft()
+  } else if (data.type === 'briefing-submit-ack' && data.sessionId === sessionId.value && data.panelId === briefingSubmission.value) {
+    clearBriefingSubmission()
+    if (data.ok) clearBriefingPanel()
+    else briefingSubmissionError.value = '未能提交到当前对话，请重试。'
   } else if (data.type === 'session') {
     sessionId.value = data.sessionId
     if (briefingDraftSession !== sessionId.value && !briefingBusy.value) {
-      briefingDraft.value = null
-      briefingDraftId = ''
-      briefingDialog.value?.close()
+      clearBriefingPanel()
     }
   } else if (data.type === 'context-ack' && data.requestId === bridge.requestId) {
     if (data.ok) {
@@ -340,10 +377,8 @@ function reconnect() {
 }
 function authChanged() {
   finishBriefingStart()
-  briefingDraftId = ''
-  briefingDraft.value = null
+  clearBriefingPanel()
   savedBriefing.value = null
-  briefingDialog.value?.close()
   imageDelivery.value = ''
   bridge.imageRequests.clear()
   bridge.ready = false
@@ -365,6 +400,7 @@ onMounted(() => {
 watch(() => props.contextKey, loadPageContext)
 onBeforeUnmount(() => {
   window.clearTimeout(briefingStartTimer)
+  window.clearTimeout(briefingSubmitTimer)
   window.clearInterval(bridge.timer)
   window.removeEventListener('message', onBridgeMessage)
   generation += 1
@@ -379,12 +415,26 @@ onBeforeUnmount(() => {
 <template>
   <!-- The site owns the top navigation; DSH owns all assistant navigation. -->
   <main class="assistant-page" :class="{ 'assistant-page--embedded': props.embedded }" aria-label="数据助手">
-    <div v-if="briefingDraft || savedBriefing || briefingStartError || briefingStarting" class="briefing-tools">
+    <div v-if="briefingChoices || briefingDraft || savedBriefing || briefingStartError || briefingStarting" class="briefing-tools">
       <span v-if="briefingStarting" role="status">正在打开创建对话…</span>
-      <button v-if="briefingDraft" type="button" @click="openBriefingDraft">认可草稿并打开表单</button>
       <button v-if="savedBriefing" type="button" @click="showBriefings(savedBriefing.id)">已创建 · 查看定期简报</button>
       <span v-if="briefingStartError" role="status">{{ briefingStartError }}</span>
       <button v-if="briefingStartError" type="button" @click="retryBriefingSkill">重试</button>
+      <BriefingChoices v-if="briefingChoices" :key="briefingChoices.id" :options="briefingChoices.options"
+        :busy="Boolean(briefingSubmission)" :error="briefingSubmissionError"
+        @submit="submitBriefingPanel('briefing-submit', briefingChoices.id, $event)" />
+      <section v-else-if="briefingDraft" class="briefing-preview" aria-label="定期简报草稿">
+        <div class="briefing-preview-actions">
+          <strong>定期简报草稿</strong>
+          <button type="button" :disabled="Boolean(briefingSubmission)"
+            @click="submitBriefingPanel('briefing-edit', briefingDraftId)">修改需求</button>
+          <button type="button" class="briefing-confirm" :disabled="Boolean(briefingSubmission)" @click="openBriefingDraft">确认草稿</button>
+        </div>
+        <dl>
+          <div v-for="[label, value] in briefingPreview" :key="label"><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+        </dl>
+        <span v-if="briefingSubmissionError" role="alert">{{ briefingSubmissionError }}</span>
+      </section>
     </div>
     <Teleport to="body">
       <dialog ref="briefingDialog" class="briefing-dialog" aria-labelledby="briefing-draft-heading"
@@ -448,9 +498,15 @@ onBeforeUnmount(() => {
   background: #f6f8fb;
 }
 .briefing-tools { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 6px 14px; border-bottom: 1px solid #dbe3e8; }
-.briefing-tools a, .briefing-tools button { display: inline-flex; align-items: center; gap: 6px; color: #135a72; text-decoration: none; }
-.briefing-tools button { border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; }
-.briefing-tools a:hover, .briefing-tools button:hover { text-decoration: underline; }
+.briefing-tools > button, .briefing-preview-actions button { display: inline-flex; align-items: center; gap: 6px; color: #135a72; text-decoration: none; border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; }
+.briefing-tools > button:hover, .briefing-preview-actions button:hover { text-decoration: underline; }
+.briefing-preview { width: 100%; min-width: 0; }
+.briefing-preview-actions { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.briefing-preview-actions .briefing-confirm { background: #135a72; color: #fff; border-radius: 6px; padding: 6px 12px; }
+.briefing-preview dl { display: grid; gap: 4px 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); max-height: min(155px, 22vh); margin: 8px 0 0; overflow: auto; }
+.briefing-preview dl div { display: grid; grid-template-columns: 5em minmax(0, 1fr); gap: 6px; }
+.briefing-preview dt { color: #526575; }
+.briefing-preview dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .briefing-dialog {
   --briefing-padding: 28px;
   --briefing-accent: #11606a;
