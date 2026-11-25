@@ -47,56 +47,54 @@
         </p>
 
         <section id="front-news" class="edition-front" aria-label="头条新闻">
-          <div class="front-grid">
-            <div class="lead-column">
-              <article class="lead-feature">
-                <RouterLink v-if="hasImage(leadStory)" :to="homeStoryPath(leadStory)" class="lead-cover" :aria-label="leadStory.display_title">
-                  <img
-                    :key="leadStory.cluster_id"
-                    :src="leadStory.cover.image_url"
-                    alt=""
-                    decoding="async"
-                    fetchpriority="high"
-                    referrerpolicy="no-referrer"
-                    @load="markLeadLoaded(leadStory)"
-                    @error="markCoverFailed(leadStory)"
-                  />
-                </RouterLink>
-                <div class="lead-story">
-                  <div class="story-meta">
-                    <span class="importance">重要性 {{ leadStory.importance }} 分</span>
-                    <time :datetime="leadStory.day">{{ homeFormatDate(leadStory.day) }}</time>
-                  </div>
-                  <h2><RouterLink class="lead-title" :to="homeStoryPath(leadStory)">{{ leadStory.display_title }}</RouterLink></h2>
-                  <p v-if="leadSummary" class="lead-summary">{{ leadSummary }}</p>
-                  <div class="story-meta">
-                    <span v-if="leadStory.locations?.length">{{ leadStory.locations.slice(0, 2).join('、') }}</span>
-                    <span>{{ leadStory.article_count }} 篇报道</span>
-                    <span>{{ leadStory.source_count }} 个信源</span>
-                  </div>
-                </div>
-              </article>
-              <section v-if="moreStories.length" class="news-column more-news">
-                <h2>更多重点</h2>
-                <ol class="headline-list">
-                  <li v-for="story in moreStories" :key="story.cluster_id">
-                    <RouterLink :to="homeStoryPath(story)" class="front-headline">
-                      <strong>{{ story.display_title }}</strong>
-                      <small class="story-meta">
-                        <time :datetime="story.day">{{ homeFormatDate(story.day) }}</time>
-                        <span>{{ story.source_count }} 个信源</span>
-                        <span class="importance">{{ story.importance }} 分</span>
-                      </small>
-                    </RouterLink>
-                  </li>
-                </ol>
-              </section>
+          <article class="lead-feature">
+            <RouterLink v-if="hasImage(leadStory)" :to="homeStoryPath(leadStory)" class="lead-cover" :aria-label="leadStory.display_title">
+              <img
+                :key="leadStory.cluster_id"
+                :src="leadStory.cover.image_url"
+                alt=""
+                decoding="async"
+                fetchpriority="high"
+                referrerpolicy="no-referrer"
+                @load="markLeadLoaded(leadStory)"
+                @error="markCoverFailed(leadStory)"
+              />
+            </RouterLink>
+            <div class="lead-story">
+              <div class="story-meta">
+                <span class="importance">重要性 {{ leadStory.importance }} 分</span>
+                <time :datetime="leadStory.day">{{ homeFormatDate(leadStory.day) }}</time>
+              </div>
+              <h2><RouterLink class="lead-title" :to="homeStoryPath(leadStory)">{{ leadStory.display_title }}</RouterLink></h2>
+              <p v-if="leadSummary" class="lead-summary">{{ leadSummary }}</p>
+              <div class="story-meta">
+                <span v-if="leadStory.locations?.length">{{ leadStory.locations.slice(0, 2).join('、') }}</span>
+                <span>{{ leadStory.article_count }} 篇报道</span>
+                <span>{{ leadStory.source_count }} 个信源</span>
+              </div>
             </div>
+          </article>
+          <div class="front-grid">
 
             <section v-if="frontLatestStories.length" class="news-column">
               <h2><Newspaper :size="19" />重点快讯</h2>
               <ol class="headline-list">
                 <li v-for="story in frontLatestStories" :key="story.cluster_id">
+                  <RouterLink :to="homeStoryPath(story)" class="front-headline">
+                    <strong>{{ story.display_title }}</strong>
+                    <small class="story-meta">
+                      <time :datetime="story.day">{{ homeFormatDate(story.day) }}</time>
+                      <span>{{ story.source_count }} 个信源</span>
+                      <span class="importance">{{ story.importance }} 分</span>
+                    </small>
+                  </RouterLink>
+                </li>
+              </ol>
+            </section>
+            <section v-if="moreStories.length" class="news-column more-news">
+              <h2>更多重点</h2>
+              <ol class="headline-list">
+                <li v-for="story in moreStories" :key="story.cluster_id">
                   <RouterLink :to="homeStoryPath(story)" class="front-headline">
                     <strong>{{ story.display_title }}</strong>
                     <small class="story-meta">
@@ -238,7 +236,7 @@ watch(leadStory, (story, _previous, onCleanup) => {
 .ground-home .overview-switch a,
 .ground-home .section-nav a { min-height: 44px; }
 .ground-home a:focus-visible, .ground-home button:focus-visible { outline: 2px solid var(--news-link); outline-offset: 3px; }
-.edition-header, .home-layout, .edition-state { width: min(100%, 1380px); margin: 0 auto; }
+.edition-header, .home-layout, .edition-state { width: min(100%, 1760px); margin: 0 auto; }
 .edition-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; margin-bottom: 12px; }
 .edition-title, .edition-actions, .desk-link, .refresh-news, .news-column h2 { display: flex; align-items: center; gap: 8px; }
 .edition-title { gap: 10px; }
@@ -268,28 +266,33 @@ watch(leadStory, (story, _previous, onCleanup) => {
 .overview-switch a.selected { color: white; background: var(--news-link); }
 .overview-switch a:not(.selected):hover { background: #e9f0f8; }
 .edition-state { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px 0; color: var(--news-muted); }
-.home-layout { display: grid; grid-template-columns: minmax(105px, .15fr) minmax(0, 1fr); gap: 22px; align-items: start; }
 .ground-home .section-nav {
   position: sticky;
   top: 70px;
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-  padding-right: 12px;
-  border-right: 1px solid var(--news-line);
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 0 12px;
+  overflow-x: auto;
+  background: white;
+  border: 1px solid var(--news-line);
+  border-radius: 8px;
 }
-.section-nav a { display: flex; align-items: center; padding: 0 10px; color: var(--news-link); font-size: 14px; font-weight: 650; }
+.section-nav a { display: flex; flex: none; align-items: center; padding: 0 12px; color: var(--news-link); font-size: 14px; font-weight: 650; }
 .section-nav a:hover, .section-nav a:focus-visible { background: #e9f0f8; border-radius: 6px; }
-.edition-news { min-width: 0; }
 .edition-front, .story-section { scroll-margin-top: 130px; }
-.front-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-.front-grid:has(.lead-column:only-child) { grid-template-columns: minmax(0, 1fr); }
+.front-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
+.front-grid:empty { display: none; }
+.news-column:only-child { grid-column: 1 / -1; }
+.lead-feature { display: grid; align-items: center; }
+.lead-feature:has(.lead-cover) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .lead-feature, .story-card { min-width: 0; background: #fff; border: 1px solid var(--news-line); border-radius: 8px; overflow: hidden; }
 .lead-cover { display: block; }
 .lead-cover img, .story-card img { display: block; width: 100%; height: auto; object-fit: cover; background: #e8eef3; }
-.lead-cover img { aspect-ratio: 2.6 / 1; max-height: 260px; }
-.lead-story { padding: 14px 15px; }
-.lead-story h2 { margin: 7px 0; font-size: 22px; line-height: 1.24; overflow-wrap: anywhere; }
+.lead-cover img { aspect-ratio: 16 / 9; }
+.lead-story { padding: 24px; }
+.lead-story h2 { margin: 12px 0; font-size: 32px; line-height: 1.3; overflow-wrap: anywhere; }
 .lead-summary { margin: 6px 0 10px; color: var(--news-muted); font-size: 14px; line-height: 1.5; }
 .story-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--news-muted); font-size: 12px; line-height: 1.45; }
 .importance { color: var(--news-accent); font-weight: 700; }
@@ -297,42 +300,27 @@ watch(leadStory, (story, _previous, onCleanup) => {
 .headline-list { list-style: none; padding: 0; margin: 6px 0 0; }
 .headline-list li { min-width: 0; border-bottom: 1px solid var(--news-line); }
 .front-headline { display: grid; align-content: center; gap: 3px; min-height: 48px; padding: 7px 0; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
-.more-news { margin-top: 16px; }
-.more-news .headline-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+.news-column { min-width: 0; padding: 16px 18px; background: white; border: 1px solid var(--news-line); border-radius: 8px; }
 .story-section { margin-top: 24px; border-top: 2px solid #3c6575; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 11px 0 8px; }
 .section-heading span { color: var(--news-muted); font-size: 13px; }
-.story-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.story-card { display: flex; flex-direction: column; }
+.story-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.story-card { display: flex; align-items: flex-start; gap: 14px; padding: 16px; }
 .story-card:hover, .lead-feature a:hover, .front-headline:hover { color: var(--news-link); }
-.story-card img { aspect-ratio: 2.4 / 1; }
-.story-card-copy { display: flex; flex-direction: column; flex: 1; padding: 9px 10px; }
-.story-card h3 { margin: 5px 0 7px; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.story-card img { flex: none; width: 30%; aspect-ratio: 4 / 3; border-radius: 6px; }
+.story-card-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; align-self: stretch; }
+.story-card h3 { margin: 5px 0 7px; font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
 .story-card-footer { margin-top: auto; }
-@media (max-width: 1050px) {
-  .story-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 @media (max-width: 760px) {
   .ground-home { padding: 68px 14px 36px; }
   .edition-title h1 { font-size: 24px; }
-  .home-layout, .front-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .ground-home .section-nav {
-    display: flex;
-    top: 57px;
-    gap: 0;
-    z-index: 3;
-    padding-right: 0;
-    overflow-x: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--news-line);
-    background: #f6f8fb;
-  }
-  .section-nav a { flex: 0 0 auto; }
-  .more-news .headline-list, .story-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .front-grid, .lead-feature:has(.lead-cover), .story-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .ground-home .section-nav { top: 57px; gap: 0; padding: 0 4px; }
+  .lead-story { padding: 16px; }
+  .lead-story h2 { font-size: 25px; }
 }
 @media (max-width: 380px) {
   .edition-header { grid-template-columns: minmax(0, 1fr); gap: 7px; }
-  .story-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   .spinning { animation: none; }
