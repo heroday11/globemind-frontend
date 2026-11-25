@@ -30,6 +30,9 @@
 }
 
 .header {
+  --header-nav-font-size: 15px;
+  --header-about-font-size: 12px;
+  --header-user-menu-font-size: 12px;
   --gm-header-search-width: clamp(76px, calc(11vw - 64px), 150px);
   padding-inline: clamp(12px, 1.25vw, 24px);
   position: fixed;
@@ -396,7 +399,7 @@
 
 .nav-item > a,
 .dropdown-trigger {
-  font-size: var(--header-nav-font-size, 15px);
+  font-size: var(--header-nav-font-size);
   min-height: 48px;
 }
 
@@ -1260,11 +1263,11 @@ a.mobile-nav-item.router-link-active,
 }
 
 .header-actions--right > .about-us-link {
-  font-size: var(--header-about-font-size, 12px);
+  font-size: var(--header-about-font-size);
 }
 
 @media (width >= 1180px) {
   .nav-list .dropdown-trigger {
-    font-size: var(--header-user-menu-font-size, 12px);
+    font-size: var(--header-user-menu-font-size);
   }
 }
