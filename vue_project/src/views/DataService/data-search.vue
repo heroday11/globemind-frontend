@@ -16,7 +16,6 @@
     >
       <div class="sidebar-head">
         <div class="sidebar-title">新闻事件检索台</div>
-        <div class="sidebar-subtitle">news 库 · L1/L2/L3 事件体系</div>
         <div class="sidebar-badges">
           <span>新库检索</span>
           <span>事件热度</span>
