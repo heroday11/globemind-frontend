@@ -292,7 +292,7 @@ function handleMouseMove(e) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 1rem 0 1.5rem;
+  margin: clamp(1.75rem, 5svh, 3.5rem) 0 1.5rem;
   text-align: center;
 }
 
@@ -577,6 +577,10 @@ function handleMouseMove(e) {
 
   .home-content {
     padding: 0 16px;
+  }
+
+  .hero {
+    margin-top: clamp(1.5rem, 3.5svh, 2.25rem);
   }
 
   .hero-title {
