@@ -65,6 +65,14 @@ textarea:focus-visible,
   border-right: 1px solid var(--vault-line);
 }
 
+@media (width > 1180px) {
+  .vault-sidebar {
+    display: grid;
+    align-content: safe center;
+    padding: 24px 16px 44px;
+  }
+}
+
 .vault-brand {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
