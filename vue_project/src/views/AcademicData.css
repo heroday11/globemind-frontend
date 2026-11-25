@@ -1,4 +1,5 @@
-.knowledge-vault-page {
+.knowledge-vault-page,
+.skill-modal-backdrop {
   --vault-bg: #f1f5f7;
   --vault-surface: #ffffff;
   --vault-surface-2: #f6fafc;
@@ -13,6 +14,9 @@
   --vault-graphite: #6c7b87;
   --vault-danger: #b04b55;
   --vault-shadow: rgba(25, 50, 72, 0.11);
+}
+
+.knowledge-vault-page {
   position: fixed;
   inset: 64px 0 0;
   display: grid;
