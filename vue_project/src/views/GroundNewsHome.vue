@@ -43,33 +43,50 @@
 
         <section id="front-news" class="edition-front" aria-label="头条新闻">
           <div class="front-grid">
-            <article class="lead-feature">
-              <RouterLink v-if="hasImage(leadStory)" :to="homeStoryPath(leadStory)" class="lead-cover" :aria-label="leadStory.display_title">
-                <img
-                  :key="leadStory.cluster_id"
-                  :src="leadStory.cover.image_url"
-                  alt=""
-                  decoding="async"
-                  fetchpriority="high"
-                  referrerpolicy="no-referrer"
-                  @load="markLeadLoaded(leadStory)"
-                  @error="markCoverFailed(leadStory)"
-                />
-              </RouterLink>
-              <div class="lead-story">
-                <div class="story-meta">
-                  <span class="importance">重要性 {{ leadStory.importance }} 分</span>
-                  <time :datetime="leadStory.day">{{ homeFormatDate(leadStory.day) }}</time>
+            <div class="lead-column">
+              <article class="lead-feature">
+                <RouterLink v-if="hasImage(leadStory)" :to="homeStoryPath(leadStory)" class="lead-cover" :aria-label="leadStory.display_title">
+                  <img
+                    :key="leadStory.cluster_id"
+                    :src="leadStory.cover.image_url"
+                    alt=""
+                    decoding="async"
+                    fetchpriority="high"
+                    referrerpolicy="no-referrer"
+                    @load="markLeadLoaded(leadStory)"
+                    @error="markCoverFailed(leadStory)"
+                  />
+                </RouterLink>
+                <div class="lead-story">
+                  <div class="story-meta">
+                    <span class="importance">重要性 {{ leadStory.importance }} 分</span>
+                    <time :datetime="leadStory.day">{{ homeFormatDate(leadStory.day) }}</time>
+                  </div>
+                  <h2><RouterLink class="lead-title" :to="homeStoryPath(leadStory)">{{ leadStory.display_title }}</RouterLink></h2>
+                  <p v-if="leadSummary" class="lead-summary">{{ leadSummary }}</p>
+                  <div class="story-meta">
+                    <span v-if="leadStory.locations?.length">{{ leadStory.locations.slice(0, 2).join('、') }}</span>
+                    <span>{{ leadStory.article_count }} 篇报道</span>
+                    <span>{{ leadStory.source_count }} 个信源</span>
+                  </div>
                 </div>
-                <h2><RouterLink class="lead-title" :to="homeStoryPath(leadStory)">{{ leadStory.display_title }}</RouterLink></h2>
-                <p v-if="leadSummary" class="lead-summary">{{ leadSummary }}</p>
-                <div class="story-meta">
-                  <span v-if="leadStory.locations?.length">{{ leadStory.locations.slice(0, 2).join('、') }}</span>
-                  <span>{{ leadStory.article_count }} 篇报道</span>
-                  <span>{{ leadStory.source_count }} 个信源</span>
-                </div>
-              </div>
-            </article>
+              </article>
+              <section v-if="moreStories.length" class="news-column more-news">
+                <h2>更多重点</h2>
+                <ol class="headline-list">
+                  <li v-for="story in moreStories" :key="story.cluster_id">
+                    <RouterLink :to="homeStoryPath(story)" class="front-headline">
+                      <strong>{{ story.display_title }}</strong>
+                      <small class="story-meta">
+                        <time :datetime="story.day">{{ homeFormatDate(story.day) }}</time>
+                        <span>{{ story.source_count }} 个信源</span>
+                        <span class="importance">{{ story.importance }} 分</span>
+                      </small>
+                    </RouterLink>
+                  </li>
+                </ol>
+              </section>
+            </div>
 
             <section v-if="frontLatestStories.length" class="news-column">
               <h2><Newspaper :size="19" />重点快讯</h2>
@@ -87,21 +104,6 @@
               </ol>
             </section>
           </div>
-          <section v-if="moreStories.length" class="news-column more-news">
-            <h2>更多重点</h2>
-            <ol class="headline-list">
-              <li v-for="story in moreStories" :key="story.cluster_id">
-                <RouterLink :to="homeStoryPath(story)" class="front-headline">
-                  <strong>{{ story.display_title }}</strong>
-                  <small class="story-meta">
-                    <time :datetime="story.day">{{ homeFormatDate(story.day) }}</time>
-                    <span>{{ story.source_count }} 个信源</span>
-                    <span class="importance">{{ story.importance }} 分</span>
-                  </small>
-                </RouterLink>
-              </li>
-            </ol>
-          </section>
         </section>
 
         <section
@@ -266,8 +268,8 @@ watch(leadStory, (story, _previous, onCleanup) => {
 .section-nav a:hover, .section-nav a:focus-visible { background: #e9f0f8; border-radius: 6px; }
 .edition-news { min-width: 0; }
 .edition-front, .story-section { scroll-margin-top: 130px; }
-.front-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; }
-.front-grid:has(.lead-feature:only-child) { grid-template-columns: minmax(0, 1fr); }
+.front-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.front-grid:has(.lead-column:only-child) { grid-template-columns: minmax(0, 1fr); }
 .lead-feature, .story-card { min-width: 0; background: #fff; border: 1px solid var(--news-line); border-radius: 8px; overflow: hidden; }
 .lead-cover { display: block; }
 .lead-cover img, .story-card img { display: block; width: 100%; height: auto; object-fit: cover; background: #e8eef3; }
@@ -282,7 +284,7 @@ watch(leadStory, (story, _previous, onCleanup) => {
 .headline-list li { min-width: 0; border-bottom: 1px solid var(--news-line); }
 .front-headline { display: grid; align-content: center; gap: 3px; min-height: 48px; padding: 7px 0; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
 .more-news { margin-top: 16px; }
-.more-news .headline-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 16px; }
+.more-news .headline-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
 .story-section { margin-top: 24px; border-top: 2px solid #3c6575; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 11px 0 8px; }
 .section-heading span { color: var(--news-muted); font-size: 13px; }
