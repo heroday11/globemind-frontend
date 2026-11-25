@@ -18,17 +18,6 @@
 
       <nav class="domain-nav" aria-label="专家领域">
         <button
-          type="button"
-          class="domain-nav-item"
-          :class="{ active: isPluginDomain }"
-          @click="openPluginMarket"
-        >
-          <PlugZap />
-          <span>DSH 插件</span>
-          <strong>{{ pluginIndex?.plugins.length ?? '—' }}</strong>
-        </button>
-
-        <button
           class="domain-nav-item"
           :class="{ active: activeDomainId === 'all' }"
           type="button"
@@ -37,6 +26,17 @@
           <Layers />
           <span>全部领域</span>
           <strong>{{ totalSkills }}</strong>
+        </button>
+
+        <button
+          type="button"
+          class="domain-nav-item"
+          :class="{ active: isPluginDomain }"
+          @click="openPluginMarket"
+        >
+          <PlugZap />
+          <span>DSH 插件</span>
+          <strong>{{ pluginIndex?.plugins.length ?? '—' }}</strong>
         </button>
 
         <button
