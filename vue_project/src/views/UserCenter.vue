@@ -2,9 +2,16 @@
 import '@/styles/user-center.css'
 import { BookOpen, CircleHelp, FileText, LogOut, Star, UserRound } from 'lucide-vue-next'
 import { useRoute } from 'vue-router'
+import { computed } from 'vue'
 
 const route = useRoute()
 const personalCenterPath = '/user-center/personal-center'
+const leftAlignedPaths = [
+  '/user-center/my-applications',
+  '/user-center/my-collections',
+  '/user-center/help-docs',
+]
+const currentPath = computed(() => route.path.replace(/\/$/, ''))
 const navItems = [
   { path: personalCenterPath, label: '个人中心', icon: UserRound },
   { path: '/user-center/my-applications', label: '我的报告', icon: FileText },
@@ -47,7 +54,13 @@ function openNewUserGuide() {
       </button>
     </aside>
 
-    <main class="uc-main" :class="{ 'uc-main--personal': route.path.replace(/\/$/, '') === personalCenterPath }">
+    <main
+      class="uc-main"
+      :class="{
+        'uc-main--personal': currentPath === personalCenterPath,
+        'uc-main--offset-left': leftAlignedPaths.includes(currentPath),
+      }"
+    >
       <router-view />
     </main>
   </div>
@@ -165,9 +178,10 @@ function openNewUserGuide() {
 .uc-tour-entry:hover { border-color: rgba(91, 114, 223, .45); box-shadow: 0 8px 22px rgba(91, 114, 223, .12); }
 
 .uc-main {
+  --uc-content-gutter: clamp(28px, 4vw, 56px);
   flex: 1;
   min-width: 0;
-  padding: 36px clamp(28px, 4vw, 56px) 64px;
+  padding: 36px var(--uc-content-gutter) 64px;
   box-sizing: border-box;
 }
 
@@ -186,6 +200,12 @@ function openNewUserGuide() {
 
   .uc-main {
     margin-left: var(--uc-sidebar-width);
+  }
+
+  .uc-main--offset-left {
+    --uc-left-offset: clamp(0px, calc((100vw - 900px) * 0.043), 44px);
+    padding-inline: calc(var(--uc-content-gutter) - var(--uc-left-offset))
+      calc(var(--uc-content-gutter) + var(--uc-left-offset));
   }
 }
 
