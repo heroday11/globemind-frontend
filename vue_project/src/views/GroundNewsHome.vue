@@ -31,8 +31,13 @@
 
     <main v-else-if="leadStory" class="home-layout">
       <nav class="section-nav" aria-label="新闻栏目">
-        <a href="#front-news">头条</a>
-        <a v-for="section in storySections" :key="section.key" :href="'#section-' + section.key">
+        <a href="#front-news" @click="jumpToSection($event, 'front-news')">头条</a>
+        <a
+          v-for="section in storySections"
+          :key="section.key"
+          :href="'#section-' + section.key"
+          @click="jumpToSection($event, 'section-' + section.key)"
+        >
           {{ section.title }}
         </a>
       </nav>
@@ -180,6 +185,15 @@ const leadSummary = computed(() => {
 
 function refresh() {
   void overview.value?.refresh()
+}
+
+function jumpToSection(event, id) {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  const section = document.getElementById(id)
+  if (!section) return
+  event.preventDefault()
+  section.scrollIntoView({ block: 'start' })
+  window.history.replaceState(window.history.state, '', '#' + id)
 }
 
 function hasImage(story) {
