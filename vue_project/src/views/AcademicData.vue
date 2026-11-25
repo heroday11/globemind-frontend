@@ -53,31 +53,11 @@
         </button>
       </nav>
 
-      <div class="source-shelf">
-        <div class="side-section-title">
-          <DownloadCloud />
-          <span>已下载索引</span>
-        </div>
-        <button
-          v-for="source in downloadedSources"
-          :key="source.id"
-          type="button"
-          class="source-row"
-          @click="openLocalSource(source)"
-        >
-          <span>{{ source.publisher }}</span>
-          <strong>{{ source.name }}</strong>
-        </button>
-      </div>
     </aside>
 
     <main class="vault-main">
-      <section class="vault-hero">
+      <section class="vault-hero" :class="{ 'market-heading': !isPluginDomain }">
         <div class="hero-copy">
-          <div class="hero-kicker">
-            <component :is="isPluginDomain ? PlugZap : ShieldCheck" />
-            <span>{{ isPluginDomain ? 'DeepSeek Harness 官方插件' : '给 Agent 装配可审查的专家能力与数据源' }}</span>
-          </div>
           <h2>{{ isPluginDomain ? 'DSH 插件' : 'Agent 能力市场' }}</h2>
           <p v-if="isPluginDomain">为数据助手添加会话检索、语音输入和智能体协作等能力。</p>
           <p v-else>
@@ -85,7 +65,7 @@
           </p>
         </div>
 
-        <div class="hero-ledger" :aria-label="isPluginDomain ? '插件目录统计' : '知识库统计'">
+        <div v-if="isPluginDomain" class="hero-ledger" :aria-label="isPluginDomain ? '插件目录统计' : '知识库统计'">
           <div v-for="{ label, value } in heroStatistics" :key="label" class="ledger-cell">
             <span>{{ value }}</span>
             <p>{{ label }}</p>
@@ -96,7 +76,6 @@
       <section v-if="!isPluginDomain && !catalogLoading && !catalogError" class="featured-skills" aria-labelledby="featured-skills-title">
         <header class="panel-header">
           <div>
-            <p class="section-label">Essential Skills</p>
             <h3 id="featured-skills-title">高频通用能力</h3>
           </div>
           <span class="curation-count">{{ totalSkills }} 项精选能力</span>
@@ -137,7 +116,6 @@
         <div class="skill-library" data-tour="knowledge-skills">
           <header class="panel-header">
             <div>
-              <p class="section-label">{{ isPluginDomain ? 'DSH Plugins' : 'Expert Skill Library' }}</p>
               <h3>{{ isPluginDomain ? 'DSH 插件目录' : activeDomainTitle }}</h3>
             </div>
             <div class="panel-actions">
@@ -219,18 +197,18 @@
               v-for="card in catalogCards"
               :key="card.key"
               class="skill-card"
-              :class="{ selected: card.selected }"
+              :class="{ selected: card.selected, 'market-skill-card': !isPluginDomain }"
               role="button"
               tabindex="0"
               @click="card.open"
               @keydown.enter.prevent="card.open"
               @keydown.space.prevent="card.open"
             >
-              <div class="skill-card-accent" aria-hidden="true">
+              <div v-if="isPluginDomain" class="skill-card-accent" aria-hidden="true">
                 <span>{{ card.kind }}</span>
                 <strong>{{ card.count }}</strong>
               </div>
-              <div class="skill-card-badges">
+              <div v-if="isPluginDomain" class="skill-card-badges">
                 <span class="status-badge" :class="card.statusClass">{{ card.status }}</span>
                 <span v-for="badge in card.badges" :key="badge" class="license-badge">{{ badge }}</span>
               </div>
@@ -241,22 +219,22 @@
                   <h4>{{ card.title }}</h4>
                 </div>
               </div>
-              <div class="skill-card-highlight">
+              <div v-if="isPluginDomain" class="skill-card-highlight">
                 <span>{{ card.highlight }}</span>
                 <strong>{{ card.highlightDetail }}</strong>
               </div>
               <p class="skill-desc">{{ card.description }}</p>
-              <div class="skill-tags">
+              <div v-if="isPluginDomain" class="skill-tags">
                 <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>
               </div>
-              <dl class="skill-meta">
+              <dl v-if="isPluginDomain" class="skill-meta">
                 <div v-for="[label, value] in card.facts" :key="label">
                   <dt>{{ label }}</dt>
                   <dd>{{ value }}</dd>
                 </div>
               </dl>
               <div class="skill-footer">
-                <span class="safety-note">{{ card.note }}</span>
+                <span v-if="isPluginDomain" class="safety-note">{{ card.note }}</span>
                 <button
                   class="use-skill-btn"
                   type="button"
@@ -432,36 +410,6 @@
         </aside>
       </section>
 
-      <section v-if="!isPluginDomain" class="source-panel">
-        <header class="panel-header">
-          <div>
-            <p class="section-label">Downloaded References</p>
-            <h3>外部 skill 索引资料</h3>
-          </div>
-          <span class="source-policy">{{ catalogPolicy.securityNote }}</span>
-        </header>
-        <div class="source-grid">
-          <article v-for="source in downloadedSources" :key="source.id" class="source-card">
-            <div class="source-card-head">
-              <FileText />
-              <span>{{ trustLabel(source.trustLevel) }}</span>
-            </div>
-            <h4>{{ source.name }}</h4>
-            <p>{{ source.notes }}</p>
-            <p class="source-license">{{ source.license }}</p>
-            <div class="source-links">
-              <button type="button" @click="openLocalSource(source)">
-                <BookOpen />
-                本地索引
-              </button>
-              <button type="button" @click="openExternalSource(source)">
-                <ExternalLink />
-                GitHub
-              </button>
-            </div>
-          </article>
-          </div>
-        </section>
       </main>
 
     <Teleport to="body">
@@ -479,77 +427,30 @@
               <div>
                 <span>{{ detailSkill.domainName }}</span>
                 <h3>{{ skillName(detailSkill) }}</h3>
-                <small v-if="skillOriginalName(detailSkill)" class="modal-original-name">
-                  原名：{{ skillOriginalName(detailSkill) }}
-                </small>
                 <p>{{ skillDescription(detailSkill) }}</p>
               </div>
             </div>
 
-            <div class="modal-grid">
-              <section class="modal-section">
-                <h4>适用任务</h4>
-                <div class="modal-chip-list">
-                  <span v-for="task in skillTasks(detailSkill)" :key="task">{{ task }}</span>
-                </div>
-              </section>
-
-              <section class="modal-section">
-                <h4>知识输入</h4>
-                <div class="modal-chip-list">
-                  <span v-for="input in skillKnowledgeInputs(detailSkill)" :key="input">{{ input }}</span>
-                </div>
-              </section>
-
-              <section class="modal-section">
-                <h4>激活条件</h4>
-                <p>{{ skillActivation(detailSkill) }}</p>
-              </section>
-
-              <section class="modal-section">
-                <h4>来源与审查</h4>
-                <p>{{ detailSkill.source }}<template v-if="!detailSkill.inlineContent"> · {{ skillSafety(detailSkill) }}</template></p>
-              </section>
-
-              <section class="modal-section">
-                <h4>运行与文件</h4>
-                <dl class="modal-fact-list">
-                  <div>
-                    <dt>状态</dt>
-                    <dd>{{ statusLabel(detailSkill.status) }}</dd>
-                  </div>
-                  <div v-if="detailSkill.stars">
-                    <dt>GitHub Star</dt>
-                    <dd>{{ detailSkill.stars.toLocaleString() }} · 2026-11-25</dd>
-                  </div>
-                  <div v-if="detailSkill.license">
-                    <dt>许可证</dt>
-                    <dd>{{ detailSkill.license || '未标注' }}</dd>
-                  </div>
-                  <div>
-                    <dt>运行时</dt>
-                    <dd>{{ runtimeLabel(detailSkill.runtime) }}</dd>
-                  </div>
-                  <div v-if="!detailSkill.inlineContent">
-                    <dt>本地 Skill</dt>
-                    <dd>{{ detailSkill.localPath || '未下载' }}</dd>
-                  </div>
-                  <div v-if="detailSkill.skillPath">
-                    <dt>上游 Skill</dt>
-                    <dd v-if="detailSkill.inlineContent"><a :href="safeExternalHttpUrl(detailSkill.sourceRepo + '/blob/main/' + detailSkill.skillPath)" target="_blank" rel="noopener noreferrer">查看 SKILL.md</a></dd>
-                    <dd v-else>{{ detailSkill.skillPath }}</dd>
-                  </div>
-                  <div v-if="detailSkill.upstreamReferenceUrl">
-                    <dt>参考来源</dt>
-                    <dd><a :href="safeExternalHttpUrl(detailSkill.upstreamReferenceUrl)" target="_blank" rel="noopener noreferrer">查看参考来源</a></dd>
-                  </div>
-                  <div v-if="detailSkill.sourceAvailableNotice">
-                    <dt>许可说明</dt>
-                    <dd>{{ detailSkill.sourceAvailableNotice }}</dd>
-                  </div>
-                </dl>
-              </section>
-            </div>
+            <dl v-if="skillSource || detailSkill.version || detailSkill.updatedAt" class="market-details">
+              <div v-if="skillSource">
+                <dt>来源</dt>
+                <dd><a :href="skillSource" target="_blank" rel="noopener noreferrer">{{ detailSkill.source || '上游项目' }} <ExternalLink /></a></dd>
+              </div>
+              <div v-if="detailSkill.version || skillGitHub">
+                <dt>版本</dt>
+                <dd v-if="detailSkill.version">{{ detailSkill.version }}</dd>
+                <dd v-else><a :href="skillGitHub + '/releases'" target="_blank" rel="noopener noreferrer">查看上游版本</a></dd>
+              </div>
+              <div v-if="detailSkill.updatedAt || skillGitHub">
+                <dt>更新时间</dt>
+                <dd v-if="detailSkill.updatedAt">{{ detailSkill.updatedAt }}</dd>
+                <dd v-else><a :href="skillGitHub + '/commits'" target="_blank" rel="noopener noreferrer">查看更新记录</a></dd>
+              </div>
+              <div v-if="skillDocument">
+                <dt>用法</dt>
+                <dd><a :href="skillDocument" target="_blank" rel="noopener noreferrer">查看 SKILL.md</a></dd>
+              </div>
+            </dl>
 
             <div class="modal-actions">
               <button
@@ -632,7 +533,6 @@ import {
   BriefcaseBusiness,
   CheckCircle2,
   Database,
-  DownloadCloud,
   ExternalLink,
   FileSearch,
   FileText,
@@ -648,7 +548,6 @@ import {
   Search,
   Server,
   Shield,
-  ShieldCheck,
   X,
 } from 'lucide-vue-next'
 import { safeExpertSkillDocumentPath, safeExternalHttpUrl } from '@/utils/externalUrl.js'
@@ -674,8 +573,6 @@ const FEATURED_SKILLS = [
 const catalog = ref({
   version: '',
   updatedAt: '',
-  policy: {},
-  downloadedSources: [],
   domains: [],
 })
 const searchKeyword = ref('')
@@ -683,6 +580,14 @@ const activeDomainId = ref('all')
 const databaseCards = ref([])
 const selectedSkillIds = ref([])
 const detailSkill = ref(null)
+const skillSource = computed(() => safeExternalHttpUrl(detailSkill.value?.upstreamReferenceUrl || detailSkill.value?.sourceRepo))
+const skillGitHub = computed(() => {
+  const repo = safeExternalHttpUrl(detailSkill.value?.sourceRepo)
+  return repo && /^https:\/\/github\.com\/[^/]+\/[^/]+\/?$/.test(repo) ? repo.replace(/\/$/, '') : ''
+})
+const skillDocument = computed(() => detailSkill.value?.inlineContent && detailSkill.value?.skillPath && skillGitHub.value
+  ? safeExternalHttpUrl(skillGitHub.value + '/blob/main/' + detailSkill.value.skillPath)
+  : '')
 const dbFormError = ref('')
 const catalogLoading = ref(true)
 const catalogError = ref('')
@@ -778,8 +683,6 @@ const domains = computed(() => {
     skills: [...group.retainedIds.map((id) => originalById.get(id)).filter(Boolean), ...group.skills],
   }))
 })
-const downloadedSources = computed(() => catalog.value.downloadedSources || [])
-const catalogPolicy = computed(() => catalog.value.policy || {})
 const catalogMeta = computed(() => {
   if (catalogLoading.value) return '正在加载目录'
   if (catalogError.value) return '目录不可用'
@@ -870,71 +773,12 @@ function domainIcon(id) {
   return domainIcons[id] || BookOpen
 }
 
-function trustLabel(level) {
-  const labels = {
-    official: '官方示例',
-    standard: '开放标准',
-    'community-curated': '社区索引',
-    'community-registry': '社区注册表',
-    'upstream-runtime': '上游运行时',
-    'domain-specialist': '领域专家',
-    'large-community-library': '大型社区库',
-    'specialized-upstream': '专项上游',
-    'internal-policy': '内部策略',
-  }
-  return labels[level] || level || '来源'
-}
-
-function statusLabel(status) {
-  const labels = {
-    available: '可用',
-    'available-requires-runtime': '需运行时',
-  }
-  return labels[status] || status || '待审查'
-}
-
-function statusClass(status) {
-  return status === 'available' ? 'ready' : 'runtime'
-}
-
-function runtimeLabel(runtime) {
-  const labels = {
-    'script-backed': '脚本支持',
-    'tool-backed': '外部工具',
-    'workflow-backed': '工作流',
-    'reference-backed': '参考资料',
-    'eval-backed': '评测流程',
-  }
-  return labels[runtime] || runtime || '未标注'
-}
-
 function skillName(skill) {
   return skill?.nameZh || skill?.name || '未命名 Skill'
 }
 
-function skillOriginalName(skill) {
-  if (!skill?.name || !skill?.nameZh || skill.nameZh === skill.name) return ''
-  return skill.name
-}
-
 function skillDescription(skill) {
   return skill?.descriptionZh || skill?.description || ''
-}
-
-function skillActivation(skill) {
-  return skill?.activationHintZh || skill?.activationHint || '按任务需要启用。'
-}
-
-function skillSafety(skill) {
-  return skill?.safetyZh || skill?.safety || '按需读取 Skill 原文并遵守最小权限。'
-}
-
-function skillTasks(skill) {
-  return skill?.tasksZh?.length ? skill.tasksZh : (skill?.tasks || [])
-}
-
-function skillKnowledgeInputs(skill) {
-  return skill?.knowledgeInputsZh?.length ? skill.knowledgeInputsZh : (skill?.knowledgeInputs || [])
 }
 
 function isSkillSelected(id) {
@@ -1186,16 +1030,6 @@ function persistDatabaseCardsLocally() {
   try { localStorage.setItem(DB_STORAGE_KEY, JSON.stringify(databaseCards.value)) } catch { /* Storage is optional. */ }
 }
 
-function openLocalSource(source) {
-  const target = safeExpertSkillDocumentPath(source?.localPath)
-  if (target) window.open(target, '_blank', 'noopener,noreferrer')
-}
-
-function openExternalSource(source) {
-  const target = safeExternalHttpUrl(source?.repoUrl)
-  if (target) window.open(target, '_blank', 'noopener,noreferrer')
-}
-
 async function loadCatalog() {
   catalogLoading.value = true
   catalogError.value = ''
@@ -1279,14 +1113,6 @@ const catalogCards = computed(() => isPluginDomain.value
 )
 
 const heroStatistics = computed(() => {
-  if (!isPluginDomain.value) {
-    return [
-      { label: '专家领域', value: catalogLoading.value ? '—' : domains.value.length },
-      { label: '精选 skill', value: catalogLoading.value ? '—' : totalSkills.value },
-      { label: '下载索引', value: catalogLoading.value ? '—' : downloadedSources.value.length },
-      { label: '数据库卡片', value: databaseCards.value.length },
-    ]
-  }
   const index = pluginIndex.value
   const available = index?.plugins.filter(plugin => !plugin.unavailable).length
   return [
@@ -1302,28 +1128,13 @@ function reloadDirectory() {
 }
 
 function skillCard(skill) {
-  const tasks = skillTasks(skill)
   const selected = isSkillSelected(skill.id)
   return {
     key: 'skill:' + skill.id,
-    kind: skill.stars ? 'GITHUB STAR' : 'SKILL',
-    count: skill.stars?.toLocaleString() || tasks.length,
     icon: domainIcon(skill.domainId),
     category: skill.domainName,
     title: skillName(skill),
-    status: statusLabel(skill.status),
-    statusClass: statusClass(skill.status),
-    badges: [skill.license, (skill.hasSkillMd || skill.skillPath && skill.inlineContent) && 'SKILL.md'].filter(Boolean),
-    highlight: skill.inlineContent ? runtimeLabel(skill.runtime) : tasks[0] || '专家能力',
-    highlightDetail: skillKnowledgeInputs(skill).length + ' 类知识输入',
     description: skillDescription(skill),
-    tags: skill.inlineContent ? [] : tasks,
-    facts: [
-      ['来源', skill.source],
-      ['激活条件', skillActivation(skill)],
-      ['运行时', runtimeLabel(skill.runtime)],
-    ],
-    note: skill.inlineContent ? '' : skillSafety(skill),
     selected,
     open: () => openSkillDetail(skill),
     action: {
