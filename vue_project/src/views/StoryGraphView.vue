@@ -10,7 +10,6 @@
       </div>
 
       <div class="intel-topbar__meta">
-        <LegacyAnalysisStatus />
         <RouterLink class="intel-btn intel-btn--ghost" to="/data-service/decision-desk">决策研究</RouterLink>
         <div class="intel-mode-switch" data-tour="story-level-switch" role="tablist" aria-label="图谱层级">
           <button :class="{ 'is-active': graphMode === 'l3' }" @click="switchGraphMode('l3')">
@@ -20,13 +19,6 @@
             L2 走势链
           </button>
         </div>
-        <span class="intel-badge intel-badge--build"> {{ graphModeLabel }} {{ activeRunId }} </span>
-        <span class="intel-badge" v-if="currentStory">
-          {{ currentStory.story_title || `走势链 ${currentStory.story_id}` }}
-        </span>
-        <span class="intel-badge intel-badge--soft" v-if="visibleStoryStatsText">
-          {{ visibleStoryStatsText }}
-        </span>
         <button class="intel-btn intel-btn--ghost" :disabled="!graph" @click="fitCanvas">
           适配视图
         </button>
@@ -301,7 +293,6 @@
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { getCurrentUser, getToken } from '@/utils/auth'
-import LegacyAnalysisStatus from '@/components/LegacyAnalysisStatus.vue'
 import { safeExternalHttpUrl } from '@/utils/externalUrl.js'
 import { graphMetricPresentation } from '@/governance/graphMetrics.js'
 import {
@@ -426,9 +417,6 @@ const graphMetrics = computed(() => buildGraphMetrics(currentStory.value, branch
 const storyStatsText = computed(() =>
   buildStoryStatsText(currentStory.value, graphMetrics.value, branchStories.value),
 )
-const visibleStoryStatsText = computed(() => (
-  isMeaningfulDisplayValue(storyStatsText.value) ? storyStatsText.value : ''
-))
 const samplingNotice = computed(() => graphSamplingNotice(currentStory.value))
 const currentStorySummary = computed(() => {
   const summary = buildStorySummaryLine(currentStory.value)
@@ -1542,6 +1530,8 @@ function clampText(value, max = 11000) {
 
 .intel-topbar__meta {
   display: flex;
+  margin-left: auto;
+  max-width: 100%;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
@@ -1575,7 +1565,6 @@ function clampText(value, max = 11000) {
   color: #fff;
 }
 
-.intel-badge,
 .intel-chip {
   border: 1px solid var(--stroke);
   background: var(--paper-strong);
@@ -1587,17 +1576,10 @@ function clampText(value, max = 11000) {
   white-space: nowrap;
 }
 
-.intel-badge--soft,
 .intel-chip--signal {
   border-color: rgba(38, 126, 173, 0.32);
   background: rgba(219, 240, 252, 0.9);
   color: #235f86;
-}
-
-.intel-badge--build {
-  border-color: rgba(38, 99, 235, 0.22);
-  background: rgba(232, 241, 255, 0.88);
-  color: #275c9b;
 }
 
 .intel-chip-row {
@@ -2541,7 +2523,6 @@ function clampText(value, max = 11000) {
     flex: 1 1 50%;
   }
 
-  .intel-badge,
   .intel-chip {
     max-width: 100%;
     line-height: 1.35;

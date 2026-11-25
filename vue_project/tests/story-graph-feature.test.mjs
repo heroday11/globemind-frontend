@@ -666,5 +666,5 @@ test('story graph has a narrow mobile layout that wraps controls instead of clip
   assert.match(source, /\.intel-topbar__brand\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/)
   assert.match(source, /\.intel-topbar__meta\s*\{[\s\S]*?width:\s*100%/)
   assert.match(source, /\.intel-mode-switch\s*\{[\s\S]*?width:\s*100%/)
-  assert.match(source, /\.intel-badge,[\s\S]*?\.intel-chip\s*\{[\s\S]*?white-space:\s*normal/)
+  assert.match(source, /\.intel-chip\s*\{[\s\S]*?white-space:\s*normal/)
 })
