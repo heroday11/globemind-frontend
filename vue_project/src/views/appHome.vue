@@ -272,7 +272,7 @@ function handleMouseMove(e) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   opacity: 0;
   transform: translateY(20px);
   transition:
@@ -292,7 +292,7 @@ function handleMouseMove(e) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 2rem 0;
+  margin: 1rem 0 1.5rem;
   text-align: center;
 }
 
@@ -481,6 +481,7 @@ function handleMouseMove(e) {
 }
 
 .card-heading {
+  transform: translateY(-5px);
   max-width: 80%;
 }
 
@@ -495,7 +496,7 @@ function handleMouseMove(e) {
 .card-subtitle {
   margin: 0.375rem 0 0;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.5;
   color: #475569;
 }
@@ -576,7 +577,6 @@ function handleMouseMove(e) {
 
   .home-content {
     padding: 0 16px;
-    justify-content: flex-start;
   }
 
   .hero-title {
@@ -639,7 +639,6 @@ function handleMouseMove(e) {
 
   .home-content {
     padding: 0 12px;
-    justify-content: flex-start;
   }
 
   .hero-title {
