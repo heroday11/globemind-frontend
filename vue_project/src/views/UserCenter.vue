@@ -1,9 +1,12 @@
 <script setup>
 import '@/styles/user-center.css'
 import { BookOpen, CircleHelp, FileText, LogOut, Star, UserRound } from 'lucide-vue-next'
+import { useRoute } from 'vue-router'
 
+const route = useRoute()
+const personalCenterPath = '/user-center/personal-center'
 const navItems = [
-  { path: '/user-center/personal-center', label: '个人中心', icon: UserRound },
+  { path: personalCenterPath, label: '个人中心', icon: UserRound },
   { path: '/user-center/my-applications', label: '我的报告', icon: FileText },
   { path: '/user-center/my-collections', label: '我的收录', icon: Star },
   { path: '/user-center/help-docs', label: '帮助文档', icon: BookOpen },
@@ -44,7 +47,7 @@ function openNewUserGuide() {
       </button>
     </aside>
 
-    <main class="uc-main">
+    <main class="uc-main" :class="{ 'uc-main--personal': route.path.replace(/\/$/, '') === personalCenterPath }">
       <router-view />
     </main>
   </div>
@@ -52,6 +55,7 @@ function openNewUserGuide() {
 
 <style scoped>
 .uc-shell {
+  --uc-sidebar-width: 236px;
   display: flex;
   min-height: calc(100vh - 64px);
   margin-top: 64px;
@@ -60,7 +64,7 @@ function openNewUserGuide() {
 }
 
 .uc-sidebar {
-  width: 236px;
+  width: var(--uc-sidebar-width);
   flex-shrink: 0;
   background: #ffffff;
   border-right: 1px solid var(--uc-border);
@@ -181,7 +185,13 @@ function openNewUserGuide() {
   }
 
   .uc-main {
-    margin-left: 236px;
+    margin-left: var(--uc-sidebar-width);
+  }
+}
+
+@media (min-width: 1100px) {
+  .uc-main--personal {
+    margin-inline: var(--uc-sidebar-width);
   }
 }
 
