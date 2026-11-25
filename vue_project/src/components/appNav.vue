@@ -450,7 +450,7 @@ const submitGlobalSearch = () => {
             <span>更多</span>
             <ChevronDown class="nav-icon dropdown-icon" :class="{ rotate: isMoreOpen }" :size="14" aria-hidden="true" />
           </button>
-          <div id="desktop-more-menu" v-show="isMoreOpen" class="dropdown-menu dropdown-menu--end" :class="{ show: isMoreOpen }">
+          <div id="desktop-more-menu" v-show="isMoreOpen" class="dropdown-menu" :class="{ show: isMoreOpen }">
             <router-link
               v-for="link in moreLinks"
               :key="link.path"
