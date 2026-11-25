@@ -244,6 +244,29 @@
     }
   }
 
+  .folder-select {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    padding: 0;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid #2563eb;
+      outline-offset: -3px;
+    }
+  }
+
+  .folder-name,
+  .folder-edit-row,
+  .folder-del {
+    position: relative;
+    z-index: 2;
+  }
+
   .folder-tab {
     position: absolute;
     top: -1px;
@@ -2883,10 +2906,6 @@
   width: 44px;
   min-width: 44px;
   height: 44px;
-}
-
-.search-page .folder-card {
-  cursor: default;
 }
 
 .search-page .folder-name,

@@ -68,7 +68,6 @@ onUnmounted(() => {
         <span v-if="!props.requestParams">请先完成一次新闻文章检索。</span>
         <span v-else>按搜索页上次成功查询的条件重新执行；未提交的筛选修改不会自动采用。</span>
       </div>
-      <p class="snapshot-note">这里会重新执行查询，不是补存先前页面的结果；新结果用于快照比较，搜索页原列表不会自动替换。仅保存查询与本页有序结果 ID，尚未比较文章正文；退出范围不等于文章删除或撤稿。</p>
       <p v-if="state.loading" role="status">正在加载历史快照…</p>
       <p v-if="state.error" class="snapshot-error" role="alert">{{ state.error }}</p>
       <p v-if="state.notice" role="status">{{ state.notice }}</p>
@@ -119,16 +118,16 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.snapshot-panel { margin: 18px 0; padding: 20px; border: 1px solid var(--border-color, #dce3ed); border-radius: 12px; color: var(--text-color, #243047); background: var(--card-bg, #fff); }
+.snapshot-panel { margin: 18px 0; padding: 16px 20px; border: 1px solid var(--border-color, #dce3ed); border-radius: 12px; color: var(--text-color, #243047); background: var(--card-bg, #fff); }
 .snapshot-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-h2 { font-size: 17px; margin: 0 0 8px; }
+h2 { font-size: 17px; margin: 0 0 4px; }
 h3 { font-size: 16px; margin: 12px 0; }
 h4 { font-size: 14px; margin: 16px 0 8px; }
 p, li, label, button, select { font-size: 13px; line-height: 1.7; }
 p { margin: 8px 0; }
 .snapshot-note { color: var(--text-secondary, #58677d); }
 .snapshot-error { color: #b42318; }
-.snapshot-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.snapshot-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 10px 0 8px; }
 button { border: 1px solid #c3d0e2; border-radius: 7px; padding: 6px 12px; color: inherit; background: transparent; cursor: pointer; white-space: nowrap; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 button:focus-visible, select:focus-visible { outline: 2px solid #2878df; outline-offset: 3px; }

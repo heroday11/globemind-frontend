@@ -50,6 +50,13 @@
           :class="{ active: folder.name === themeName }"
           role="listitem"
         >
+          <button
+            type="button"
+            class="folder-select"
+            :aria-label="`选中文件夹：${folder.displayName}`"
+            :aria-pressed="folder.name === themeName"
+            @click="switchTheme(folder.name)"
+          />
           <span class="folder-tab" aria-hidden="true" />
           <div class="folder-main">
             <span class="folder-mark" aria-hidden="true" />
