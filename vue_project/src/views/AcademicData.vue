@@ -13,10 +13,21 @@
 
       <label class="vault-search">
         <Search />
-        <input v-model="searchKeyword" type="search" :placeholder="isPluginDomain ? '搜索所有 DSH 插件' : '检索领域、skill、任务或来源'" @input="searchAllPlugins" />
+        <input v-model="searchKeyword" type="search" :placeholder="isPluginDomain ? '搜索 DSH 插件' : '检索领域、skill、任务或来源'" />
       </label>
 
       <nav class="domain-nav" aria-label="专家领域">
+        <button
+          type="button"
+          class="domain-nav-item"
+          :class="{ active: isPluginDomain }"
+          @click="openPluginMarket"
+        >
+          <PlugZap />
+          <span>DSH 插件</span>
+          <strong>{{ pluginIndex?.plugins.length ?? '—' }}</strong>
+        </button>
+
         <button
           class="domain-nav-item"
           :class="{ active: activeDomainId === 'all' }"
@@ -39,16 +50,6 @@
           <component :is="domainIcon(domain.id)" />
           <span>{{ domain.shortName || domain.name }}</span>
           <strong>{{ domain.skills?.length || 0 }}</strong>
-        </button>
-        <button
-          type="button"
-          class="domain-nav-item"
-          :class="{ active: isPluginDomain }"
-          @click="openPluginMarket"
-        >
-          <PlugZap />
-          <span>DSH 插件</span>
-          <strong>{{ pluginIndex?.plugins.length ?? '—' }}</strong>
         </button>
       </nav>
 
@@ -175,15 +176,15 @@
               :aria-pressed="pluginGroup === 'featured'"
               @click="selectPluginGroup('featured')"
             >
-              精选 <span>{{ featuredPluginCount }}</span>
+              精选 <span>{{ matchingPlugins.featured.length }}</span>
             </button>
             <button
               class="use-skill-btn"
               type="button"
-              :aria-pressed="pluginGroup === 'all'"
-              @click="selectPluginGroup('all')"
+              :aria-pressed="pluginGroup === 'other'"
+              @click="selectPluginGroup('other')"
             >
-              全部插件 <span>{{ pluginIndex.plugins.length }}</span>
+              其他 <span>{{ matchingPlugins.other.length }}</span>
             </button>
           </div>
           <div class="modal-chip-list dsh-category-filter">
@@ -219,7 +220,6 @@
                 {{ pluginStateLabel(plugin) }}
               </span>
               <span class="license-badge">{{ plugin.author }}</span>
-              <span v-if="plugin.featured && pluginGroup === 'all'" class="license-badge">精选</span>
             </div>
             <div class="skill-card-top">
               <div class="skill-icon"><PlugZap /></div>
@@ -1325,28 +1325,25 @@ function pluginCategoryTitle(categoryId) {
   return pluginText(pluginIndex.value?.categories.find(category => category.id === categoryId)?.title)
 }
 
-const featuredPluginCount = computed(() => (pluginIndex.value?.plugins || []).filter(plugin => plugin.featured).length)
-
 function selectPluginGroup(group) {
   pluginCategory.value = ''
   pluginGroup.value = group
 }
 
-function searchAllPlugins(event) {
-  if (isPluginDomain.value && event.target.value.trim() && pluginGroup.value !== 'all') selectPluginGroup('all')
-}
-
-const filteredPlugins = computed(() => {
+const matchingPlugins = computed(() => {
   const terms = searchKeyword.value.normalize('NFKC').toLowerCase().trim().split(/\s+/).filter(Boolean)
-  return (pluginIndex.value?.plugins || []).filter(plugin => {
-    if (pluginGroup.value === 'featured' && !plugin.featured) return false
-    if (pluginCategory.value && plugin.category !== pluginCategory.value) return false
+  const groups = { featured: [], other: [] }
+  for (const plugin of pluginIndex.value?.plugins || []) {
     const text = [plugin.name, plugin.author, pluginText(plugin.title), plugin.title?.en,
       pluginText(plugin.description), plugin.description?.en, plugin.requirements,
       pluginCategoryTitle(plugin.category)].join(' ').normalize('NFKC').toLowerCase()
-    return terms.every(term => text.includes(term))
-  })
+    if (terms.every(term => text.includes(term))) groups[plugin.unavailable ? 'other' : 'featured'].push(plugin)
+  }
+  return groups
 })
+const filteredPlugins = computed(() => matchingPlugins.value[pluginGroup.value].filter(plugin =>
+  !pluginCategory.value || plugin.category === pluginCategory.value,
+))
 const pluginState = computed(() => pluginStates.value[detailPlugin.value?.name])
 const pluginCompatibility = computed(() => pluginState.value?.versions.find(version =>
   version.version === (pluginState.value.installedVersion || pluginVersion.value),
@@ -1411,8 +1408,8 @@ async function loadPluginStatus() {
 }
 
 function openPluginMarket() {
+  if (!isPluginDomain.value) selectPluginGroup('featured')
   activeDomainId.value = 'dsh-plugins'
-  if (searchKeyword.value.trim()) selectPluginGroup('all')
   if (!pluginIndex.value) void loadPluginIndex()
   void loadPluginStatus()
 }
@@ -1493,8 +1490,7 @@ onBeforeUnmount(() => {
 
 <style src="./AcademicData.css" scoped></style>
 <style scoped>
-.dsh-market-filters,
-.dsh-market-views {
+.dsh-market-filters {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1504,8 +1500,14 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   margin: 0 0 1rem;
 }
+.dsh-market-views {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
 .dsh-market-views button {
   min-height: 36px;
+  white-space: nowrap;
 }
 .dsh-market-views button[aria-pressed='true'] {
   border-color: currentColor;
