@@ -274,7 +274,7 @@ function handleMouseMove(e) {
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(12px);
   transition:
     opacity 0.8s ease,
     transform 0.8s ease;
@@ -282,7 +282,7 @@ function handleMouseMove(e) {
 
 .home-content.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(-8px);
 }
 
 /* ============================================================
