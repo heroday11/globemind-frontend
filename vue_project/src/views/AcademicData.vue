@@ -40,6 +40,16 @@
           <span>{{ domain.shortName || domain.name }}</span>
           <strong>{{ domain.skills?.length || 0 }}</strong>
         </button>
+        <button
+          type="button"
+          class="domain-nav-item"
+          :class="{ active: isPluginDomain }"
+          @click="openPluginMarket"
+        >
+          <PlugZap />
+          <span>DSH 插件</span>
+          <strong>{{ pluginIndex?.plugins.length ?? '—' }}</strong>
+        </button>
       </nav>
 
       <div class="source-shelf">
@@ -65,14 +75,14 @@
         <div>
           <strong id="route-meaning-title">旧路径说明</strong>
           <p>
-            为兼容书签，本页仍使用 <code>/academic-data</code> 路径；这里是 Agent Skill
-            与本地连接说明市场，不是论文、书目或已接通的学术数据库。
+            为兼容书签，本页仍使用 <code>/academic-data</code> 路径。这里提供 Agent Skill、
+            DSH 插件和本地连接说明。这里不是论文、书目或已接通的学术数据库。
           </p>
         </div>
         <router-link to="/sources">查看已登记的数据来源与许可状态</router-link>
       </aside>
 
-      <section class="vault-hero">
+      <section v-if="!isPluginDomain" class="vault-hero">
         <div class="hero-copy">
           <div class="hero-kicker">
             <ShieldCheck />
@@ -104,7 +114,7 @@
         </div>
       </section>
 
-      <section v-if="!catalogLoading && !catalogError" class="featured-skills" aria-labelledby="featured-skills-title">
+      <section v-if="!isPluginDomain && !catalogLoading && !catalogError" class="featured-skills" aria-labelledby="featured-skills-title">
         <header class="panel-header">
           <div>
             <p class="section-label">Essential Skills</p>
@@ -144,7 +154,70 @@
         </div>
       </section>
 
-      <section class="vault-grid">
+      <section v-if="isPluginDomain" class="skill-library">
+        <header class="panel-header">
+          <div>
+            <p class="section-label">DSH Plugins</p>
+            <h3>DSH 插件</h3>
+          </div>
+          <button v-if="getToken()" class="use-skill-btn" type="button" :disabled="pluginStatusLoading" @click="loadPluginStatus">
+            <RefreshCw :class="{ 'catalog-spinner': pluginStatusLoading }" />
+            {{ pluginStatusLoading ? '正在连接数据助手' : '刷新插件状态' }}
+          </button>
+        </header>
+        <p v-if="pluginStatusError" class="form-error" role="alert">{{ pluginStatusError }}</p>
+        <p v-if="pluginNotice" class="db-privacy-note" role="status">{{ pluginNotice }}</p>
+        <div v-if="pluginIndex?.categories.length" class="modal-chip-list dsh-category-filter">
+          <label for="dsh-plugin-category">用途</label>
+          <select id="dsh-plugin-category" v-model="pluginCategory">
+            <option value="">全部插件</option>
+            <option v-for="category in pluginIndex.categories" :key="category.id" :value="category.id">
+              {{ pluginText(category.title) }}
+            </option>
+          </select>
+        </div>
+        <div v-if="pluginLoading || pluginError" class="empty-state catalog-state" :role="pluginError ? 'alert' : 'status'">
+          <RefreshCw v-if="pluginLoading" class="catalog-spinner" />
+          <BookOpen v-else />
+          <strong>{{ pluginError || '正在加载插件目录' }}</strong>
+          <button v-if="pluginError" class="use-skill-btn" type="button" @click="loadPluginIndex">重新加载</button>
+        </div>
+        <div v-else-if="filteredPlugins.length" class="skill-grid">
+          <article
+            v-for="plugin in filteredPlugins"
+            :key="plugin.name"
+            class="skill-card"
+            :class="{ selected: pluginStates[plugin.name]?.enabled }"
+            role="button"
+            tabindex="0"
+            @click="openPluginDetail(plugin)"
+            @keydown.enter.prevent="openPluginDetail(plugin)"
+            @keydown.space.prevent="openPluginDetail(plugin)"
+          >
+            <div class="skill-card-badges">
+              <span class="status-badge" :class="{ ready: pluginStates[plugin.name]?.enabled && !pluginStates[plugin.name]?.error }">
+                {{ pluginStateLabel(plugin) }}
+              </span>
+              <span class="license-badge">{{ plugin.author }}</span>
+            </div>
+            <div class="skill-card-top">
+              <div class="skill-icon"><PlugZap /></div>
+              <div>
+                <span class="skill-domain">{{ pluginCategoryTitle(plugin.category) }}</span>
+                <h4>{{ pluginText(plugin.title) }}</h4>
+              </div>
+            </div>
+            <p class="skill-desc">{{ pluginText(plugin.description) }}</p>
+            <dl class="skill-meta">
+              <div><dt>推荐版本</dt><dd>{{ pluginStates[plugin.name]?.defaultVersion || plugin.versions[0]?.version }}</dd></div>
+              <div><dt>运行时</dt><dd>DSH</dd></div>
+            </dl>
+          </article>
+        </div>
+        <div v-else class="empty-state"><PlugZap /><strong>没有匹配的插件</strong></div>
+      </section>
+
+      <section v-else class="vault-grid">
         <div class="skill-library" data-tour="knowledge-skills">
           <header class="panel-header">
             <div>
@@ -408,7 +481,7 @@
         </aside>
       </section>
 
-      <section class="source-panel">
+      <section v-if="!isPluginDomain" class="source-panel">
         <header class="panel-header">
           <div>
             <p class="section-label">Downloaded References</p>
@@ -536,11 +609,62 @@
           </section>
         </div>
       </Transition>
+
+      <Transition name="modal-fade">
+        <div v-if="detailPlugin" class="skill-modal-backdrop" @click.self="closePluginDetail">
+          <section class="skill-modal" role="dialog" aria-modal="true" :aria-label="pluginText(detailPlugin.title)">
+            <button type="button" class="modal-close" aria-label="关闭" @click="closePluginDetail"><X /></button>
+            <div class="modal-head">
+              <div class="modal-icon"><PlugZap /></div>
+              <div>
+                <span>{{ pluginCategoryTitle(detailPlugin.category) }}</span>
+                <h3>{{ pluginText(detailPlugin.title) }}</h3>
+                <p>{{ pluginText(detailPlugin.description) }}</p>
+              </div>
+            </div>
+            <div class="modal-grid">
+              <section class="modal-section">
+                <h4>版本与来源</h4>
+                <dl class="modal-fact-list dsh-plugin-facts">
+                  <div><dt>发布者</dt><dd>{{ detailPlugin.author }}</dd></div>
+                  <div><dt>安装来源</dt><dd><a :href="safeExternalHttpUrl(detailPlugin.homepage)" target="_blank" rel="noopener noreferrer">{{ detailPlugin.name }}</a></dd></div>
+                  <div>
+                    <dt><label for="dsh-plugin-version">版本</label></dt>
+                    <dd><select id="dsh-plugin-version" v-model="pluginVersion" :disabled="pluginState?.installed || pluginState?.provided || Boolean(pendingPluginAction) || pluginActionBusy">
+                      <option v-for="version in detailPlugin.versions" :key="version.version" :value="version.version">{{ version.version }}</option>
+                    </select></dd>
+                  </div>
+                  <div><dt>兼容性</dt><dd>{{ pluginCompatibilityLabel }}</dd></div>
+                  <div><dt>状态</dt><dd>{{ pluginStateLabel(detailPlugin) }}</dd></div>
+                </dl>
+              </section>
+            </div>
+            <p v-if="pluginActionMessage" class="db-privacy-note" role="status">{{ pluginActionMessage }}</p>
+            <p v-if="pluginActionError" class="form-error" role="alert">{{ pluginActionError }}</p>
+            <div class="modal-actions">
+              <router-link v-if="!getToken()" class="use-skill-btn" :to="pluginLoginRoute">登录后管理插件</router-link>
+              <template v-else-if="pendingPluginAction">
+                <button class="use-skill-btn" type="button" :disabled="pluginActionBusy" @click="pendingPluginAction = ''">取消</button>
+                <button class="modal-use-btn" type="button" :disabled="pluginActionBusy" @click="applyPluginAction">
+                  {{ pluginActionBusy ? '正在处理…' : '确认' + pluginActionLabels[pendingPluginAction] }}
+                </button>
+              </template>
+              <template v-else-if="pluginState">
+                <button v-if="pluginState.removable" class="use-skill-btn" type="button" @click="pendingPluginAction = 'remove'">卸载</button>
+                <button v-if="primaryPluginAction" class="modal-use-btn" type="button" @click="pendingPluginAction = primaryPluginAction">
+                  {{ pluginActionLabels[primaryPluginAction] }}
+                </button>
+              </template>
+            </div>
+          </section>
+        </div>
+      </Transition>
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   Archive,
   BookOpen,
@@ -646,6 +770,26 @@ const capabilitySyncUnavailable = ref(false)
 const capabilityLastSyncedAt = ref('')
 const capabilityNeedsMigration = ref(false)
 let capabilitySyncGeneration = 0
+
+const route = useRoute()
+const isPluginDomain = computed(() => activeDomainId.value === 'dsh-plugins')
+const pluginLoginRoute = computed(() => ({ path: '/login', query: { redirect: route.fullPath } }))
+const pluginApi = '/api/assistant/dsh-plugins'
+const pluginIndex = ref(null)
+const pluginLoading = ref(false)
+const pluginError = ref('')
+const pluginCategory = ref('')
+const pluginStates = ref({})
+const pluginStatusLoading = ref(false)
+const pluginStatusError = ref('')
+const pluginNotice = ref('')
+const detailPlugin = ref(null)
+const pluginVersion = ref('')
+const pendingPluginAction = ref('')
+const pluginActionBusy = ref(false)
+const pluginActionError = ref('')
+const pluginActionMessage = ref('')
+const pluginActionLabels = { install: '安装并启用', enable: '启用', disable: '停用', remove: '卸载' }
 
 const dbTypes = [
   { name: 'PostgreSQL', port: '5432' },
@@ -1143,8 +1287,141 @@ async function loadCatalog() {
   }
 }
 
+function pluginText(value) {
+  return typeof value === 'string' ? value : value?.zh || value?.en || ''
+}
+
+function pluginCategoryTitle(categoryId) {
+  return pluginText(pluginIndex.value?.categories.find(category => category.id === categoryId)?.title)
+}
+
+const filteredPlugins = computed(() => {
+  const query = searchKeyword.value.trim().toLowerCase()
+  return (pluginIndex.value?.plugins || []).filter(plugin =>
+    (!pluginCategory.value || plugin.category === pluginCategory.value) &&
+    [plugin.name, plugin.author, pluginText(plugin.title), pluginText(plugin.description),
+      pluginCategoryTitle(plugin.category)].join(' ').toLowerCase().includes(query),
+  )
+})
+const pluginState = computed(() => pluginStates.value[detailPlugin.value?.name])
+const pluginCompatibility = computed(() => pluginState.value?.versions.find(version =>
+  version.version === (pluginState.value.installedVersion || pluginVersion.value),
+)?.compatibility)
+const pluginCompatibilityLabel = computed(() => {
+  if (!pluginCompatibility.value) return '连接数据助手后检查'
+  return pluginCompatibility.value.compatible ? '兼容当前 DSH' : '与当前 DSH 版本不兼容'
+})
+const primaryPluginAction = computed(() => {
+  if (pluginState.value?.enabled) return 'disable'
+  if (!pluginCompatibility.value?.compatible) return ''
+  return pluginState.value?.installed || pluginState.value?.provided ? 'enable' : 'install'
+})
+
+function pluginStateLabel(plugin) {
+  const state = pluginStates.value[plugin.name]
+  if (!state) return getToken() ? '等待连接' : 'DSH 插件'
+  if (state.error === 'incompatible-version' || !state.defaultVersion) return '版本不兼容'
+  if (state.error) return '状态异常'
+  if (state.enabled) return '已启用'
+  if (state.provided) return '随 DSH 提供'
+  if (state.installed) return '已停用'
+  return '未安装'
+}
+
+async function loadPluginIndex() {
+  if (pluginLoading.value) return
+  pluginLoading.value = true
+  pluginError.value = ''
+  try {
+    const response = await fetch(pluginApi + '/index.json')
+    if (!response.ok) throw new Error(String(response.status))
+    pluginIndex.value = await response.json()
+  } catch {
+    pluginError.value = '插件目录加载失败'
+  } finally {
+    pluginLoading.value = false
+  }
+}
+
+async function loadPluginStatus() {
+  if (!getToken() || pluginStatusLoading.value) return
+  pluginStatusLoading.value = true
+  pluginStatusError.value = ''
+  try {
+    const response = await fetch(pluginApi + '/status', { headers: authHeaders(), cache: 'no-store' })
+    if (!response.ok) throw new Error(String(response.status))
+    const payload = await response.json()
+    pluginStates.value = Object.fromEntries(payload.plugins.map(plugin => [plugin.name, plugin]))
+  } catch {
+    pluginStatusError.value = '暂时无法读取数据助手的插件状态'
+  } finally {
+    pluginStatusLoading.value = false
+  }
+}
+
+function openPluginMarket() {
+  activeDomainId.value = 'dsh-plugins'
+  if (!pluginIndex.value) void loadPluginIndex()
+  void loadPluginStatus()
+}
+
+function openPluginDetail(plugin) {
+  detailPlugin.value = plugin
+  const state = pluginStates.value[plugin.name]
+  pluginVersion.value = plugin.versions.find(version => version.version === state?.installedVersion)?.version
+    || state?.defaultVersion || plugin.versions[0]?.version || ''
+  pendingPluginAction.value = ''
+  pluginActionMessage.value = ''
+  pluginActionError.value = ''
+}
+
+function closePluginDetail() {
+  if (!pluginActionBusy.value) detailPlugin.value = null
+}
+
+async function applyPluginAction() {
+  if (!detailPlugin.value || !pendingPluginAction.value || pluginActionBusy.value) return
+  const action = pendingPluginAction.value
+  pluginActionBusy.value = true
+  pluginActionError.value = ''
+  pluginActionMessage.value = ''
+  pluginNotice.value = ''
+  try {
+    const response = await fetch(pluginApi + '/actions', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name: detailPlugin.value.name, action, version: pluginVersion.value }),
+    })
+    const result = await response.json()
+    if (response.ok && result.application === 'applied') {
+      pluginActionMessage.value = pluginActionLabels[action] + '成功'
+    } else if (response.ok && result.application === 'restart-required') {
+      pluginActionMessage.value = '更改已保存，下次启动数据助手时生效'
+    } else if (result.needsBuildApproval) {
+      pluginActionError.value = '该版本需要额外授权才能运行依赖的构建脚本'
+    } else {
+      const message = {
+        'incompatible-version': '插件版本与当前 DSH 不兼容',
+        'already-installed': '当前数据助手已安装此插件',
+        'action-unavailable': '当前插件状态不支持此操作',
+        'overridden': '插件配置被当前数据助手设置覆盖',
+      }[result.error || result.code || result.application]
+      pluginActionError.value = message || (typeof result.detail === 'string' ? result.detail : '操作失败，请稍后重试')
+    }
+    pluginNotice.value = pluginActionMessage.value
+    await loadPluginStatus()
+  } catch {
+    pluginActionError.value = '暂时无法确认操作结果，刷新状态后再试'
+    await loadPluginStatus()
+  } finally {
+    pendingPluginAction.value = ''
+    pluginActionBusy.value = false
+  }
+}
+
 function handleKeydown(event) {
   if (event.key === 'Escape' && detailSkill.value) closeSkillDetail()
+  if (event.key === 'Escape' && detailPlugin.value) closePluginDetail()
 }
 
 onMounted(() => {
@@ -1163,3 +1440,21 @@ onBeforeUnmount(() => {
 </script>
 
 <style src="./AcademicData.css" scoped></style>
+<style scoped>
+.dsh-category-filter {
+  align-items: center;
+  margin: 0 0 1rem;
+}
+.dsh-category-filter select,
+.dsh-plugin-facts select {
+  max-width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--w36-border, #b9c3cb);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+}
+.dsh-plugin-facts dd {
+  overflow-wrap: anywhere;
+}
+</style>
