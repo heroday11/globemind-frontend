@@ -72,7 +72,7 @@
     </aside>
 
     <main class="vault-main">
-      <aside class="route-meaning-notice" aria-labelledby="route-meaning-title">
+      <aside v-if="!isPluginDomain" class="route-meaning-notice" aria-labelledby="route-meaning-title">
         <div>
           <strong id="route-meaning-title">旧路径说明</strong>
           <p>
@@ -83,34 +83,23 @@
         <router-link to="/sources">查看已登记的数据来源与许可状态</router-link>
       </aside>
 
-      <section v-if="!isPluginDomain" class="vault-hero">
+      <section class="vault-hero">
         <div class="hero-copy">
           <div class="hero-kicker">
-            <ShieldCheck />
-            <span>给 Agent 装配可审查的专家能力与数据源</span>
+            <component :is="isPluginDomain ? PlugZap : ShieldCheck" />
+            <span>{{ isPluginDomain ? 'DeepSeek Harness 官方插件' : '给 Agent 装配可审查的专家能力与数据源' }}</span>
           </div>
-          <h2>高频 Skill 工作台</h2>
-          <p>
+          <h2>{{ isPluginDomain ? 'DSH 插件' : '高频 Skill 工作台' }}</h2>
+          <p v-if="isPluginDomain">为数据助手添加会话检索、语音输入和智能体协作等能力。</p>
+          <p v-else>
             把文档、演示、论文检索与研究写作放在最顺手的位置，再按领域装配经过筛选的专家能力。
           </p>
         </div>
 
-        <div class="hero-ledger" aria-label="知识库统计">
-          <div class="ledger-cell">
-            <span>{{ catalogLoading ? '—' : domains.length }}</span>
-            <p>专家领域</p>
-          </div>
-          <div class="ledger-cell">
-            <span>{{ catalogLoading ? '—' : totalSkills }}</span>
-            <p>精选 skill</p>
-          </div>
-          <div class="ledger-cell">
-            <span>{{ catalogLoading ? '—' : downloadedSources.length }}</span>
-            <p>下载索引</p>
-          </div>
-          <div class="ledger-cell">
-            <span>{{ databaseCards.length }}</span>
-            <p>数据库卡片</p>
+        <div class="hero-ledger" :aria-label="isPluginDomain ? '插件目录统计' : '知识库统计'">
+          <div v-for="{ label, value } in heroStatistics" :key="label" class="ledger-cell">
+            <span>{{ value }}</span>
+            <p>{{ label }}</p>
           </div>
         </div>
       </section>
@@ -155,106 +144,27 @@
         </div>
       </section>
 
-      <section v-if="isPluginDomain" class="skill-library">
-        <header class="panel-header">
-          <div>
-            <p class="section-label">DSH Plugins</p>
-            <h3>DSH 插件</h3>
-          </div>
-          <button v-if="getToken()" class="use-skill-btn" type="button" :disabled="pluginStatusLoading" @click="loadPluginStatus">
-            <RefreshCw :class="{ 'catalog-spinner': pluginStatusLoading }" />
-            {{ pluginStatusLoading ? '正在连接数据助手' : '刷新插件状态' }}
-          </button>
-        </header>
-        <p v-if="pluginStatusError" class="form-error" role="alert">{{ pluginStatusError }}</p>
-        <p v-if="pluginNotice" class="db-privacy-note" role="status">{{ pluginNotice }}</p>
-        <div v-if="pluginIndex" class="dsh-market-filters">
-          <div class="dsh-market-views" role="group" aria-label="插件目录">
-            <button
-              class="use-skill-btn"
-              type="button"
-              :aria-pressed="pluginGroup === 'featured'"
-              @click="selectPluginGroup('featured')"
-            >
-              精选 <span>{{ matchingPlugins.featured.length }}</span>
-            </button>
-            <button
-              class="use-skill-btn"
-              type="button"
-              :aria-pressed="pluginGroup === 'other'"
-              @click="selectPluginGroup('other')"
-            >
-              其他 <span>{{ matchingPlugins.other.length }}</span>
-            </button>
-          </div>
-          <div class="modal-chip-list dsh-category-filter">
-            <label for="dsh-plugin-category">用途</label>
-            <select id="dsh-plugin-category" v-model="pluginCategory">
-              <option value="">全部用途</option>
-              <option v-for="category in pluginIndex.categories" :key="category.id" :value="category.id">
-                {{ pluginText(category.title) }}
-              </option>
-            </select>
-          </div>
-        </div>
-        <div v-if="pluginLoading || pluginError" class="empty-state catalog-state" :role="pluginError ? 'alert' : 'status'">
-          <RefreshCw v-if="pluginLoading" class="catalog-spinner" />
-          <BookOpen v-else />
-          <strong>{{ pluginError || '正在加载插件目录' }}</strong>
-          <button v-if="pluginError" class="use-skill-btn" type="button" @click="loadPluginIndex">重新加载</button>
-        </div>
-        <div v-else-if="filteredPlugins.length" class="skill-grid">
-          <article
-            v-for="plugin in filteredPlugins"
-            :key="plugin.name"
-            class="skill-card"
-            :class="{ selected: pluginStates[plugin.name]?.enabled }"
-            role="button"
-            tabindex="0"
-            @click="openPluginDetail(plugin)"
-            @keydown.enter.prevent="openPluginDetail(plugin)"
-            @keydown.space.prevent="openPluginDetail(plugin)"
-          >
-            <div class="skill-card-badges">
-              <span class="status-badge" :class="{ ready: pluginStates[plugin.name]?.enabled && !pluginStates[plugin.name]?.error }">
-                {{ pluginStateLabel(plugin) }}
-              </span>
-              <span class="license-badge">{{ plugin.author }}</span>
-            </div>
-            <div class="skill-card-top">
-              <div class="skill-icon"><PlugZap /></div>
-              <div>
-                <span class="skill-domain">{{ pluginCategoryTitle(plugin.category) }}</span>
-                <h4>{{ pluginText(plugin.title) }}</h4>
-              </div>
-            </div>
-            <p class="skill-desc">{{ pluginText(plugin.description) }}</p>
-            <dl class="skill-meta">
-              <div><dt>推荐版本</dt><dd>{{ pluginStates[plugin.name]?.defaultVersion || plugin.versions[0]?.version }}</dd></div>
-              <div><dt>运行时</dt><dd>DSH</dd></div>
-            </dl>
-            <div v-if="pluginCanBeAdded(plugin)" class="skill-footer">
-              <button class="use-skill-btn" type="button" @click.stop="openPluginDetail(plugin)" @keydown.enter.stop @keydown.space.stop>
-                <Plus />
-                添加
-              </button>
-            </div>
-          </article>
-        </div>
-        <div v-else class="empty-state"><PlugZap /><strong>没有匹配的插件</strong></div>
-      </section>
-
-      <section v-else class="vault-grid">
+      <section class="vault-grid">
         <div class="skill-library" data-tour="knowledge-skills">
           <header class="panel-header">
             <div>
-              <p class="section-label">Expert Skill Library</p>
-              <h3>{{ activeDomainTitle }}</h3>
+              <p class="section-label">{{ isPluginDomain ? 'DSH Plugins' : 'Expert Skill Library' }}</p>
+              <h3>{{ isPluginDomain ? 'DSH 插件目录' : activeDomainTitle }}</h3>
             </div>
             <div class="panel-actions">
-              <span class="sync-pill">
+              <button
+                v-if="isPluginDomain && getToken()"
+                class="sync-pill plugin-status-refresh"
+                type="button"
+                :disabled="pluginStatusLoading"
+                @click="loadPluginStatus"
+              >
+                <RefreshCw :class="{ 'catalog-spinner': pluginStatusLoading }" />
+                {{ pluginStatusLoading ? '正在连接数据助手' : '刷新插件状态' }}
+              </button>
+              <span v-else class="sync-pill">
                 <RefreshCw />
-                {{ catalogMeta }}
+                {{ isPluginDomain ? '官方插件目录' : catalogMeta }}
               </span>
             </div>
           </header>
@@ -271,86 +181,114 @@
             </div>
           </div>
 
-          <div v-if="catalogLoading" class="empty-state catalog-state" role="status">
+          <template v-if="isPluginDomain">
+            <p v-if="pluginStatusError" class="form-error" role="alert">{{ pluginStatusError }}</p>
+            <p v-if="pluginNotice" class="db-privacy-note" role="status">{{ pluginNotice }}</p>
+          </template>
+          <div v-if="isPluginDomain && pluginIndex" class="dsh-market-filters">
+            <div class="dsh-market-views" role="group" aria-label="插件目录">
+              <button
+                class="use-skill-btn"
+                type="button"
+                :aria-pressed="pluginGroup === 'featured'"
+                @click="selectPluginGroup('featured')"
+              >
+                精选 <span>{{ matchingPlugins.featured.length }}</span>
+              </button>
+              <button
+                class="use-skill-btn"
+                type="button"
+                :aria-pressed="pluginGroup === 'other'"
+                @click="selectPluginGroup('other')"
+              >
+                其他 <span>{{ matchingPlugins.other.length }}</span>
+              </button>
+            </div>
+            <div class="modal-chip-list dsh-category-filter">
+              <label for="dsh-plugin-category">用途</label>
+              <select id="dsh-plugin-category" v-model="pluginCategory">
+                <option value="">全部用途</option>
+                <option v-for="category in pluginIndex.categories" :key="category.id" :value="category.id">
+                  {{ pluginText(category.title) }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="directoryLoading" class="empty-state catalog-state" role="status">
             <RefreshCw class="catalog-spinner" />
-            <strong>正在加载 Skill 目录</strong>
-            <p>目录较大，请稍候；加载完成前不会显示为 0 个 skill。</p>
+            <strong>{{ isPluginDomain ? '正在加载插件目录' : '正在加载 Skill 目录' }}</strong>
+            <p v-if="!isPluginDomain">目录较大，请稍候；加载完成前不会显示为 0 个 skill。</p>
           </div>
 
-          <div v-else-if="catalogError" class="empty-state catalog-state" role="alert">
+          <div v-else-if="directoryError" class="empty-state catalog-state" role="alert">
             <BookOpen />
-            <strong>Skill 目录加载失败</strong>
-            <p>{{ catalogError }}</p>
-            <button type="button" class="use-skill-btn" @click="loadCatalog">重新加载</button>
+            <strong>{{ isPluginDomain ? '插件目录加载失败' : 'Skill 目录加载失败' }}</strong>
+            <p v-if="!isPluginDomain">{{ directoryError }}</p>
+            <button type="button" class="use-skill-btn" @click="reloadDirectory">重新加载</button>
           </div>
 
-          <div v-else-if="filteredSkills.length" class="skill-grid">
+          <div v-else-if="catalogCards.length" class="skill-grid">
             <article
-              v-for="skill in filteredSkills"
-              :key="skill.id"
+              v-for="card in catalogCards"
+              :key="card.key"
               class="skill-card"
-              :class="{ selected: isSkillSelected(skill.id) }"
+              :class="{ selected: card.selected }"
               role="button"
               tabindex="0"
-              @click="openSkillDetail(skill)"
-              @keydown.enter.prevent="openSkillDetail(skill)"
-              @keydown.space.prevent="openSkillDetail(skill)"
+              @click="card.open"
+              @keydown.enter.prevent="card.open"
+              @keydown.space.prevent="card.open"
             >
               <div class="skill-card-accent" aria-hidden="true">
-                <span>SKILL</span>
-                <strong>{{ skillTasks(skill).length }}</strong>
+                <span>{{ card.kind }}</span>
+                <strong>{{ card.count }}</strong>
               </div>
               <div class="skill-card-badges">
-                <span class="status-badge" :class="statusClass(skill.status)">{{ statusLabel(skill.status) }}</span>
-                <span class="license-badge">{{ skill.license || 'License N/A' }}</span>
-                <span v-if="skill.hasSkillMd" class="license-badge">SKILL.md</span>
+                <span class="status-badge" :class="card.statusClass">{{ card.status }}</span>
+                <span v-for="badge in card.badges" :key="badge" class="license-badge">{{ badge }}</span>
               </div>
               <div class="skill-card-top">
-                <div class="skill-icon">
-                  <component :is="domainIcon(skill.domainId)" />
-                </div>
+                <div class="skill-icon"><component :is="card.icon" /></div>
                 <div>
-                  <span class="skill-domain">{{ skill.domainName }}</span>
-                  <h4>{{ skillName(skill) }}</h4>
+                  <span class="skill-domain">{{ card.category }}</span>
+                  <h4>{{ card.title }}</h4>
                 </div>
               </div>
               <div class="skill-card-highlight">
-                <span>{{ skillTasks(skill)[0] || '专家能力' }}</span>
-                <strong>{{ skillKnowledgeInputs(skill).length }} 类知识输入</strong>
+                <span>{{ card.highlight }}</span>
+                <strong>{{ card.highlightDetail }}</strong>
               </div>
-              <p class="skill-desc">{{ skillDescription(skill) }}</p>
+              <p class="skill-desc">{{ card.description }}</p>
               <div class="skill-tags">
-                <span v-for="task in skillTasks(skill)" :key="task">{{ task }}</span>
+                <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>
               </div>
               <dl class="skill-meta">
-                <div>
-                  <dt>来源</dt>
-                  <dd>{{ skill.source }}</dd>
-                </div>
-                <div>
-                  <dt>激活条件</dt>
-                  <dd>{{ skillActivation(skill) }}</dd>
-                </div>
-                <div>
-                  <dt>运行时</dt>
-                  <dd>{{ runtimeLabel(skill.runtime) }}</dd>
+                <div v-for="[label, value] in card.facts" :key="label">
+                  <dt>{{ label }}</dt>
+                  <dd>{{ value }}</dd>
                 </div>
               </dl>
               <div class="skill-footer">
-                <span class="safety-note">{{ skillSafety(skill) }}</span>
-                <button class="use-skill-btn" type="button" @click.stop="toggleSkill(skill)">
-                  <CheckCircle2 v-if="isSkillSelected(skill.id)" />
-                  <Plus v-else />
-                  {{ isSkillSelected(skill.id) ? '已选择使用' : '选择使用' }}
+                <span class="safety-note">{{ card.note }}</span>
+                <button
+                  class="use-skill-btn"
+                  type="button"
+                  @click.stop="card.action.run"
+                  @keydown.enter.stop
+                  @keydown.space.stop
+                >
+                  <component :is="card.action.icon" />
+                  {{ card.action.label }}
                 </button>
               </div>
             </article>
           </div>
 
           <div v-else class="empty-state">
-            <BookOpen />
-            <strong>没有匹配的 skill</strong>
-            <p>换一个关键词或领域筛选。</p>
+            <component :is="isPluginDomain ? PlugZap : BookOpen" />
+            <strong>{{ isPluginDomain ? '没有匹配的插件' : '没有匹配的 skill' }}</strong>
+            <p>{{ isPluginDomain ? '换一个关键词或用途筛选。' : '换一个关键词或领域筛选。' }}</p>
           </div>
         </div>
 
@@ -1376,6 +1314,106 @@ function pluginStateLabel(plugin) {
   return '未安装'
 }
 
+const directoryLoading = computed(() => isPluginDomain.value ? pluginLoading.value : catalogLoading.value)
+const directoryError = computed(() => isPluginDomain.value ? pluginError.value : catalogError.value)
+const catalogCards = computed(() => isPluginDomain.value
+  ? filteredPlugins.value.map(pluginCard)
+  : filteredSkills.value.map(skillCard),
+)
+
+const heroStatistics = computed(() => {
+  if (!isPluginDomain.value) {
+    return [
+      { label: '专家领域', value: catalogLoading.value ? '—' : domains.value.length },
+      { label: '精选 skill', value: catalogLoading.value ? '—' : totalSkills.value },
+      { label: '下载索引', value: catalogLoading.value ? '—' : downloadedSources.value.length },
+      { label: '数据库卡片', value: databaseCards.value.length },
+    ]
+  }
+  const index = pluginIndex.value
+  const available = index?.plugins.filter(plugin => !plugin.unavailable).length
+  return [
+    { label: '插件总数', value: index?.plugins.length ?? '—' },
+    { label: '可添加', value: available ?? '—' },
+    { label: '仅浏览', value: index ? index.plugins.length - available : '—' },
+    { label: '用途分类', value: index?.categories.length ?? '—' },
+  ]
+})
+
+function reloadDirectory() {
+  return isPluginDomain.value ? loadPluginIndex() : loadCatalog()
+}
+
+function skillCard(skill) {
+  const tasks = skillTasks(skill)
+  const selected = isSkillSelected(skill.id)
+  return {
+    key: 'skill:' + skill.id,
+    kind: 'SKILL',
+    count: tasks.length,
+    icon: domainIcon(skill.domainId),
+    category: skill.domainName,
+    title: skillName(skill),
+    status: statusLabel(skill.status),
+    statusClass: statusClass(skill.status),
+    badges: skill.hasSkillMd ? [skill.license || 'License N/A', 'SKILL.md'] : [skill.license || 'License N/A'],
+    highlight: tasks[0] || '专家能力',
+    highlightDetail: skillKnowledgeInputs(skill).length + ' 类知识输入',
+    description: skillDescription(skill),
+    tags: tasks,
+    facts: [
+      ['来源', skill.source],
+      ['激活条件', skillActivation(skill)],
+      ['运行时', runtimeLabel(skill.runtime)],
+    ],
+    note: skillSafety(skill),
+    selected,
+    open: () => openSkillDetail(skill),
+    action: {
+      icon: selected ? CheckCircle2 : Plus,
+      label: selected ? '已选择使用' : '选择使用',
+      run: () => toggleSkill(skill),
+    },
+  }
+}
+
+function pluginCard(plugin) {
+  const state = pluginStates.value[plugin.name]
+  const version = plugin.versions.find(item => item.version === state?.defaultVersion) || plugin.versions[0]
+  const source = version?.source
+  const sourceLabel = source?.type === 'npm' ? 'npm' : source?.type === 'git' ? 'Git' : ''
+  const selected = state?.enabled === true
+  const open = () => openPluginDetail(plugin)
+  const canAdd = pluginCanBeAdded(plugin)
+  const tags = []
+  if (sourceLabel) tags.push(sourceLabel)
+  if (version?.engines?.dsh) tags.push('DSH ' + version.engines.dsh)
+  return {
+    key: 'plugin:' + plugin.name,
+    kind: 'DSH',
+    count: plugin.versions.length,
+    icon: PlugZap,
+    category: pluginCategoryTitle(plugin.category),
+    title: pluginText(plugin.title),
+    status: pluginStateLabel(plugin),
+    statusClass: selected && !state.error ? 'ready' : 'runtime',
+    badges: plugin.author ? [plugin.author] : [],
+    highlight: '推荐版本',
+    highlightDetail: version?.version || '—',
+    description: pluginText(plugin.description),
+    tags,
+    facts: [
+      ['来源', [plugin.author, sourceLabel].filter(Boolean).join(' · ')],
+      ['激活条件', plugin.requirements || (plugin.unavailable ? '查看添加限制' : '在当前数据助手中启用')],
+      ['运行时', 'DSH'],
+    ],
+    note: plugin.unavailable || (selected ? '已在当前数据助手中启用' : state?.error ? '请查看详情中的兼容性和状态' : '添加时确认插件来源和版本'),
+    selected,
+    open,
+    action: { icon: canAdd ? Plus : FileSearch, label: canAdd ? '添加' : '查看详情', run: open },
+  }
+}
+
 async function loadPluginIndex() {
   if (pluginLoading.value) return
   pluginLoading.value = true
@@ -1490,13 +1528,19 @@ onBeforeUnmount(() => {
 
 <style src="./AcademicData.css" scoped></style>
 <style scoped>
+.plugin-status-refresh {
+  border: 0;
+  cursor: pointer;
+}
+.plugin-status-refresh svg {
+  width: 14px;
+  height: 14px;
+}
 .dsh-market-filters {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
-}
-.dsh-market-filters {
   justify-content: space-between;
   margin: 0 0 1rem;
 }
