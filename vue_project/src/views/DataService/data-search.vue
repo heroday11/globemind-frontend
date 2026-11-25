@@ -172,7 +172,6 @@
         <div class="search-method-note" v-if="searchParams.searchType === 'news'">
           <strong>{{ searchParams.mode === 'smart' ? '智能检索' : '关键词检索' }}</strong>
           <span v-if="searchParams.mode === 'smart'">完整词语及已知别名匹配 · 检索标题、摘要与正文 · {{ searchParams.sortBy === 'published_at' ? searchSortLabel : '相关性排序' }}</span>
-          <span v-else>全文智能检索暂不可用，当前使用标题关键词检索；多个词需同时匹配，支持已有实体别名。</span>
         </div>
         <details class="advanced-search" data-tour="search-filters">
           <summary>筛选条件</summary>
