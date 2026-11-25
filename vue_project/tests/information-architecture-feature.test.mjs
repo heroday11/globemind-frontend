@@ -15,7 +15,7 @@ test('legacy academic-data path discloses its actual capability-market meaning',
   assert.match(view, /不是论文、书目或已接通的学术数据库/)
   assert.match(view, /to="\/sources"/)
   assert.match(router, /'\/academic-data': 'Agent 能力与连接卡 · GlobeMind'/)
-  assert.match(navigation, />Agent 能力市场<\/router-link>/)
+  assert.match(navigation, /path: '\/academic-data', label: 'Agent 能力市场'/)
   assert.doesNotMatch(navigation, />智库信息汇聚<\/router-link>/)
 })
 

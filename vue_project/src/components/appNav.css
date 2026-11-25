@@ -32,7 +32,7 @@
 .header {
   --gm-header-search-width: clamp(76px, calc(11vw - 64px), 150px);
   --gm-header-side-width: calc(237px + var(--gm-header-search-width));
-  padding: 10px clamp(12px, 1.25vw, 24px);
+  padding-inline: clamp(12px, 1.25vw, 24px);
   position: fixed;
   top: 0;
   left: 0;
@@ -116,19 +116,21 @@
   box-shadow: 0 2px 20px rgba(0, 0, 0, 0.35);
 }
 
-.header-showcase .nav-item a {
+.header-showcase .nav-item > a {
   color: rgba(239, 244, 255, 0.75);
 }
 
-.header-showcase .nav-item a:hover {
+.header-showcase .nav-item > a:hover {
   color: #6fff00;
 }
 
-.header-showcase .nav-item .router-link-active {
+.header-showcase .nav-item > .router-link-active,
+.header-showcase .nav-item-active .dropdown-trigger span {
   color: #eff4ff;
 }
 
-.header-showcase .nav-item .router-link-active::after {
+.header-showcase .nav-item > .router-link-active::after,
+.header-showcase .nav-item-active .dropdown-trigger::after {
   background: #6fff00;
 }
 
@@ -150,7 +152,9 @@
   color: rgba(239, 244, 255, 0.88);
 }
 
-.header-showcase .dropdown-item-content:hover {
+.header-showcase .dropdown-item-content:hover,
+.header-showcase .dropdown-item-content:focus-visible,
+.header-showcase .dropdown-item-content.router-link-active {
   background-color: rgba(111, 255, 0, 0.12);
   color: #eff4ff;
 }
@@ -172,7 +176,6 @@
   display: flex;
   justify-content: center;
   min-width: 0;
-  container-type: inline-size;
 }
 
 .header-actions--right {
@@ -204,8 +207,8 @@
   display: flex;
   align-items: center;
   max-width: 100%;
-  min-height: 58px;
-  padding: 8px clamp(8px, 1vw, 22px);
+  min-height: 48px;
+  padding: 2px clamp(8px, 1vw, 22px);
   border-radius: 14px;
   border: none;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.5));
@@ -381,7 +384,6 @@
 .nav-list {
   display: flex;
   list-style: none;
-  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: 0 clamp(8px, 0.58vw, 22px);
@@ -394,12 +396,12 @@
   flex-shrink: 0;
 }
 
-.nav-item a {
+.nav-item > a {
   display: flex;
   align-items: center;
   text-decoration: none;
   color: #334155;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   min-height: 42px;
   line-height: 1;
@@ -410,20 +412,21 @@
   white-space: nowrap;
 }
 
-.nav-item a:hover {
+.nav-item > a:hover {
   color: #0f172a;
 }
 
 /* 激活状态样式 */
-.nav-item .router-link-active {
+.nav-item > .router-link-active {
   color: #0c4a6e;
   font-weight: 700;
 }
 
-.nav-item .router-link-active::after {
+.nav-item > .router-link-active::after,
+.nav-item-active .dropdown-trigger::after {
   content: '';
   position: absolute;
-  bottom: -8px;
+  bottom: 0;
   left: 0;
   right: 0;
   height: 3px;
@@ -432,17 +435,17 @@
 }
 
 /* 首页透明顶栏：深色字 + 轻描边，在复杂背景上仍清晰 */
-.header-transparent .nav-item a {
+.header-transparent .nav-item > a {
   color: rgba(15, 23, 42, 0.9);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
-.header-transparent .nav-item a:hover {
+.header-transparent .nav-item > a:hover {
   color: #0c4a6e;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-.header-transparent .nav-item .router-link-active {
+.header-transparent .nav-item > .router-link-active {
   color: #082f49;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
 }
@@ -469,17 +472,6 @@
 .nav-item-active .dropdown-trigger span {
   color: #0c4a6e;
   font-weight: 700;
-}
-
-.nav-item-active .dropdown-trigger::after {
-  content: '';
-  position: absolute;
-  bottom: -8px;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #0369a1, #2563eb);
-  border-radius: 2px;
 }
 
 /* 关于我们按钮样式 */
@@ -536,7 +528,7 @@
   gap: 6px;
   cursor: pointer;
   color: #334155;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   min-height: 42px;
   line-height: 1;
@@ -636,13 +628,20 @@
   background: transparent;
   font-family: inherit;
   text-align: left;
+  text-decoration: none;
   /* 防止文本选择 */
   user-select: none;
 }
 
-.dropdown-item-content:hover {
+.dropdown-item-content:hover,
+.dropdown-item-content:focus-visible {
   background-color: #f1f5f9;
   color: #0f172a;
+}
+
+.dropdown-item-content.router-link-active {
+  background-color: #eff6ff;
+  color: #1d4ed8;
 }
 
 .dropdown-item-icon {
@@ -733,23 +732,6 @@
 
 /* 顶部登录弹窗：覆盖当前页面，背景变暗，登录卡片居中 */
 
-/* Keep wrapped links inside the original capsule height. */
-@container (width < 62rem) {
-  .middle {
-    padding-block: 2px;
-  }
-
-  .nav-item a,
-  .dropdown-trigger {
-    min-height: 27px;
-  }
-
-  .nav-item .router-link-active::after {
-    bottom: 0;
-    height: 2px;
-  }
-}
-
 @media (1024px <= width < 1200px) {
   .header {
     --gm-header-search-width: clamp(66px, calc(12vw - 57px), 76px);
@@ -797,9 +779,8 @@
    ============================================================ */
 .mobile-hamburger {
   display: none;
-  position: fixed;
-  top: 14px;
-  right: 16px;
+  grid-column: 3;
+  justify-self: end;
   width: 36px;
   height: 36px;
   flex-direction: column;
@@ -1003,9 +984,8 @@
   color: #1e293b;
 }
 
-.mobile-nav-item a {
+a.mobile-nav-item {
   display: flex;
-  align-items: center;
   padding: 14px 14px;
   color: #334155;
   font-size: 15px;
@@ -1015,12 +995,14 @@
   transition: background 0.2s ease, color 0.2s ease;
 }
 
-.mobile-nav-item a:hover {
+a.mobile-nav-item:hover {
   background: rgba(59, 130, 246, 0.06);
   color: #1e293b;
 }
 
-.mobile-nav-item a.router-link-active {
+a.mobile-nav-item.router-link-active,
+.mobile-nav-item .mobile-nav-item-row--active,
+.mobile-submenu-item.router-link-active {
   color: #2563eb;
   background: rgba(59, 130, 246, 0.08);
 }
@@ -1060,6 +1042,7 @@
   background: transparent;
   font-family: inherit;
   text-align: left;
+  text-decoration: none;
 }
 
 .mobile-submenu-item:hover {
@@ -1169,12 +1152,13 @@
   }
 
   .header {
-    display: flex;
-    padding: 10px 16px;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    padding-inline: 16px;
   }
 
   .logo-corner {
-    width: 190px;
+    grid-column: 2;
+    width: 176px;
   }
 
   .logo-corner .logo-img {
@@ -1185,12 +1169,12 @@
 
 @media (max-width: 480px) {
   .header {
-    padding: 8px 12px;
+    padding-inline: 12px;
     height: 56px;
   }
 
   .logo-corner {
-    width: 156px;
+    width: 146px;
     height: 44px;
   }
 
@@ -1200,8 +1184,6 @@
   }
 
   .mobile-hamburger {
-    top: 10px;
-    right: 12px;
     width: 34px;
     height: 34px;
     gap: 4px;
