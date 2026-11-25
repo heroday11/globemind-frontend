@@ -73,11 +73,24 @@ function uniqueStories(rows) {
 export function buildGroundNewsHomeModel(payload) {
   const value = payload && typeof payload === 'object' ? payload : {}
   const regional = value.scope === 'gba'
-  const apiLeadStory = value.lead_story || null
-  const metrics = value.metrics || {}
+  const ranked = Array.isArray(value.stories) ? uniqueStories(value.stories) : null
+  const rankedWire = ranked?.slice(1, 5) || []
+  const rankedMulti = (ranked?.slice(5) || []).filter((story) => story.source_count >= 2).slice(0, 3)
+  const apiLeadStory = ranked ? ranked[0] || null : value.lead_story || null
+  const metrics = ranked ? {
+    total_stories: value.match_count,
+    total_articles: value.match_articles,
+    product_candidate_count: ranked.length,
+    ok_story_covers: ranked.filter(homeHasStoryImage).length,
+    latest_story_date: value.reference_date,
+  } : value.metrics || {}
   const edition = value.edition || {}
-  const visibleSections = (Array.isArray(value.sections) ? value.sections : [])
-    .filter((section) => regional || section?.stories?.length)
+  const sections = ranked ? [
+    { key: 'latest', stories: rankedWire },
+    { key: 'week_watch', stories: rankedMulti },
+    { key: 'focus', title: '专题报道', stories: ranked.slice(5).filter((story) => !rankedMulti.includes(story)) },
+  ] : Array.isArray(value.sections) ? value.sections : []
+  const visibleSections = sections.filter((section) => regional || section?.stories?.length)
   const sectionByKey = Object.fromEntries(
     visibleSections.map((section) => [section.key, section]),
   )
@@ -89,7 +102,7 @@ export function buildGroundNewsHomeModel(payload) {
     ...(apiLeadStory ? [apiLeadStory] : []),
     ...visibleSections.flatMap((section) => section.stories || []),
   ])
-  const leadStory = regional ? apiLeadStory : selectVisualLeadStory(apiLeadStory, allHomeStories)
+  const leadStory = regional || ranked ? apiLeadStory : selectVisualLeadStory(apiLeadStory, allHomeStories)
   const latestStories = selectLatestStories(allHomeStories)
   const weekStories = (
     sectionByKey.week_watch?.stories?.length
@@ -98,7 +111,7 @@ export function buildGroundNewsHomeModel(payload) {
         ? sectionByKey.pulse_72h.stories
         : latestStories
   )
-  const frontLatestStories = regional ? homeRegionalMix(latestStories, 6) : selectFrontLatestStories(
+  const frontLatestStories = ranked ? rankedWire : regional ? homeRegionalMix(latestStories, 6) : selectFrontLatestStories(
     latestStories,
     [
       ...(leadStory ? [leadStory] : []),
@@ -112,7 +125,7 @@ export function buildGroundNewsHomeModel(payload) {
     edition,
     frontChainItems: l2Watchlist.slice(0, 6),
     frontLatestStories,
-    frontWeekStories: selectFrontWeekStories(
+    frontWeekStories: ranked ? rankedMulti : selectFrontWeekStories(
       weekStories,
       frontLatestStories,
       allHomeStories,

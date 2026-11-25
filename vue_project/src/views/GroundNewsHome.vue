@@ -39,7 +39,7 @@
     </section>
 
     <GroundNewsOverview v-if="!isRegional" ref="globalOverview" />
-    <nav v-if="isRegional && sectionNavItems.length" class="section-nav" aria-label="新闻栏目">
+    <nav v-if="displayedHome && leadStory && sectionNavItems.length" class="section-nav" aria-label="新闻栏目">
       <button
         v-for="item in sectionNavItems"
         :key="item.id"
@@ -52,18 +52,21 @@
       </button>
     </nav>
 
-    <section v-if="isRegional && loading && !home" class="home-loading" role="status">
+    <section v-if="overviewLoading && !displayedHome" class="home-loading" role="status">
       <RefreshCw class="spinning" :size="26" />
-      <p>正在加载首页事件流…</p>
+      <p>正在加载事件…</p>
     </section>
-    <section v-else-if="isRegional && error && !home" class="home-error" role="alert">
-      <Info :size="28" /><strong>首页事件流加载失败</strong>
-      <p>{{ error }}</p>
-      <button class="primary-link" type="button" @click="loadHome">重新加载</button>
+    <section v-else-if="overviewError && !displayedHome" class="home-error" role="alert">
+      <Info :size="28" /><strong>事件加载失败</strong>
+      <p v-if="isRegional">{{ overviewError }}</p>
+      <button class="primary-link" type="button" @click="refreshHome">重新加载</button>
     </section>
-    <template v-else-if="isRegional">
-      <p v-if="error" class="refresh-error" role="alert">
-        刷新失败，保留上次内容：{{ error }} <button type="button" @click="loadHome">重试</button>
+    <p v-else-if="displayedHome && !isRegional && !leadStory" class="empty-state overview-empty" role="status">
+      当前范围暂无匹配事件
+    </p>
+    <template v-else-if="displayedHome">
+      <p v-if="overviewError" class="refresh-error" role="alert">
+        刷新失败，保留上次内容 <button type="button" @click="refreshHome">重试</button>
       </p>
       <main class="home-layout">
         <div id="front-news" class="home-primary">
@@ -98,6 +101,7 @@
               <div class="story-kicker">
                 <span class="category-chip">{{ isRegional && leadStory.foreign_article_count ? '外国媒体关注' : '重点事件' }}</span
                 ><span class="category-chip subtle">{{ familyLabel(leadStory.event_family) }}</span
+                ><span v-if="leadStory.importance != null" class="importance-chip">重要性 {{ leadStory.importance }} 分</span
                 ><span
                   ><Clock :size="12" />{{
                     formatRange(leadStory.start_date, leadStory.end_date)
@@ -115,7 +119,7 @@
               </p>
               <div class="country-chips">
                 <span
-                  v-for="country in Object.keys(leadStory.country_counts || {}).slice(0, 4)"
+                  v-for="country in (isRegional ? Object.keys(leadStory.country_counts || {}).slice(0, 4) : leadStory.locations || [])"
                   :key="country"
                   >{{ country }}</span
                 >
@@ -128,8 +132,8 @@
                   ><strong>{{ formatNumber(leadStory.source_count) }}</strong
                   >个信源</span
                 ><span
-                  ><strong>{{ formatNumber(leadStory.l2_chain_count) }}</strong
-                  >条关联线索</span
+                  ><strong>{{ formatNumber(isRegional ? leadStory.l2_chain_count : leadStory.related_events) }}</strong
+                  >{{ isRegional ? '条关联线索' : '件关联事件' }}</span
                 >
               </div>
               <RouterLink class="story-link" :to="storyPath(leadStory)"
@@ -157,18 +161,18 @@
                     >{{ item.label }} {{ item.value }}</span
                   >
                 </div>
-                <p class="directory-note">
+                <p v-if="isRegional" class="directory-note">
                   候选排序分 {{ rankMetric.valueLabel }}，不代表重要性、风险或研究质量。
                 </p>
               </details>
             </article>
           </section>
 
-          <section class="front-grid" aria-label="新闻首页版面">
+          <section v-if="isRegional || frontLatestStories.length || frontWeekStories.length" class="front-grid" aria-label="新闻首页版面">
             <article class="front-column" data-tour="ground-news-edition">
               <header>
-                <h2><Newspaper :size="18" />{{ historicalMode ? '历史快讯' : '最新快讯' }}</h2>
-                <small>{{ editionLabel('latest') }}</small>
+                <h2><Newspaper :size="18" />{{ isRegional ? (historicalMode ? '历史快讯' : '最新快讯') : '重点快讯' }}</h2>
+                <small v-if="isRegional">{{ editionLabel('latest') }}</small>
               </header>
               <div class="front-column__list">
                 <RouterLink
@@ -188,17 +192,17 @@
                     <small
                       >{{ formatDate(story.end_date || story.start_date) }} ·
                       {{ story.article_count }} 条新闻 · {{ story.source_count }} 个信源 ·
-                      {{ storyLanguageLabel(story) }}</small
+                      {{ storyLanguageLabel(story) }}<template v-if="story.importance != null"> · {{ story.importance }} 分</template></small
                     >
                   </div></RouterLink
                 >
                 <p v-if="!frontLatestStories.length" class="empty-state">暂无已收录快讯</p>
               </div>
             </article>
-            <article class="front-column">
+            <article v-if="isRegional || frontWeekStories.length" class="front-column">
               <header>
-                <h2><Layers :size="18" />{{ historicalMode ? '历史多源' : '近期多源' }}</h2>
-                <small>{{ editionLabel('week_watch') }}</small>
+                <h2><Layers :size="18" />{{ isRegional ? (historicalMode ? '历史多源' : '近期多源') : '多源关注' }}</h2>
+                <small v-if="isRegional">{{ editionLabel('week_watch') }}</small>
               </header>
               <div class="front-column__list">
                 <RouterLink
@@ -218,7 +222,7 @@
                     <small
                       >{{ formatRange(story.start_date, story.end_date) }} ·
                       {{ story.article_count }} 条新闻 · {{ story.source_count }} 个信源</small
-                    ><small>{{ storyLanguageLabel(story) }} · {{ biasSummary(story) }}</small>
+                    ><small>{{ storyLanguageLabel(story) }} · {{ story.importance != null ? story.importance + ' 分' : biasSummary(story) }}</small>
                   </div></RouterLink
                 >
                 <p v-if="!frontWeekStories.length" class="empty-state">当前窗口暂无多源事件</p>
@@ -251,7 +255,7 @@
               <p v-if="!frontChainItems.length" class="empty-state">暂无关联线索</p>
             </div>
           </section>
-          <section class="rail-card">
+          <section v-if="isRegional" class="rail-card">
             <header class="rail-card__head">
               <h2><Database :size="17" />来源目录</h2>
             </header>
@@ -295,7 +299,7 @@
                 </div>
                 <p>{{ section.subtitle }}</p>
               </div>
-              <small>{{ sectionBadge(section) }}</small>
+              <small v-if="isRegional">{{ sectionBadge(section) }}</small>
             </header>
             <div class="story-grid">
               <RouterLink
@@ -317,6 +321,7 @@
                       <span class="category-chip subtle">{{ familyLabel(story.event_family) }}</span
                       ><span>{{ formatRange(story.start_date, story.end_date) }}</span
                       ><span>{{ storyLanguageLabel(story) }}</span>
+                      <span v-if="story.importance != null" class="importance-chip">{{ story.importance }} 分</span>
                     </div>
                     <h3>{{ story.display_title }}</h3>
                     <p class="story-card__entity">{{ displayEntityLine(story) }}</p>
@@ -357,7 +362,7 @@
           <section class="rail-card daily-brief">
             <header class="rail-card__head">
               <h2>事件池状态</h2>
-              <span class="snapshot-chip">{{ historicalMode ? '历史快照' : '数据简报' }}</span>
+              <span v-if="isRegional" class="snapshot-chip">{{ historicalMode ? '历史快照' : '数据简报' }}</span>
             </header>
             <div class="brief-grid">
               <span
@@ -370,16 +375,16 @@
                 ><strong>{{
                   formatNumber(metrics.product_candidate_count ?? metrics.candidate_count)
                 }}</strong
-                >主候选</span
+                >{{ isRegional ? '主候选' : '已展示' }}</span
               ><span
                 ><strong>{{ formatNumber(metrics.ok_story_covers) }}</strong
                 >可用封面</span
-              ><span class="brief-coverage"
+              ><span v-if="isRegional" class="brief-coverage"
                 ><strong>{{ profileCoveragePct }}</strong
                 >政治目录标签覆盖</span
               >
             </div>
-            <dl class="directory-metrics status-metrics">
+            <dl v-if="isRegional" class="directory-metrics status-metrics">
               <div>
                 <dt>多源截止</dt>
                 <dd>
@@ -399,11 +404,11 @@
                 <dd>待核验</dd>
               </div>
             </dl>
-            <div class="edition-policy">
+            <div v-if="isRegional" class="edition-policy">
               <span>事件时间优先</span><span>专题 {{ edition.rotation_days || 3 }} 天轮换</span
               ><span>L2 近期优先</span>
             </div>
-            <p class="directory-note">
+            <p v-if="isRegional" class="directory-note">
               当前顺序是未批准方法生成的候选展示，不代表重要性、风险或研究质量。旧 Ready
               阈值未批准，不作为质量通过。<span v-if="metrics.future_story_count"
                 >未来日期异常 {{ metrics.future_story_count }} 条，已进入健康监控。</span
@@ -445,7 +450,7 @@
               >
             </div>
           </section>
-          <section class="rail-card">
+          <section v-if="isRegional" class="rail-card">
             <header class="rail-card__head">
               <h2>覆盖缺口候选</h2>
               <small>{{ blindspotStories.length }} 条 · 未评估</small>
@@ -569,7 +574,7 @@ import {
 const route = useRoute()
 const isRegional = computed(() => route.meta.groundNewsScope === 'gba')
 const globalOverview = ref(null)
-const overviewLoading = computed(() => isRegional.value ? loading.value : globalOverview.value?.loading)
+const overviewLoading = computed(() => isRegional.value ? loading.value : (globalOverview.value?.loading ?? true))
 const overviewPath = computed(() => isRegional.value ? '/data-service/ground-news-gba' : '/data-service/ground-news')
 let homeRequestId = 0
 const loading = ref(false)
@@ -581,7 +586,9 @@ const failedCoverIds = ref(new Set())
 const loadedCoverIds = ref(new Set())
 const { report: freshnessReport, refresh: refreshFreshness } = useFeatureFreshness()
 
-const homeModel = computed(() => buildGroundNewsHomeModel(home.value))
+const displayedHome = computed(() => isRegional.value ? home.value : globalOverview.value?.current)
+const overviewError = computed(() => isRegional.value ? error.value : globalOverview.value?.error)
+const homeModel = computed(() => buildGroundNewsHomeModel(displayedHome.value))
 const leadStory = computed(() => homeModel.value.leadStory)
 const rankMetric = computed(() => ({
   valueLabel: Number.isFinite(Number(leadStory.value?.rank_score))
@@ -785,6 +792,13 @@ watch(isRegional, () => {
   }
 }, { immediate: true })
 
+watch(displayedHome, async () => {
+  if (isRegional.value) return
+  activeSection.value = 'front-news'
+  await nextTick()
+  if (!isRegional.value) observeSections()
+})
+
 async function loadHome() {
   const requestId = ++homeRequestId
   loading.value = true
@@ -978,6 +992,21 @@ function inferLanguageLabel(text) {
 </script>
 
 <style scoped>
+.overview-empty {
+  width: min(100%, 1380px);
+  margin: 0 auto;
+}
+.importance-chip {
+  color: #14655a;
+  background: #e8f3ef;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.front-grid:has(.front-column:only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
 .overview-switch {
   display: flex;
   flex-wrap: wrap;

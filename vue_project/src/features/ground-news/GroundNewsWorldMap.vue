@@ -12,7 +12,7 @@
     >
       <canvas ref="canvas" aria-hidden="true" />
       <div v-if="!ready" class="world-map__status" role="status">
-        {{ mapError ? '地图加载失败，可用下方地区选择' : '正在加载地图' }}
+        {{ mapError ? '地图加载失败，可用地区选择' : '正在加载地图' }}
       </div>
       <span v-if="markerStyle" class="world-map__dart" :style="markerStyle" aria-hidden="true">
         <Crosshair :size="23" :stroke-width="2" />
@@ -28,10 +28,11 @@
 </template>
 
 <script setup>
-import { geoContains, geoGraticule10, geoNaturalEarth1, geoPath } from 'd3-geo'
+import { geoContains, geoGraticule10, geoNaturalEarth1, geoPath, geoStream } from 'd3-geo'
 import { Crosshair, Minus, Plus, RotateCcw } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import geometryUrl from '@/assets/ground-news/world-countries.json?url'
+import chinaGeometryUrl from '@/assets/ground-news/china-provinces.json?url'
 
 const props = defineProps({
   countries: { type: Array, required: true },
@@ -48,6 +49,11 @@ const pointerId = ref(null)
 const preview = ref(null)
 const marker = ref(null)
 const features = shallowRef([])
+const provinces = shallowRef([])
+const isChina = computed(() => props.selection?.country === 'CN' && provinces.value.length > 0)
+const shapes = computed(() => isChina.value ? provinces.value : features.value)
+const locations = computed(() => new Map(props.places.map((place) => [place.id, place])))
+let chinaRequest
 const countryCounts = computed(() => new Map(props.countries.map((item) => [item.code, item.count])))
 const sphere = { type: 'Sphere' }
 const graticule = geoGraticule10()
@@ -79,7 +85,9 @@ function draw() {
   context.setTransform(ratio, 0, 0, ratio, 0, 0)
   context.clearRect(0, 0, width, height)
   dimensions = [width, height]
-  projection = geoNaturalEarth1().fitExtent([[4, 8], [width - 4, height - 8]], sphere)
+  const extent = isChina.value ? [[16, 12], [width - 28, height - 12]] : [[4, 8], [width - 4, height - 8]]
+  const geometry = isChina.value ? { type: 'FeatureCollection', features: shapes.value } : sphere
+  projection = geoNaturalEarth1().fitExtent(extent, geometry)
   const focus = props.selection?.coordinates || [0, 18]
   if (zoom.value > 1) {
     const original = projection(focus)
@@ -92,15 +100,18 @@ function draw() {
   const path = geoPath(projection, context)
   trace(sphere, '#e9f2f5', '#d1e1e8')
   trace(graticule, null, '#d9e6ec')
-  for (const feature of features.value) {
-    const count = countryCounts.value.get(feature.id) || 0
-    const surface = count > 100 ? '#81b7a9' : count > 20 ? '#a1c9bd' : count ? '#bdD7ce' : '#dfe7e3'
-    const selected = props.selection?.country === feature.id
+  if (isChina.value) {
+    for (const feature of features.value) trace(feature, '#e0e9e5', '#f4f8f5')
+  }
+  for (const feature of shapes.value) {
+    const count = (isChina.value ? locations.value.get(feature.id)?.count : countryCounts.value.get(feature.id)) || 0
+    const surface = count > 100 ? '#81b7a9' : count > 20 ? '#a1c9bd' : count ? '#bdd7ce' : '#dfe7e3'
+    const selected = (isChina.value ? props.selection?.place : props.selection?.country) === feature.id
     trace(feature, selected ? '#428f80' : surface, selected ? '#1f6e60' : '#f4f8f5')
   }
+  if (isChina.value) drawProvinceNames(context, width, height)
   const displayPlaces = props.places
-    .filter((place) => place.kind === 'city' || place.id === props.selection?.place)
-    .slice()
+    .filter((place) => place.kind === 'city')
     .sort((a, b) => b.count - a.count)
     .slice(0, 40)
   cityMarkers = zoom.value > 1 && props.selection?.country
@@ -126,6 +137,28 @@ function draw() {
     context.strokeStyle = stroke
     context.lineWidth = 0.8
     context.stroke()
+  }
+}
+
+function drawProvinceNames(context, width, height) {
+  context.font = '11px Inter, "Noto Sans CJK SC", "PingFang SC", sans-serif'
+  context.textAlign = 'center'
+  context.textBaseline = 'middle'
+  const labels = []
+  for (const feature of provinces.value) {
+    const place = locations.value.get(feature.id)
+    if (!place) continue
+    const [x, y] = projection(place.coordinates)
+    const name = place.name.replace(/(壮族自治区|维吾尔自治区|回族自治区|自治区|省|市)$/, '')
+    const half = context.measureText(name).width / 2 + 2
+    if (x - half < 2 || x + half > width - 2 || y < 10 || y > height - 10) continue
+    if (labels.some((box) => Math.abs(x - box.x) < half + box.half && Math.abs(y - box.y) < 13)) continue
+    labels.push({ x, y, half })
+    context.strokeStyle = '#fbffff'
+    context.lineWidth = 3
+    context.strokeText(name, x, y)
+    context.fillStyle = '#274a47'
+    context.fillText(name, x, y)
   }
 }
 
@@ -164,7 +197,6 @@ function finishFocus(event) {
   const point = eventPoint(event)
   cancelFocus(event)
   const coordinates = projection.invert(point)
-  if (!coordinates?.every(Number.isFinite) || Math.abs(coordinates[0]) > 180 || Math.abs(coordinates[1]) > 90) return
   const nearby = cityMarkers
     .map(({ place, point: [x, y] }) => ({ place, distance: Math.hypot(x - point[0], y - point[1]) }))
     .sort((a, b) => a.distance - b.distance)[0]
@@ -173,8 +205,53 @@ function finishFocus(event) {
     emit('focus', { country: place.country, place: place.id, coordinates: place.coordinates })
     return
   }
-  const region = features.value.find((feature) => feature.id && geoContains(feature, coordinates))
-  emit('focus', { country: region?.id || '', place: '', coordinates })
+  const valid = coordinates?.every(Number.isFinite) && Math.abs(coordinates[0]) <= 180 && Math.abs(coordinates[1]) <= 90
+  const candidates = shapes.value.filter((feature) => feature.id)
+  const direct = valid && candidates.find((feature) => geoContains(feature, coordinates))
+  const match = direct ? { id: direct.id, coordinates } : nearestBoundary(point, candidates)
+  if (!match) return
+  emit('focus', {
+    country: isChina.value ? 'CN' : match.id,
+    place: isChina.value ? match.id : '',
+    coordinates: match.coordinates,
+  })
+}
+
+function nearestBoundary([x, y], candidates) {
+  let nearest
+  let distance = Infinity
+  let currentId
+  let first
+  let previous
+
+  function visit(point) {
+    if (previous) {
+      const dx = point[0] - previous[0]
+      const dy = point[1] - previous[1]
+      const length = dx * dx + dy * dy
+      const unit = length ? Math.max(0, Math.min(1, ((x - previous[0]) * dx + (y - previous[1]) * dy) / length)) : 0
+      const closest = [previous[0] + unit * dx, previous[1] + unit * dy]
+      const squaredDistance = (x - closest[0]) ** 2 + (y - closest[1]) ** 2
+      if (squaredDistance < distance) {
+        distance = squaredDistance
+        nearest = { id: currentId, coordinates: projection.invert(closest) }
+      }
+    }
+    first ??= point
+    previous = point
+  }
+  const stream = projection.stream({
+    polygonStart() {},
+    polygonEnd() {},
+    lineStart() { first = previous = null },
+    lineEnd() { if (first) visit(first) },
+    point(lon, lat) { visit([lon, lat]) },
+  })
+  for (const feature of candidates) {
+    currentId = feature.id
+    geoStream(feature, stream)
+  }
+  return nearest?.coordinates?.every(Number.isFinite) ? nearest : null
 }
 
 function changeZoom(multiplier) {
@@ -186,12 +263,24 @@ function reset() {
   emit('focus', null)
 }
 
-watch(() => [props.countries, props.places, props.selection, zoom.value], scheduleDraw)
+async function fetchGeometry(url) {
+  const response = await fetch(url, { signal: fetchController.signal })
+  if (!response.ok) throw new Error('Map download failed')
+  return (await response.json()).features
+}
+
+watch(() => props.selection?.country, (country, previousCountry) => {
+  if (country === 'CN' || previousCountry === 'CN') zoom.value = 1
+  if (country === 'CN' && !chinaRequest) {
+    chinaRequest = fetchGeometry(chinaGeometryUrl)
+      .then((geometry) => { provinces.value = geometry })
+      .catch(() => { chinaRequest = null })
+  }
+}, { immediate: true })
+watch(() => [props.countries, props.places, props.selection, zoom.value, isChina.value], scheduleDraw)
 onMounted(async () => {
   try {
-    const response = await fetch(geometryUrl, { signal: fetchController.signal })
-    if (!response.ok) throw new Error('Map download failed')
-    features.value = (await response.json()).features
+    features.value = await fetchGeometry(geometryUrl)
     if (fetchController.signal.aborted) return
     ready.value = true
     observer = new ResizeObserver(scheduleDraw)
@@ -212,8 +301,8 @@ onBeforeUnmount(() => {
 .world-map__stage {
   position: relative;
   width: 100%;
-  aspect-ratio: 2 / 1;
-  min-height: 200px;
+  height: clamp(200px, 24vw, 296px);
+  min-width: 0;
   overflow: hidden;
   touch-action: none;
   cursor: crosshair;
