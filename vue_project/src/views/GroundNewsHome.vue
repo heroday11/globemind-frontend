@@ -79,6 +79,7 @@
                 :aria-label="leadStory.display_title"
               >
                 <EventCover
+                  :key="leadStory.cluster_id"
                   :story="leadStory"
                   size="large"
                   @load-error="markCoverFailed(leadStory)"
@@ -588,7 +589,7 @@ const { report: freshnessReport, refresh: refreshFreshness } = useFeatureFreshne
 
 const displayedHome = computed(() => isRegional.value ? home.value : globalOverview.value?.current)
 const overviewError = computed(() => isRegional.value ? error.value : globalOverview.value?.error)
-const homeModel = computed(() => buildGroundNewsHomeModel(displayedHome.value))
+const homeModel = computed(() => buildGroundNewsHomeModel(displayedHome.value, failedCoverIds.value))
 const leadStory = computed(() => homeModel.value.leadStory)
 const rankMetric = computed(() => ({
   valueLabel: Number.isFinite(Number(leadStory.value?.rank_score))

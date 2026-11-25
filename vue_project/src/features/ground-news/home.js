@@ -70,25 +70,28 @@ function uniqueStories(rows) {
   })
 }
 
-export function buildGroundNewsHomeModel(payload) {
+export function buildGroundNewsHomeModel(payload, failedCoverIds = null) {
   const value = payload && typeof payload === 'object' ? payload : {}
   const regional = value.scope === 'gba'
   const ranked = Array.isArray(value.stories) ? uniqueStories(value.stories) : null
-  const rankedWire = ranked?.slice(1, 5) || []
-  const rankedMulti = (ranked?.slice(5) || []).filter((story) => story.source_count >= 2).slice(0, 3)
-  const apiLeadStory = ranked ? ranked[0] || null : value.lead_story || null
+  const hasCover = (story) => homeHasStoryImage(story) && !failedCoverIds?.has(story.cluster_id)
+  const apiLeadStory = ranked ? ranked.find(hasCover) || ranked[0] || null : value.lead_story || null
+  const rankedRemainder = ranked?.filter((story) => story !== apiLeadStory) || []
+  const rankedWire = rankedRemainder.slice(0, 4)
+  const rankedExtra = rankedRemainder.slice(4)
+  const rankedMulti = rankedExtra.filter((story) => story.source_count >= 2).slice(0, 3)
   const metrics = ranked ? {
     total_stories: value.match_count,
     total_articles: value.match_articles,
     product_candidate_count: ranked.length,
-    ok_story_covers: ranked.filter(homeHasStoryImage).length,
+    ok_story_covers: ranked.filter(hasCover).length,
     latest_story_date: value.reference_date,
   } : value.metrics || {}
   const edition = value.edition || {}
   const sections = ranked ? [
     { key: 'latest', stories: rankedWire },
     { key: 'week_watch', stories: rankedMulti },
-    { key: 'focus', title: '专题报道', stories: ranked.slice(5).filter((story) => !rankedMulti.includes(story)) },
+    { key: 'focus', title: '专题报道', stories: rankedExtra.filter((story) => !rankedMulti.includes(story)) },
   ] : Array.isArray(value.sections) ? value.sections : []
   const visibleSections = sections.filter((section) => regional || section?.stories?.length)
   const sectionByKey = Object.fromEntries(
