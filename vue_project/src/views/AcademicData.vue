@@ -72,27 +72,16 @@
     </aside>
 
     <main class="vault-main">
-      <aside v-if="!isPluginDomain" class="route-meaning-notice" aria-labelledby="route-meaning-title">
-        <div>
-          <strong id="route-meaning-title">旧路径说明</strong>
-          <p>
-            为兼容书签，本页仍使用 <code>/academic-data</code> 路径。这里提供 Agent Skill、
-            DSH 插件和本地连接说明。这里不是论文、书目或已接通的学术数据库。
-          </p>
-        </div>
-        <router-link to="/sources">查看已登记的数据来源与许可状态</router-link>
-      </aside>
-
       <section class="vault-hero">
         <div class="hero-copy">
           <div class="hero-kicker">
             <component :is="isPluginDomain ? PlugZap : ShieldCheck" />
             <span>{{ isPluginDomain ? 'DeepSeek Harness 官方插件' : '给 Agent 装配可审查的专家能力与数据源' }}</span>
           </div>
-          <h2>{{ isPluginDomain ? 'DSH 插件' : '高频 Skill 工作台' }}</h2>
+          <h2>{{ isPluginDomain ? 'DSH 插件' : 'Agent 能力市场' }}</h2>
           <p v-if="isPluginDomain">为数据助手添加会话检索、语音输入和智能体协作等能力。</p>
           <p v-else>
-            把文档、演示、论文检索与研究写作放在最顺手的位置，再按领域装配经过筛选的专家能力。
+            文献检索、数据分析、报告交付、视频制作与专家知识源。
           </p>
         </div>
 
@@ -110,7 +99,7 @@
             <p class="section-label">Essential Skills</p>
             <h3 id="featured-skills-title">高频通用能力</h3>
           </div>
-          <span class="curation-count">从 {{ rawTotalSkills }} 项中精选 {{ totalSkills }} 项</span>
+          <span class="curation-count">{{ totalSkills }} 项精选能力</span>
         </header>
 
         <div class="featured-skill-grid">
@@ -174,10 +163,7 @@
               <component :is="domainIcon(activeDomain.id)" />
             </div>
             <div>
-              <strong>{{ activeDomain.description }}</strong>
-              <p>
-                推荐存储：{{ activeDomain.recommendedStore }} · 风险等级：{{ activeDomain.riskLevel }}
-              </p>
+              <strong>{{ activeDomain.name }}</strong>
             </div>
           </div>
 
@@ -521,7 +507,7 @@
 
               <section class="modal-section">
                 <h4>来源与审查</h4>
-                <p>{{ detailSkill.source }} · {{ skillSafety(detailSkill) }}</p>
+                <p>{{ detailSkill.source }}<template v-if="!detailSkill.inlineContent"> · {{ skillSafety(detailSkill) }}</template></p>
               </section>
 
               <section class="modal-section">
@@ -531,7 +517,11 @@
                     <dt>状态</dt>
                     <dd>{{ statusLabel(detailSkill.status) }}</dd>
                   </div>
-                  <div>
+                  <div v-if="detailSkill.stars">
+                    <dt>GitHub Star</dt>
+                    <dd>{{ detailSkill.stars.toLocaleString() }} · 2026-11-25</dd>
+                  </div>
+                  <div v-if="detailSkill.license">
                     <dt>许可证</dt>
                     <dd>{{ detailSkill.license || '未标注' }}</dd>
                   </div>
@@ -539,17 +529,18 @@
                     <dt>运行时</dt>
                     <dd>{{ runtimeLabel(detailSkill.runtime) }}</dd>
                   </div>
-                  <div>
+                  <div v-if="!detailSkill.inlineContent">
                     <dt>本地 Skill</dt>
                     <dd>{{ detailSkill.localPath || '未下载' }}</dd>
                   </div>
-                  <div>
-                    <dt>上游路径</dt>
-                    <dd>{{ detailSkill.skillPath || '未标注' }}</dd>
+                  <div v-if="detailSkill.skillPath">
+                    <dt>上游 Skill</dt>
+                    <dd v-if="detailSkill.inlineContent"><a :href="safeExternalHttpUrl(detailSkill.sourceRepo + '/blob/main/' + detailSkill.skillPath)" target="_blank" rel="noopener noreferrer">查看 SKILL.md</a></dd>
+                    <dd v-else>{{ detailSkill.skillPath }}</dd>
                   </div>
                   <div v-if="detailSkill.upstreamReferenceUrl">
                     <dt>参考来源</dt>
-                    <dd>{{ detailSkill.upstreamReferenceUrl }}</dd>
+                    <dd><a :href="safeExternalHttpUrl(detailSkill.upstreamReferenceUrl)" target="_blank" rel="noopener noreferrer">查看参考来源</a></dd>
                   </div>
                   <div v-if="detailSkill.sourceAvailableNotice">
                     <dt>许可说明</dt>
@@ -660,6 +651,7 @@ import {
 } from 'lucide-vue-next'
 import { safeExpertSkillDocumentPath, safeExternalHttpUrl } from '@/utils/externalUrl.js'
 import { getToken } from '@/utils/auth.js'
+import { expertSkillGroups } from '@/features/assistant/expert-skill-market.js'
 
 const CATALOG_URL = '/datasets/expert-skills/catalog.json'
 const DB_STORAGE_KEY = 'globemind_academic_data_database_cards_v1'
@@ -676,45 +668,6 @@ const FEATURED_SKILLS = [
   { id: 'globemind-pdf-processing', eyebrow: '文献阅读', summary: '提取、整理与核对 PDF 内容' },
   { id: 'globemind-xlsx-processing', eyebrow: '数据处理', summary: '分析、编辑与交付 Excel 工作簿' },
 ]
-
-// Deliberate allow-list: broad, reusable workflows with clear outputs and maintained sources.
-const CURATED_SKILL_IDS = new Set([
-  ...FEATURED_SKILLS.map((item) => item.id),
-  'alirez-dossier', 'alirez-grants', 'alirez-patent', 'alirez-pulse', 'alirez-research',
-  'alirez-syllabus', 'alirez-ux-researcher-designer', 'nous-bioinformatics',
-  'nous-duckduckgo-search', 'nous-searxng-search', 'orchestra-ml-paper-writing',
-  'orchestra-systems-paper-writing', 'softaworks-perplexity',
-  'anthropic-claude-api', 'anthropic-skill-creator', 'nous-computer-use',
-  'nous-evaluating-llms-harness', 'nous-serving-llms-vllm', 'orchestra-dspy',
-  'orchestra-experiment-tracking-swanlab', 'orchestra-grpo-rl-training',
-  'orchestra-knowledge-distillation', 'orchestra-langchain', 'orchestra-long-context',
-  'orchestra-mlflow', 'orchestra-outlines', 'orchestra-qdrant-vector-search',
-  'orchestra-tensorboard', 'orchestra-weights-and-biases',
-  'web-quality-best-practices', 'addy-code-review-and-quality', 'addy-code-simplification',
-  'addy-deprecation-and-migration', 'addy-git-workflow-and-versioning',
-  'addy-shipping-and-launch', 'addy-test-driven-development', 'alirez-api-design-reviewer',
-  'alirez-senior-architect', 'alirez-senior-backend', 'anthropic-mcp-builder',
-  'nous-github-pr-workflow', 'nous-systematic-debugging', 'softaworks-mermaid-diagrams',
-  'softaworks-openapi-to-typescript', 'web-quality-accessibility',
-  'addy-browser-testing-with-devtools', 'web-quality-core-web-vitals',
-  'addy-debugging-and-error-recovery', 'addy-frontend-ui-engineering',
-  'addy-performance-optimization', 'web-quality-seo', 'web-quality-web-quality-audit',
-  'anthropic-frontend-design', 'anthropic-webapp-testing', 'softaworks-qa-test-planner',
-  'addy-ci-cd-and-automation', 'addy-security-and-hardening', 'alirez-cloud-security',
-  'alirez-incident-response', 'alirez-ai-security', 'alirez-clinical-research',
-  'alirez-eu-ai-act-specialist', 'alirez-information-security-manager-iso27001',
-  'alirez-iso42001-specialist', 'alirez-soc2-compliance', 'orchestra-ara-rigor-reviewer',
-  'alirez-analytics-tracking', 'alirez-database-designer', 'alirez-market-research',
-  'alirez-sql-database-assistant', 'nous-excel-author', 'softaworks-database-schema-designer',
-  'addy-context-engineering', 'alirez-research-summarizer',
-  'nous-subagent-driven-development', 'alirez-knowledge-ops',
-  'softaworks-requirements-clarity', 'addy-spec-driven-development',
-  'addy-documentation-and-adrs', 'nous-ocr-and-documents', 'softaworks-c4-architecture',
-  'softaworks-humanizer', 'globemind-pptx-processing',
-  'orchestra-presenting-conference-talks', 'softaworks-marp-slide',
-  'nous-concept-diagrams', 'softaworks-draw-io', 'softaworks-excalidraw',
-  'softaworks-professional-communication',
-])
 
 const catalog = ref({
   version: '',
@@ -808,18 +761,21 @@ const domainIcons = {
   knowledge: BookOpen,
 }
 
-const rawDomains = computed(() => catalog.value.domains || [])
-const rawTotalSkills = computed(() =>
-  rawDomains.value.reduce((sum, domain) => sum + (domain.skills?.length || 0), 0),
+const originalSkills = computed(() =>
+  (catalog.value.domains || []).flatMap((domain) => (domain.skills || []).map((skill) => ({
+    ...skill,
+    domainId: domain.id,
+    domainName: domain.shortName || domain.name,
+  }))),
 )
-const domains = computed(() =>
-  rawDomains.value
-    .map((domain) => ({
-      ...domain,
-      skills: (domain.skills || []).filter((skill) => CURATED_SKILL_IDS.has(skill.id)),
-    }))
-    .filter((domain) => domain.skills.length),
-)
+const domains = computed(() => {
+  const originalById = new Map(originalSkills.value.map((skill) => [skill.id, skill]))
+  return expertSkillGroups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    skills: [...group.retainedIds.map((id) => originalById.get(id)).filter(Boolean), ...group.skills],
+  }))
+})
 const downloadedSources = computed(() => catalog.value.downloadedSources || [])
 const catalogPolicy = computed(() => catalog.value.policy || {})
 const catalogMeta = computed(() => {
@@ -896,11 +852,8 @@ const filteredSkills = computed(() => {
 
 const selectedSkillSet = computed(() => new Set(selectedSkillIds.value))
 
-const selectedSkills = computed(() =>
-  selectedSkillIds.value
-    .map((id) => allSkills.value.find((skill) => skill.id === id))
-    .filter(Boolean),
-)
+const selectableSkills = computed(() => new Map([...originalSkills.value, ...allSkills.value].map((skill) => [skill.id, skill])))
+const selectedSkills = computed(() => selectedSkillIds.value.map((id) => selectableSkills.value.get(id)).filter(Boolean))
 
 const capabilitySyncMessage = computed(() => {
   if (!getToken()) return '访客选择仅保存在当前浏览器；登录后可同步到知识库和 DSH。'
@@ -1045,7 +998,8 @@ function loadSelectedSkills() {
 }
 
 function pruneSelectedSkills() {
-  const validIds = new Set(allSkills.value.map((skill) => skill.id))
+  if (catalogError.value) return
+  const validIds = selectableSkills.value
   if (!validIds.size || !selectedSkillIds.value.length) return
   const nextIds = selectedSkillIds.value.filter((id) => validIds.has(id))
   if (nextIds.length !== selectedSkillIds.value.length) {
@@ -1135,6 +1089,7 @@ function authHeaders(extra = {}) {
 }
 
 async function readSelectedSkillContent(skill) {
+  if (skill.inlineContent) return skill.inlineContent
   const target = safeExpertSkillDocumentPath(skill?.localPath)
   if (!target) return ''
   const response = await fetch(target, { cache: 'force-cache' })
@@ -1349,24 +1304,24 @@ function skillCard(skill) {
   const selected = isSkillSelected(skill.id)
   return {
     key: 'skill:' + skill.id,
-    kind: 'SKILL',
-    count: tasks.length,
+    kind: skill.stars ? 'GITHUB STAR' : 'SKILL',
+    count: skill.stars?.toLocaleString() || tasks.length,
     icon: domainIcon(skill.domainId),
     category: skill.domainName,
     title: skillName(skill),
     status: statusLabel(skill.status),
     statusClass: statusClass(skill.status),
-    badges: skill.hasSkillMd ? [skill.license || 'License N/A', 'SKILL.md'] : [skill.license || 'License N/A'],
-    highlight: tasks[0] || '专家能力',
+    badges: [skill.license, (skill.hasSkillMd || skill.skillPath && skill.inlineContent) && 'SKILL.md'].filter(Boolean),
+    highlight: skill.inlineContent ? runtimeLabel(skill.runtime) : tasks[0] || '专家能力',
     highlightDetail: skillKnowledgeInputs(skill).length + ' 类知识输入',
     description: skillDescription(skill),
-    tags: tasks,
+    tags: skill.inlineContent ? [] : tasks,
     facts: [
       ['来源', skill.source],
       ['激活条件', skillActivation(skill)],
       ['运行时', runtimeLabel(skill.runtime)],
     ],
-    note: skillSafety(skill),
+    note: skill.inlineContent ? '' : skillSafety(skill),
     selected,
     open: () => openSkillDetail(skill),
     action: {
