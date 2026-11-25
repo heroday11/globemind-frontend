@@ -30,10 +30,11 @@
 }
 
 .header {
-  --header-nav-font-size: 15px;
-  --header-about-font-size: 12px;
-  --header-user-menu-font-size: 12px;
-  --gm-header-search-width: clamp(76px, calc(11vw - 64px), 150px);
+  --header-nav-font-size: 0.875rem;
+  --header-about-font-size: 0.75rem;
+  --header-user-menu-font-size: 0.8125rem;
+  --header-control-height: 42px;
+  --gm-header-search-width: max(120px, calc(3.5rem + 36px));
   padding-inline: clamp(12px, 1.25vw, 24px);
   position: fixed;
   top: 0;
@@ -185,10 +186,10 @@
 }
 
 .nav-font-size {
-  --font-size-button-width: 22px;
-  --font-size-button-height: 30px;
+  --font-size-button-width: 32px;
+  --font-size-button-height: 40px;
   --font-size-readout-background: transparent;
-  --gm-header-readout-size: 10px;
+  --gm-header-readout-size: 0.75rem;
 }
 
 .header .nav-font-size > output {
@@ -736,43 +737,6 @@
   }
 }
 
-@media (1180px <= width < 1360px) {
-  .header {
-    --header-nav-font-size: 14px;
-    --gm-header-search-width: clamp(66px, calc(12vw - 57px), 76px);
-  }
-
-  .nav-list {
-    column-gap: 3px;
-  }
-
-  .header-actions {
-    gap: 3px;
-  }
-
-  .about-us-link,
-  .action-btn.guide-btn {
-    width: 26px;
-    justify-content: center;
-    padding: 0;
-  }
-
-  .about-us-link .about-us-icon {
-    display: block;
-  }
-
-  .about-us-link span {
-    display: none;
-  }
-
-  .nav-font-size {
-    --font-size-button-width: 18px;
-  }
-
-  .login-btn {
-    padding-inline: 5px;
-  }
-}
 
 /* ============================================================
    Mobile hamburger button
@@ -847,7 +811,6 @@
    Mobile drawer
    ============================================================ */
 .mobile-drawer-overlay {
-  display: none;
   position: fixed;
   inset: 0;
   z-index: 999;
@@ -1144,33 +1107,27 @@ a.mobile-nav-item.router-link-active,
 /* ============================================================
    Responsive: hide desktop nav on mobile, show hamburger
    ============================================================ */
-@media (width < 1180px) {
-  .mobile-hamburger {
-    display: flex;
-  }
+.header-compact .mobile-hamburger {
+  display: flex;
+}
 
-  .mobile-drawer-overlay {
-    display: block;
-  }
+.header-compact .nav-shell {
+  display: none;
+}
 
-  .nav-shell {
-    display: none;
-  }
+.header-compact {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  padding-inline: 16px;
+}
 
-  .header {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    padding-inline: 16px;
-  }
+.header-compact .logo-corner {
+  grid-column: 2;
+  width: min(186px, 45vw);
+}
 
-  .logo-corner {
-    grid-column: 2;
-    width: 186px;
-  }
-
-  .logo-corner .logo-img {
-    width: 186px;
-    max-height: 42px;
-  }
+.header-compact .logo-img {
+  width: 100%;
+  max-height: 42px;
 }
 
 @media (max-width: 480px) {
@@ -1229,8 +1186,11 @@ a.mobile-nav-item.router-link-active,
   }
 }
 
+.header-actions--right > :is(.nav-font-size, .about-us-link, .header-search, .guide-btn, .user-btn, .login-btn) {
+  height: var(--header-control-height);
+}
+
 .header-actions--right > :is(.nav-font-size, .about-us-link, .header-search, .guide-btn, .user-btn) {
-  height: 32px;
   border: 1px solid var(--header-control-border, #cbd5e1);
   border-radius: 8px;
   background: var(--header-control-background, rgba(255, 255, 255, 0.82));
@@ -1258,13 +1218,14 @@ a.mobile-nav-item.router-link-active,
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
-.header-actions--right > .user-btn {
-  width: 32px;
+.header-actions--right > :is(.guide-btn, .user-btn) {
+  width: var(--header-control-height);
   padding: 0;
 }
 
 .header-actions--right > .about-us-link {
   font-size: var(--header-about-font-size);
+  padding-inline: 10px;
 }
 
 @media (width >= 1180px) {

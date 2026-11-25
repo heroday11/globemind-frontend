@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { useDisplayPreferences } from '@/composables/useDisplayPreferences.js'
 import { useRouter, useRoute } from 'vue-router'
 import {
   ChevronDown,
@@ -67,9 +68,22 @@ const mobileDrawerClose = ref(null)
 // 移动端子菜单展开
 const mobileExpandedMenus = ref({})
 
-const mobileLayout = window.matchMedia('(width < 1180px)')
+const { fontSize } = useDisplayPreferences()
+const compactHeader = ref(false)
+let mobileLayout
+
+function updateMobileLayout() {
+  mobileLayout?.removeEventListener('change', handleMobileLayoutChange)
+  const minimumWidth = Math.max(1180, Math.ceil(1320 + (fontSize.value - 16.5) * 78))
+  mobileLayout = window.matchMedia(`(width < ${minimumWidth}px)`)
+  mobileLayout.addEventListener('change', handleMobileLayoutChange)
+  handleMobileLayoutChange(mobileLayout)
+}
+
+watch(fontSize, updateMobileLayout)
 
 function handleMobileLayoutChange(event) {
+  compactHeader.value = event.matches
   if (event.matches) closeDropdowns()
   if (!event.matches) void closeMobileMenu({ restoreFocus: false })
 }
@@ -223,7 +237,7 @@ onMounted(() => {
   // 路由回退时，强制触发页面重绘，解决布局错乱
   window.dispatchEvent(new Event('resize'))
   window.addEventListener(getAuthChangedEventName(), handleRouteChange)
-  mobileLayout.addEventListener('change', handleMobileLayoutChange)
+  updateMobileLayout()
 
   // document.body.style.paddingTop = '60px'
 })
@@ -238,7 +252,7 @@ onUnmounted(() => {
   window.removeEventListener('routeToHome', handleRouteToHome)
   window.removeEventListener('showLoginModal', handleShowLoginModal)
   window.removeEventListener(getAuthChangedEventName(), handleRouteChange)
-  mobileLayout.removeEventListener('change', handleMobileLayoutChange)
+  mobileLayout?.removeEventListener('change', handleMobileLayoutChange)
 
   if (shouldHideNavbar.value) {
     document.body.style.paddingTop = '0'
@@ -295,6 +309,7 @@ const submitGlobalSearch = () => {
   <div
     class="header"
     :class="{
+      'header-compact': compactHeader,
       'header-transparent': isHomePage,
       'header-white': !isHomePage && !isShowcasePage && !isFinancialTerminal,
       'header-showcase': isShowcasePage,
@@ -429,7 +444,7 @@ const submitGlobalSearch = () => {
             v-model.trim="globalSearchQuery"
             type="search"
             class="header-search__input"
-            placeholder="检索情报、实体、事件…"
+            placeholder="检索情报"
             enterkeyhint="search"
             autocomplete="off"
             aria-label="情报检索"
@@ -486,7 +501,7 @@ const submitGlobalSearch = () => {
               v-model.trim="mobileSearchQuery"
               type="search"
               class="mobile-search-input"
-              placeholder="检索情报、实体、事件…"
+              placeholder="检索情报"
               enterkeyhint="search"
               autocomplete="off"
               aria-label="情报检索"
