@@ -6,7 +6,7 @@
 
 ## 主要入口
 
-- `src/main.tsx` 启动 React；`src/App.tsx` 定义 `/` 和 `/numerical-alert` 路由。
+- `src/main.tsx` 启动 React；`src/App.tsx` 定义首页路由。
 - API 封装在 `src/api/`，业务判断在 `src/lib/` 和 `src/hooks/`。
 
 ## 依赖与环境

@@ -191,18 +191,3 @@ test('dashboard and triage transports share the content-free error boundary', as
     assert.doesNotMatch(source, /\.text\(\)/)
   }
 })
-
-test('terminal presents read-only lifecycle truth without guessing administrator role', async () => {
-  const page = await readFile(
-    new URL('../src/pages/NumericalAnalysisAlert.tsx', import.meta.url),
-    'utf8',
-  )
-
-  assert.match(page, /页面仅展示隐私最小化处置聚合/)
-  assert.match(page, /自动 SLA、外部通知与机构事件系统尚未接入/)
-  assert.match(page, /从视图隐藏/)
-  assert.match(page, /不会改变处置状态/)
-  assert.match(page, /min-h-11/)
-  assert.doesNotMatch(page, /submitAdminAlertTriageEvent/)
-  assert.doesNotMatch(page, /系统触发高危告警.*菲律宾船只/)
-})
