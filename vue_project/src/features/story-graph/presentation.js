@@ -128,18 +128,18 @@ export function getFallbackStoryTitle(mode, id) {
   return mode === 'l3' ? `大事件 ${id}` : `走势链 ${id}`
 }
 
-export function cleanStoryTitle(title, context = {}) {
+export function cleanStoryTitle(title) {
   const raw = String(title || '').replace(/\s+/g, ' ').trim()
   if (!raw) return ''
 
+  const prefixedHeadline = raw.match(
+    /^[^:：·]+?(?:->|→|↔)[^:：·]+?(?:[:：]\s*|\s+·\s+)(.+)$/,
+  )
+  if (prefixedHeadline) return prefixedHeadline[1].trim()
+
   const colonParts = raw.match(/^([^:]{2,96}):\s*(.+)$/)
   if (colonParts) {
-    const prefix = colonParts[1]
-    const body = colonParts[2]
-    if (prefix.includes('->') || prefix.includes('↔')) {
-      const actors = formatActorPair(context.initiator, context.target, '')
-      return actors ? `${actors} · ${body}` : body
-    }
+    const [, prefix, body] = colonParts
     if (/^[a-z\s/_-]+$/i.test(prefix) && /macro event$/i.test(body)) {
       const familyKey = body.replace(/macro event$/i, '').trim().replace(/\s+/g, '_')
       const familyText = familyLabel(familyKey)
@@ -147,13 +147,11 @@ export function cleanStoryTitle(title, context = {}) {
         .split(/[/_]/)
         .map((part) => cleanEntityLabel(part.trim()))
         .filter(Boolean)
-        .join(' / ')} · ${familyText}宏观事件`
+        .join(' / ')} · ${familyText}`
     }
   }
 
   return raw
-    .replace(/\b(us|eu|uk|uae|un|nato|iaea)\b/gi, (match) => match.toUpperCase())
-    .replace(/\s+([,.;:!?])/g, '$1')
 }
 
 export function cleanEntityLabel(value) {
@@ -258,7 +256,7 @@ export function buildStoryGraphNodeInspector(node, { storyId = '' } = {}) {
     macroId: node?.story_id,
     l1ClusterId: node?.l1_cluster_id || node?.cluster_id_raw,
     storyId: resolvedStoryId,
-    title: node?.label || node?.id || '未命名节点',
+    title: cleanStoryTitle(node?.label || node?.title) || '未命名事件',
     eventType: node?.event_type,
     storyAngle: node?.story_angle,
     lane: node?.lane,
@@ -321,7 +319,7 @@ export function buildStoryGraphAccessibleList(storyGraph, { includeContext = tru
     const payload = buildStoryGraphNodeInspector(node, {
       storyId: node?.story_id || storyGraph?.story_id,
     })
-    const title = cleanStoryTitle(payload.title, payload) || payload.title
+    const title = payload.title
     nodeTitles.set(id, title)
     return {
       id,

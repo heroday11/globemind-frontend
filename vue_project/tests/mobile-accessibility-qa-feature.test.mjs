@@ -158,20 +158,19 @@ test('story graph canvas supports keyboard selection and an explicit list altern
     readFile(new URL('../src/features/story-graph/story-graph-react-flow.css', import.meta.url), 'utf8'),
   ])
 
-  assert.match(view, /role="region"[\s\S]*aria-describedby="story-graph-keyboard-help"/)
-  assert.match(view, /class="intel-accessible-list"/)
-  assert.match(view, /buildStoryGraphAccessibleList\(currentStory\.value/)
-  assert.match(view, /\.intel-accessible-list > summary\s*\{[\s\S]*min-height:\s*44px;/)
-  assert.match(view, /\.react-flow__node:focus-visible/)
+  assert.match(view, /role="region" aria-label="事件图谱"/)
+  assert.match(view, /class="intel-timeline" aria-label="事件时间线"/)
+  assert.match(view, /buildStoryGraphNodeInspector\(node,/)
+  assert.match(view, /\.intel-timeline__row\s*\{[\s\S]*min-height:\s*70px;/)
+  assert.match(rendererStyles, /\.react-flow__node:focus-visible/)
   assert.match(renderer, /nodesFocusable:\s*true/)
   assert.match(renderer, /edgesFocusable:\s*true/)
   assert.match(renderer, /onSelectionChange\(/)
   assert.match(renderer, /selectable:\s*false,[\s\S]*focusable:\s*false/)
-  assert.match(renderer, /focusable:\s*true,[\s\S]*ariaLabel:\s*`图谱节点/)
-  assert.match(renderer, /ariaLabel:\s*`图谱节点/)
-  assert.match(renderer, /ariaLabel:\s*`图谱关系/)
+  assert.match(renderer, /focusable:\s*true,[\s\S]*ariaLabel:\s*\[inspectorPayload.title, timeLabel/)
+  assert.match(renderer, /ariaLabel:\s*\[inspectorPayload.title, eventTitles.get\(edge.from_id\)/)
   assert.match(renderer, /interactionWidth:\s*44/)
-  assert.match(rendererStyles, /\.story-rf-toolbar__button\s*\{[\s\S]*min-height:\s*44px;/)
+  assert.match(view, /\.intel-icon-btn,\s*\.intel-btn\s*\{[\s\S]*min-height:\s*44px;/)
 })
 
 test('all changed Vue views remain valid compilable SFC templates', async () => {

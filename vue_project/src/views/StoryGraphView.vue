@@ -1,269 +1,219 @@
 <template>
-  <div class="intel-page">
+  <div class="intel-page" @keydown.esc="closeFocusPanel">
     <header class="intel-topbar" data-tour="story-workspace">
       <div class="intel-topbar__brand">
-        <span class="intel-kicker">GlobeMind</span>
-        <div>
-          <h1>{{ pageTitle }}</h1>
-          <p>{{ pageSubtitle }}</p>
-        </div>
+        <h1>{{ pageTitle }}</h1>
       </div>
-
       <div class="intel-topbar__meta">
-        <RouterLink class="intel-btn intel-btn--ghost" to="/data-service/decision-desk">决策研究</RouterLink>
-        <div class="intel-mode-switch" data-tour="story-level-switch" role="tablist" aria-label="图谱层级">
-          <button :class="{ 'is-active': graphMode === 'l3' }" @click="switchGraphMode('l3')">
+        <div class="intel-mode-switch" data-tour="story-level-switch" role="group" aria-label="图谱层级">
+          <button type="button" :aria-pressed="graphMode === 'l3'" @click="switchGraphMode('l3')">
             L3 大事件
           </button>
-          <button :class="{ 'is-active': graphMode === 'l2' }" @click="switchGraphMode('l2')">
+          <button type="button" :aria-pressed="graphMode === 'l2'" @click="switchGraphMode('l2')">
             L2 走势链
           </button>
         </div>
-        <button class="intel-btn intel-btn--ghost" :disabled="!graph" @click="fitCanvas">
-          适配视图
-        </button>
-        <button class="intel-btn intel-btn--ghost" :disabled="!graph" @click="toggleContextLinks">
-          {{ showContextLinks ? '隐藏关联线' : '显示关联线' }}
-        </button>
-        <button class="intel-btn intel-btn--assistant intel-topbar__assistant" @click="openStoryAssistantDrawer()">
-          数据助手
-        </button>
+        <RouterLink class="intel-btn intel-research-link" to="/data-service/decision-desk">
+          决策研究 <ArrowUpRight :size="15" aria-hidden="true" />
+        </RouterLink>
       </div>
     </header>
 
-    <div
-      class="intel-shell"
-      :class="{
-        'is-left-collapsed': leftCollapsed,
-      }"
-    >
-      <aside class="intel-side intel-side--left" data-tour="story-library" :class="{ 'is-collapsed': leftCollapsed }">
-        <div v-if="!leftCollapsed" class="intel-panel">
-          <div class="intel-panel__header">
-            <div>
-              <span class="intel-panel__eyebrow">{{ graphModeLabel }} 导航</span>
-              <h2>{{ libraryTitle }}</h2>
-            </div>
-            <button class="intel-icon-btn" @click="leftCollapsed = true" title="收起导航">
-              <span>⟨</span>
+    <div class="intel-shell" :class="{ 'is-left-collapsed': leftCollapsed }">
+      <aside v-if="!leftCollapsed" class="intel-library" data-tour="story-library">
+        <header class="intel-library__header">
+          <h2>{{ libraryTitle }} <span>{{ filteredStories.length }}</span></h2>
+          <button
+            class="intel-icon-btn"
+            type="button"
+            title="收起事件库"
+            aria-label="收起事件库"
+            @click="leftCollapsed = true"
+          >
+            <PanelLeftClose :size="18" aria-hidden="true" />
+          </button>
+        </header>
+        <label class="intel-search">
+          <Search :size="17" aria-hidden="true" />
+          <input
+            v-model.trim="storySearch"
+            type="search"
+            :aria-label="searchLabel"
+            :placeholder="searchPlaceholder"
+          />
+        </label>
+        <div class="intel-story-list">
+          <button
+            v-for="story in filteredStories"
+            :key="story.id"
+            type="button"
+            class="intel-story-row"
+            :aria-current="String(story.id) === selectedStoryId ? 'true' : undefined"
+            @click="selectStory(story.id)"
+          >
+            <strong>{{ displayStoryTitle(story) }}</strong>
+            <small>{{ storyLibraryMeta(story) }}</small>
+          </button>
+          <section v-if="branchStories.length" class="intel-branches">
+            <h3>关联事件</h3>
+            <button
+              v-for="item in branchStories"
+              :key="item.story_id"
+              type="button"
+              class="intel-story-row"
+              @click="selectStory(item.story_id)"
+            >
+              <strong>{{ displayStoryTitle(item) }}</strong>
+              <small>{{ storyLibraryMeta(item) }}</small>
             </button>
-          </div>
-
-          <section class="intel-section">
-            <label class="intel-label">{{ searchLabel }}</label>
-            <input
-              v-model.trim="storySearch"
-              class="intel-input"
-              type="text"
-              :placeholder="searchPlaceholder"
-            />
-          </section>
-
-          <section class="intel-section intel-section--library">
-            <div class="intel-section__title">
-              <span>{{ libraryTitle }}</span>
-              <span>{{ filteredStories.length }}</span>
-            </div>
-            <div class="intel-story-list">
-              <button
-                v-for="story in filteredStories"
-                :key="story.id"
-                class="intel-story-card"
-                :class="{ 'is-active': String(story.id) === selectedStoryId }"
-                @click="selectStory(story.id)"
-              >
-                <div class="intel-story-card__top">
-                  <span v-if="storyFamilyLabel(story)" class="intel-story-card__type">
-                    {{ storyFamilyLabel(story) }}
-                  </span>
-                </div>
-                <strong>{{ displayStoryTitle(story) }}</strong>
-                <small>{{ storyResearchLine(story) }}</small>
-                <div v-if="storySignalValues(story).length" class="intel-story-card__signals">
-                  <span v-for="signal in storySignalValues(story)" :key="signal">{{ signal }}</span>
-                </div>
-              </button>
-            </div>
-          </section>
-
-          <section class="intel-section" v-if="currentStory">
-            <div class="intel-section__title">
-              <span>{{ currentLabel }}</span>
-            </div>
-            <div class="intel-summary-card">
-              <strong>{{
-                displayStoryTitle(currentStory)
-              }}</strong>
-              <p v-if="currentStorySummary">{{ currentStorySummary }}</p>
-            </div>
-          </section>
-
-          <section class="intel-section intel-section--related" v-if="branchStories.length">
-            <div class="intel-section__title">
-              <span>关联分支</span>
-              <span>{{ branchStories.length }}</span>
-            </div>
-            <div class="intel-related-list">
-              <button
-                v-for="item in branchStories"
-                :key="item.story_id"
-                class="intel-related-card"
-                @click="selectStory(item.story_id)"
-              >
-                <div class="intel-related-card__meta">
-                  <span v-if="isMeaningfulDisplayValue(item.layer)">{{ item.layer }}</span>
-                  <span v-if="isMeaningfulDisplayValue(relationLabel(item))">{{ relationLabel(item) }}</span>
-                </div>
-                <strong>{{ item.title || `走势链 ${item.story_id}` }}</strong>
-                <small v-if="isMeaningfulDisplayValue(formatRange(item.start_date, item.end_date))">
-                  {{ formatRange(item.start_date, item.end_date) }}
-                </small>
-              </button>
-            </div>
           </section>
         </div>
       </aside>
 
-      <main class="intel-canvas-panel" data-tour="story-canvas">
+      <main class="intel-workspace" data-tour="story-canvas">
         <button
           v-if="leftCollapsed"
-          class="intel-side-toggle intel-side-toggle--left"
+          class="intel-side-toggle"
+          type="button"
+          title="打开事件库"
           @click="leftCollapsed = false"
-          title="打开导航"
         >
-          导航
+          <PanelLeftOpen :size="18" aria-hidden="true" /> {{ libraryTitle }}
         </button>
-        <div class="intel-canvas-toolbar">
-          <div class="intel-chip-row">
-            <span class="intel-chip intel-chip--signal" v-if="graphMetrics.mainNodes">
-              {{ graphMode === 'l3' ? '宏观节点' : '主链' }} {{ graphMetrics.mainNodes }}
-            </span>
-            <span class="intel-chip" v-if="graphMetrics.branchStories">
-              分支 {{ graphMetrics.branchStories }}
-            </span>
-            <span class="intel-chip" v-if="graphMetrics.contextLinks">
-              关联线 {{ graphMetrics.contextLinks }}
-            </span>
+
+        <header v-if="currentStory" class="intel-workspace__header">
+          <div class="intel-workspace__title">
+            <h2>{{ displayStoryTitle(currentStory) }}</h2>
+            <p v-if="workspaceMeta">{{ workspaceMeta }}</p>
+          </div>
+          <div class="intel-view-switch" role="group" aria-label="浏览方式">
+            <button type="button" :aria-pressed="workspaceView === 'graph'" @click="workspaceView = 'graph'">
+              <Waypoints :size="16" aria-hidden="true" /> 图谱
+            </button>
+            <button type="button" :aria-pressed="workspaceView === 'timeline'" @click="workspaceView = 'timeline'">
+              <List :size="16" aria-hidden="true" /> 时间线
+            </button>
+          </div>
+        </header>
+
+        <div v-show="workspaceView === 'graph'" class="intel-graph">
+          <div ref="graphContainer" class="intel-canvas" role="region" aria-label="事件图谱"></div>
+          <div v-if="graph" class="intel-graph-tools" role="group" aria-label="画布工具">
+            <button class="intel-icon-btn" type="button" title="缩小" aria-label="缩小" @click="graph.zoomOut()">
+              <Minus :size="17" aria-hidden="true" />
+            </button>
+            <button class="intel-icon-btn" type="button" title="放大" aria-label="放大" @click="graph.zoomIn()">
+              <Plus :size="17" aria-hidden="true" />
+            </button>
+            <button class="intel-icon-btn" type="button" title="查看全图" aria-label="查看全图" @click="fitCanvas">
+              <Maximize :size="17" aria-hidden="true" />
+            </button>
+            <button
+              v-if="graphMetrics.contextLinks"
+              class="intel-icon-btn"
+              type="button"
+              :title="showContextLinks ? '隐藏关联线' : '显示关联线'"
+              aria-label="关联线"
+              :aria-pressed="showContextLinks"
+              @click="toggleContextLinks"
+            >
+              <Link2 :size="17" aria-hidden="true" />
+            </button>
+            <button class="intel-icon-btn" type="button" title="自动布局" aria-label="自动布局" @click="graph.autoLayout()">
+              <RotateCcw :size="17" aria-hidden="true" />
+            </button>
+            <button class="intel-icon-btn" type="button" title="保存布局" aria-label="保存布局" @click="saveCanvasLayout">
+              <Check v-if="layoutSaved" :size="17" aria-hidden="true" />
+              <Save v-else :size="17" aria-hidden="true" />
+            </button>
+            <span v-if="layoutSaved" class="intel-visually-hidden" role="status">布局已保存</span>
           </div>
         </div>
 
-        <div ref="graphContainer" class="intel-canvas" role="region" aria-label="事件故事关系图"></div>
+        <ol v-if="currentStory && workspaceView === 'timeline'" class="intel-timeline" aria-label="事件时间线">
+          <li v-for="item in timelineEvents" :key="item.id" class="intel-timeline__event">
+            <button class="intel-timeline__row" type="button" @click="selectInspector(item.payload)">
+              <span class="intel-timeline__date">{{ item.date }}</span>
+              <span class="intel-timeline__body">
+                <strong>{{ item.title }}</strong>
+                <small v-if="item.meta">{{ item.meta }}</small>
+              </span>
+              <ChevronRight :size="17" aria-hidden="true" />
+            </button>
+          </li>
+        </ol>
 
-        <div v-if="loading" class="intel-overlay">
-          <div class="intel-spinner"></div>
-          <span>正在加载{{ graphMode === 'l3' ? ' L3 大事件图谱' : ' L2 走势工作台' }}...</span>
+        <div v-if="loading" class="intel-overlay" role="status">
+          <div class="intel-spinner" aria-hidden="true"></div>
+          <span>正在加载图谱…</span>
         </div>
-
-        <div v-else-if="error" class="intel-overlay intel-overlay--error">
-          <strong>走势图谱加载失败</strong>
+        <div v-else-if="error" class="intel-overlay" role="alert">
           <p>{{ error }}</p>
-          <button class="intel-btn" @click="reloadCurrentStory">重试</button>
+          <button class="intel-btn intel-btn--primary" type="button" @click="reloadCurrentStory">重试</button>
         </div>
-
-        <div v-else-if="!currentStory" class="intel-overlay intel-overlay--quiet">
-          <strong>{{ queryStatusTitle }}</strong>
+        <div v-else-if="!currentStory" class="intel-overlay">
           <p :role="queryStatus.role" aria-live="polite">{{ queryStatus.message }}</p>
         </div>
 
-        <div class="intel-footerbar" v-if="currentStory">
-          <div class="intel-footerbar__focus">
-            <span class="intel-footerbar__label">当前焦点</span>
-            <strong>{{ selectedInspectorTitle }}</strong>
-            <small>{{ selectedInspectorSubtitle }}</small>
-          </div>
-          <div class="intel-footerbar__legend">
-            <span
-              ><i class="legend-swatch legend-swatch--main"></i
-              >{{ graphMode === 'l3' ? 'L3 主干' : 'L2 主链' }}</span
-            >
-            <span
-              ><i class="legend-swatch legend-swatch--branch"></i
-              >{{ graphMode === 'l3' ? '角度支线' : '关联分支' }}</span
-            >
-            <span><i class="legend-swatch legend-swatch--context"></i>影响关系</span>
-          </div>
-        </div>
-
         <Transition name="focus-sheet">
-          <section v-if="focusPanelOpen && selectedInspector" class="intel-focus-sheet" @click.stop>
+          <section
+            v-if="focusPanelOpen && selectedInspector"
+            class="intel-focus-sheet"
+            aria-labelledby="intel-focus-title"
+          >
             <header class="intel-focus-sheet__header">
               <div>
-                <span class="intel-focus-sheet__eyebrow">{{
-                  focusKindLabel(selectedInspector.kind)
-                }}</span>
-                <h3>{{ selectedInspectorTitle }}</h3>
-                <p>{{ selectedInspectorSubtitle }}</p>
+                <h3 id="intel-focus-title">{{ selectedInspectorTitle }}</h3>
+                <p v-if="focusMeta">{{ focusMeta }}</p>
               </div>
-              <button class="intel-icon-btn" title="关闭详情" @click="closeFocusPanel">
-                <span>×</span>
+              <button class="intel-icon-btn" type="button" title="关闭详情" aria-label="关闭详情" @click="closeFocusPanel">
+                <X :size="19" aria-hidden="true" />
               </button>
             </header>
 
-            <div class="intel-focus-sheet__chips">
-              <span v-for="chip in selectedInspectorChips" :key="chip" class="intel-chip">
-                {{ chip }}
-              </span>
-            </div>
+            <dl v-if="focusDetailRows.length" class="intel-focus-details">
+              <div v-for="row in focusDetailRows" :key="row.label">
+                <dt>{{ row.label }}</dt>
+                <dd>{{ row.value }}</dd>
+              </div>
+            </dl>
+
+            <section v-if="showFocusEvidence" class="intel-focus-news">
+              <h4>原始报道</h4>
+              <p v-if="evidenceLoading" class="intel-focus-news__status" role="status">正在加载报道…</p>
+              <ul v-else-if="focusEvidenceNews.length">
+                <li v-for="item in focusEvidenceNews" :key="item.news_id">
+                  <a :href="item.safe_url" target="_blank" rel="noopener">
+                    <span>
+                      <strong>{{ item.title }}</strong>
+                      <small v-if="evidenceNewsMeta(item)">{{ evidenceNewsMeta(item) }}</small>
+                    </span>
+                    <ArrowUpRight :size="16" aria-hidden="true" />
+                  </a>
+                </li>
+              </ul>
+              <p v-else class="intel-focus-news__status">暂无可打开的报道</p>
+            </section>
 
             <div class="intel-focus-sheet__actions">
               <button
                 v-if="selectedInspector.kind === 'l3-chain' && selectedInspector.l2ChainId"
-                class="intel-btn"
+                class="intel-btn intel-btn--primary"
+                type="button"
                 @click="openL2Chain(selectedInspector.l2ChainId)"
               >
-                打开 L2
+                查看 L2 走势链 <ChevronRight :size="16" aria-hidden="true" />
               </button>
-              <RouterLink
-                v-if="selectedInspector.detailUrl"
-                class="intel-evidence-link"
-                :to="selectedInspector.detailUrl"
-              >
-                打开 Story Page
+              <RouterLink v-if="selectedInspector.detailUrl" class="intel-evidence-link" :to="selectedInspector.detailUrl">
+                查看事件报道 <ChevronRight :size="16" aria-hidden="true" />
               </RouterLink>
-              <button class="intel-btn intel-btn--assistant" @click="openStoryAssistantDrawer(focusAssistantQuestion)">
-                让助手研判
+              <button class="intel-btn" type="button" @click="openStoryAssistantDrawer(focusAssistantQuestion)">
+                交给数据助手
               </button>
             </div>
-
-            <section v-if="focusDetailRows.length" class="intel-focus-section">
-              <div class="intel-focus-section__title">
-                <span>关键数据</span>
-              </div>
-              <div class="intel-focus-detail-grid">
-                <div v-for="row in focusDetailRows" :key="row.label">
-                  <label>{{ row.label }}</label>
-                  <strong>{{ row.value }}</strong>
-                </div>
-              </div>
-            </section>
-
-            <section v-if="showFocusEvidence" class="intel-focus-news">
-              <div class="intel-focus-news__title">
-                <span>相关新闻</span>
-                <span>{{ selectedEvidenceNews.length }}</span>
-              </div>
-              <div v-if="evidenceLoading" class="intel-evidence-loading">正在加载新闻证据...</div>
-              <div v-else-if="focusEvidenceNews.length" class="intel-focus-news__list">
-                <a
-                  v-for="item in focusEvidenceNews"
-                  :key="item.news_id"
-                  class="intel-focus-news__item"
-                  :href="item.safe_url"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  <small v-if="evidenceNewsMeta(item)">{{ evidenceNewsMeta(item) }}</small>
-                  <strong>{{ item.title || `新闻 ${item.news_id}` }}</strong>
-                </a>
-              </div>
-              <div v-else class="intel-evidence-empty">
-                {{ focusEmptyText }}
-              </div>
-            </section>
           </section>
         </Transition>
       </main>
-
     </div>
 
     <AssistantDrawer
@@ -292,6 +242,7 @@
 
 <script setup>
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { ArrowUpRight, Check, ChevronRight, Link2, List, Maximize, Minus, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Save, Search, Waypoints, X } from 'lucide-vue-next'
 import { getCurrentUser, getToken } from '@/utils/auth'
 import { safeExternalHttpUrl } from '@/utils/externalUrl.js'
 import { graphMetricPresentation } from '@/governance/graphMetrics.js'
@@ -301,6 +252,7 @@ import {
   angleLabel,
   buildGraphMetrics,
   buildStoryGraphEvidenceParams,
+  buildStoryGraphNodeInspector,
   buildStoryGraphQueryStatus,
   buildStoryStatsText,
   buildStorySummaryLine,
@@ -316,8 +268,6 @@ import {
   formatNewsDate,
   formatRange,
   graphSamplingNotice,
-  getFallbackStoryTitle,
-  getSummaryCountLabel,
   hasStoryGraphEvidenceTarget,
   loadStoryGraphRenderer,
   makeMainInspector,
@@ -329,7 +279,6 @@ import {
   researchValueLabel,
   researchValueScore,
   sortRelatedStories,
-  sortStorySummariesByResearchValue,
   storyGraphApi,
   transformL2ChainResponse,
   transformL3MacroResponse,
@@ -352,11 +301,13 @@ const workspaceLoading = ref(false)
 const loading = computed(() => listLoading.value || workspaceLoading.value)
 const error = ref('')
 const queryStatus = ref(buildStoryGraphQueryStatus('idle', { mode: graphMode.value }))
-const leftCollapsed = ref(false)
+const leftCollapsed = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches)
+const workspaceView = ref('graph')
 const showContextLinks = ref(true)
+const layoutSaved = ref(false)
 const agentMessages = ref([])
 const assistantSessionId = ref('')
-const selectedInspector = ref(null)
+const selectedInspector = shallowRef(null)
 const selectedClusterDetail = ref(null)
 const evidenceLoading = ref(false)
 const focusPanelOpen = ref(false)
@@ -371,56 +322,56 @@ const graphContainer = ref(null)
 const graph = shallowRef(null)
 let reactFlowFactoryPromise = null
 
-let resizeObserver = null
 let listAbortController = null
 let storyAbortController = null
 let clusterAbortController = null
 let messageId = 0
-let resizeFitTimer = null
+let layoutSavedTimer = null
 let assistantFabDrag = null
 const listRequestGate = createLatestRequestGate()
 const workspaceRequestGate = createLatestRequestGate()
 const evidenceRequestGate = createLatestRequestGate()
 
 const activeRunId = computed(() => (graphMode.value === 'l3' ? l3RunId : l2RunId))
-const graphModeLabel = computed(() => (graphMode.value === 'l3' ? 'L3' : 'L2'))
 const pageTitle = computed(() =>
   graphMode.value === 'l3' ? 'L3 大事件脉络图谱' : 'L2 事件走势图谱',
 )
-const pageSubtitle = computed(() =>
-  graphMode.value === 'l3'
-    ? '从 L2 micro-chain 聚合大事件 · 观察主线、支线、角度和待核验关系假设'
-    : '从 L1.5 切面进入 L2 走势链 · 追踪阶段节点、关系强度和演化路径',
-)
 const libraryTitle = computed(() => (graphMode.value === 'l3' ? '大事件库' : '走势链库'))
-const currentLabel = computed(() => (graphMode.value === 'l3' ? '当前大事件' : '当前走势'))
 const searchLabel = computed(() => (graphMode.value === 'l3' ? '检索大事件' : '检索走势链'))
-const searchPlaceholder = computed(() =>
-  graphMode.value === 'l3'
-    ? '输入国家、战争、冲突、贸易或宏观议题...'
-    : '输入国家、主体、议题或链标题...',
-)
+const searchPlaceholder = computed(() => (graphMode.value === 'l3' ? '搜索事件、地区或议题' : '搜索标题或主体'))
 const filteredStories = computed(() =>
-  sortStorySummariesByResearchValue(filterStorySummaries(stories.value, storySearch.value)),
+  filterStorySummaries(stories.value, storySearch.value),
 )
-const queryStatusTitle = computed(() => ({
-  error: '当前查询失败',
-  'list-empty': '当前批次暂无结果',
-  'workspace-empty': '所选结果暂无图谱节点',
-  'search-empty': '当前查询无结果',
-  'list-loading': '正在加载事件库',
-  'workspace-loading': '正在加载图谱',
-  'selection-required': '请选择当前查询结果',
-}[queryStatus.value.kind] || `请选择${graphMode.value === 'l3' ? '一个大事件' : '一条走势链'}`))
 const branchStories = computed(() => sortRelatedStories(currentStory.value?.related_stories))
 const graphMetrics = computed(() => buildGraphMetrics(currentStory.value, branchStories.value))
 const storyStatsText = computed(() =>
   buildStoryStatsText(currentStory.value, graphMetrics.value, branchStories.value),
 )
 const samplingNotice = computed(() => graphSamplingNotice(currentStory.value))
-const currentStorySummary = computed(() => {
-  const summary = buildStorySummaryLine(currentStory.value)
-  return isMeaningfulDisplayValue(summary) ? summary : ''
+const workspaceMeta = computed(() => {
+  const story = currentStory.value
+  if (!story) return ''
+  const visible = graphMetrics.value.mainNodes
+  const total = story.meta?.total_node_count
+  return [
+    storyDateRange(story.start_date, story.end_date),
+    reportCountLabel(story.meta?.article_count),
+    hasCount(total) && total > visible ? `显示 ${visible} / ${total} 个节点` : `${visible} 个节点`,
+  ].filter(Boolean).join(' · ')
+})
+const timelineEvents = computed(() => {
+  const story = currentStory.value
+  return (story?.nodes || []).map((node) => {
+    const payload = buildStoryGraphNodeInspector(node, { storyId: story.story_id })
+    return {
+      id: node.id,
+      title: payload.title,
+      date: storyDateRange(payload.startDate, payload.endDate),
+      sortDate: payload.startDate || payload.endDate || '9999',
+      meta: [nodeCategory(payload), reportCountLabel(payload.articleCount)].filter(Boolean).join(' · '),
+      payload,
+    }
+  }).sort((left, right) => left.sortDate.localeCompare(right.sortDate))
 })
 const currentResearchSignals = computed(() => {
   const story = currentStory.value
@@ -490,7 +441,17 @@ const selectedInspectorTitle = computed(() => {
   if (!selectedInspector.value) {
     return displayStoryTitle(currentStory.value) || '尚未选择焦点'
   }
-  return cleanStoryTitle(selectedInspector.value.title, selectedInspector.value) || displayStoryTitle(currentStory.value) || '走势焦点'
+  return selectedInspector.value.title || displayStoryTitle(currentStory.value) || '未命名事件'
+})
+
+const focusMeta = computed(() => {
+  const item = selectedInspector.value
+  if (!item || item.kind === 'edge') return ''
+  return [
+    storyDateRange(item.startDate, item.endDate),
+    nodeCategory(item),
+    reportCountLabel(item.articleCount),
+  ].filter(Boolean).join(' · ')
 })
 
 const selectedInspectorSubtitle = computed(() => {
@@ -589,15 +550,15 @@ const selectedEvidenceNews = computed(() => {
   return Array.isArray(selectedClusterDetail.value?.news) ? selectedClusterDetail.value.news : []
 })
 
-const focusEvidenceNews = computed(() => selectedEvidenceNews.value.slice(0, 8).map((item) => ({
+const focusEvidenceNews = computed(() => selectedEvidenceNews.value.map((item) => ({
   ...item,
+  title: item.title || item.news_title,
   safe_url: safeExternalHttpUrl(item.url),
-})).filter((item) => item.safe_url))
+})).filter((item) => item.title && item.safe_url).slice(0, 8))
 
-const showFocusEvidence = computed(() => {
-  if (evidenceLoading.value || focusEvidenceNews.value.length) return true
-  return ['l2-segment', 'cluster'].includes(selectedInspector.value?.kind)
-})
+const showFocusEvidence = computed(() =>
+  ['l3-chain', 'l2-segment', 'cluster'].includes(selectedInspector.value?.kind),
+)
 
 const focusArticleCount = computed(() => {
   return selectedClusterDetail.value?.article_count
@@ -611,37 +572,15 @@ const focusEvidenceText = computed(() => {
   return evidenceLevel(focusArticleCount.value, { direct: isDirectEvidence })
 })
 
-const focusEmptyText = computed(() => {
-  return '暂无可展示的相关新闻。'
-})
-
 const focusDetailRows = computed(() => {
   const item = selectedInspector.value
-  if (!item) return []
-
-  const detail = selectedClusterDetail.value || {}
-  const rows = [[
-    '关系主体',
-    formatActorPair(item.initiator || detail.initiator, item.target || detail.target, ''),
-  ]]
-
-  if (item.kind === 'l3-chain') {
-    return []
-  } else if (item.kind === 'l2-segment') {
-    // The title, date, category and report count are already shown above.
-  } else if (item.kind === 'cluster') {
-    return []
-  } else if (item.kind === 'edge') {
-    rows.push(
-      ['起点', findStoryNodeTitle(item.sourceId)],
-      ['终点', findStoryNodeTitle(item.targetId)],
-      ['主张 ID', item.claimId],
-      ['引用定位', item.citationLocator],
-      ['关系强度', relationStrengthLabel(item)],
-      ['判定依据', relationEvidenceText(item)],
-    )
-  }
-
+  if (item?.kind !== 'edge') return []
+  const rows = [
+    ['起点', findStoryNodeTitle(item.sourceId)],
+    ['终点', findStoryNodeTitle(item.targetId)],
+    ['主张 ID', item.claimId],
+    ['引用定位', item.citationLocator],
+  ]
   return rows
     .map(([label, value]) => ({ label, value: displayValue(value) }))
     .filter((row) => isMeaningfulDisplayValue(row.value))
@@ -664,12 +603,18 @@ watch(showContextLinks, async () => {
   if (currentStory.value) await renderWorkspaceGraph()
 })
 
+watch(workspaceView, async (view) => {
+  closeFocusPanel()
+  if (view === 'graph' && !graph.value) {
+    await nextTick()
+    await renderWorkspaceGraph()
+  }
+})
+
 onMounted(async () => {
   restoreAssistantFabPosition()
   window.addEventListener('resize', clampAssistantFabPosition)
   await loadStories()
-  await nextTick()
-  setupResizeObserver()
 })
 
 onUnmounted(() => {
@@ -680,14 +625,14 @@ onUnmounted(() => {
   listAbortController?.abort()
   storyAbortController?.abort()
   clusterAbortController?.abort()
-  if (resizeFitTimer) window.clearTimeout(resizeFitTimer)
-  resizeObserver?.disconnect()
+  if (layoutSavedTimer) window.clearTimeout(layoutSavedTimer)
   graph.value?.destroy()
   graph.value = null
 })
 
 async function switchGraphMode(mode, preferredId = '') {
   if (!['l2', 'l3'].includes(mode)) return
+  if (graphMode.value === mode && !preferredId) return
   if (graphMode.value !== mode) {
     graphMode.value = mode
     storySearch.value = ''
@@ -718,16 +663,12 @@ async function loadStories(preferredId = '') {
       : (payload.chains || []).map(normalizeL2ChainSummary)
     stories.value = nextStories
 
-    if (!nextStories.length) {
+    if (!nextStories.length && !preferredId) {
       queryStatus.value = buildStoryGraphQueryStatus('list-empty', { mode: requestedMode })
       return
     }
 
-    const preferred = preferredId ? String(preferredId) : ''
-    const nextId =
-      preferred && nextStories.some((story) => String(story.id) === preferred)
-        ? preferred
-        : nextStories[0]?.id
+    const nextId = preferredId || nextStories[0]?.id
     if (nextId) {
       queryStatus.value = buildStoryGraphQueryStatus('selection-required', {
         count: nextStories.length,
@@ -808,8 +749,8 @@ function selectStory(storyId) {
 }
 
 async function reloadCurrentStory() {
-  if (!selectedStoryId.value) return
-  await loadStoryWorkspace(selectedStoryId.value)
+  if (selectedStoryId.value) await loadStoryWorkspace(selectedStoryId.value)
+  else await loadStories()
 }
 
 async function loadStoryWorkspace(storyId) {
@@ -848,6 +789,9 @@ async function loadStoryWorkspace(storyId) {
         storyId: requestedStoryId,
       })
       return
+    }
+    if (!isL3 && !stories.value.some((story) => String(story.id) === requestedStoryId)) {
+      stories.value.unshift(normalizeL2ChainSummary(payload.chain))
     }
     currentStory.value = nextStory
     const activeStory = currentStory.value
@@ -896,6 +840,7 @@ function clearWorkspacePresentation() {
   currentStory.value = null
   selectedInspector.value = null
   focusPanelOpen.value = false
+  layoutSaved.value = false
   resetAgentState()
   graph.value?.destroy()
   graph.value = null
@@ -910,65 +855,41 @@ function clearWorkspaceState({ clearSelection = false } = {}) {
   clearWorkspacePresentation()
 }
 
-function setupResizeObserver() {
-  if (!graphContainer.value || typeof ResizeObserver === 'undefined') return
-  resizeObserver = new ResizeObserver((entries) => {
-    const entry = entries[0]
-    if (!entry) return
-    const { width, height } = entry.contentRect
-    if (width < 160 || height < 160) return
-    if (!graph.value || !currentStory.value) return
-    if (resizeFitTimer) window.clearTimeout(resizeFitTimer)
-    resizeFitTimer = window.setTimeout(() => {
-      graph.value?.fitView()
-    }, 180)
-  })
-  resizeObserver.observe(graphContainer.value)
-}
-
-function fallbackStoryTitle(id) {
-  return getFallbackStoryTitle(graphMode.value, id)
-}
-
 function displayStoryTitle(story) {
   if (!story) return ''
-  return cleanStoryTitle(story.story_title || story.title, story) || fallbackStoryTitle(story.story_id || story.id)
+  return cleanStoryTitle(story.story_title || story.title) || '未命名事件'
 }
 
-function storyResearchLine(story) {
-  if (!story) return ''
-  const parts = [
-    familyLabel(story.family_group || story.event_type || story.meta?.dominant_type),
-    getSummaryCountLabel(graphMode.value, story),
-    formatCountLabel(story.article_count ?? story.meta?.article_count, {
-      unit: '条新闻',
-      unknown: '新闻数未知',
-    }),
-  ].filter(isMeaningfulDisplayValue)
-  return parts.join(' · ')
+function storyDateRange(start, end) {
+  return start || end ? formatRange(start, end).replace(' → ', ' 至 ') : ''
 }
 
-function storyFamilyLabel(story) {
-  const label = familyLabel(story?.family_group || story?.event_type)
-  return isMeaningfulDisplayValue(label) ? label : ''
+function reportCountLabel(count) {
+  return hasCount(count) ? `${count} 条报道` : ''
 }
 
-function storySignalValues(story) {
+function storyLibraryMeta(story) {
   return [
-    hasCount(story?.article_count) ? `${story.article_count} 条新闻` : '',
-    formatRange(story?.start_date, story?.end_date),
-  ].filter(isMeaningfulDisplayValue)
+    storyDateRange(story.start_date, story.end_date),
+    reportCountLabel(story.article_count),
+  ].filter(Boolean).join(' · ')
+}
+
+function nodeCategory(item) {
+  const category = angleLabel(item.storyAngle || item.eventType || item.lane)
+  return isMeaningfulDisplayValue(category) ? category : ''
 }
 
 function evidenceNewsMeta(item) {
   return [
-    item?.source || item?.domain || item?.site_name,
+    item.source_name || item.source || item.domain || item.site_name
+      || new URL(item.safe_url).hostname.replace(/^www\./, ''),
     formatNewsDate(item),
   ].filter(isMeaningfulDisplayValue).join(' · ')
 }
 
 async function renderWorkspaceGraph(requestToken = null, story = currentStory.value) {
-  if (!graphContainer.value || !story) return
+  if (!graphContainer.value || !story || workspaceView.value !== 'graph') return
   if (!reactFlowFactoryPromise) {
     reactFlowFactoryPromise = loadStoryGraphRenderer()
   }
@@ -976,6 +897,7 @@ async function renderWorkspaceGraph(requestToken = null, story = currentStory.va
   if (
     (requestToken !== null && !workspaceRequestGate.isCurrent(requestToken))
     || currentStory.value !== story
+    || workspaceView.value !== 'graph'
   ) return
 
   if (!graph.value) {
@@ -988,7 +910,7 @@ async function renderWorkspaceGraph(requestToken = null, story = currentStory.va
     onSelectInspector: selectInspector,
     onCanvasClick() {
       selectedInspector.value = makeMainInspector(currentStory.value, graphMode.value)
-      selectedClusterDetail.value = null
+      invalidateEvidenceRequest()
       focusPanelOpen.value = false
     },
   })
@@ -1068,9 +990,15 @@ function toggleContextLinks() {
   showContextLinks.value = !showContextLinks.value
 }
 
-async function fitCanvas() {
-  if (!graph.value) return
-  await graph.value.fitView()
+function fitCanvas() {
+  graph.value?.fitView()
+}
+
+function saveCanvasLayout() {
+  if (!graph.value?.saveLayout()) return
+  layoutSaved.value = true
+  if (layoutSavedTimer) window.clearTimeout(layoutSavedTimer)
+  layoutSavedTimer = window.setTimeout(() => { layoutSaved.value = false }, 1500)
 }
 
 function resetAgentState({ keepSession = false } = {}) {
@@ -1287,7 +1215,7 @@ function buildStoryGraphAssistantContext() {
 
   const nodes = (story.nodes || []).slice(0, 18).map((node, index) => {
     const type = node.source_kind === 'l3-chain' ? 'L2支线' : '节点'
-    const title = compactText(cleanStoryTitle(node.label || node.title, node) || node.id, 120)
+    const title = compactText(cleanStoryTitle(node.label || node.title) || node.id, 120)
     const family = familyLabel(node.lane || node.story_angle || node.event_type || node.event_family)
     const dates = formatRange(node.start_date, node.end_date)
     const evidence = evidenceLevel(node.article_count)
@@ -1305,7 +1233,7 @@ function buildStoryGraphAssistantContext() {
   })
 
   const branches = branchStories.value.slice(0, 10).map((item, index) => {
-    const title = compactText(cleanStoryTitle(item.title, item) || item.story_id, 110)
+    const title = compactText(cleanStoryTitle(item.title) || item.story_id, 110)
     return `${index + 1}. ${title}；${relationLabel(item)}；${formatRange(item.start_date, item.end_date)}；${evidenceLevel(item.article_count)}`
   })
 
@@ -1368,7 +1296,7 @@ function buildStoryGraphAssistantContext() {
 function findStoryNodeTitle(nodeId) {
   const id = String(nodeId || '')
   const node = (currentStory.value?.nodes || []).find((item) => String(item.id) === id)
-  return compactText(cleanStoryTitle(node?.label || node?.title, node) || id || '未知节点', 80)
+  return cleanStoryTitle(node?.label || node?.title) || '未命名事件'
 }
 
 function compactText(value, max = 160) {
@@ -1401,1118 +1329,719 @@ function clampText(value, max = 11000) {
 
 <style scoped>
 .intel-page {
-  --nav-offset: 72px;
-  --bg: #f4f7fa;
-  --paper: rgba(252, 254, 255, 0.96);
-  --paper-soft: rgba(243, 248, 252, 0.92);
-  --paper-strong: rgba(255, 255, 255, 0.97);
-  --paper-muted: rgba(232, 240, 247, 0.78);
-  --panel: rgba(250, 253, 255, 0.93);
-  --panel-strong: rgba(250, 253, 255, 0.97);
-  --stroke: rgba(43, 83, 119, 0.26);
-  --stroke-strong: rgba(31, 113, 184, 0.58);
-  --text: #10243c;
-  --muted: #5b7085;
-  --soft: #2b4c6a;
-  --accent: #1f7bbd;
-  --accent-2: #0f8d9d;
-  --amber: #2563eb;
-  --walnut: #174a72;
-  --copper: #256ea8;
-  --sage: #4f88a8;
-  --navy: #10243c;
-  --panel-radius: 8px;
+  --text: #16243a;
+  --muted: #506175;
+  --accent: #1c568d;
+  --tint: #eaf1f8;
+  --rule: #e1e7ee;
+  --sidebar: #f7f9fb;
   position: relative;
-  min-height: 100vh;
-  height: 100vh;
-  padding-top: var(--nav-offset);
-  background-color: var(--bg);
-  background-image:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(241, 246, 250, 0.78)),
-    radial-gradient(circle at 12% 0%, rgba(110, 166, 208, 0.08), transparent 32%),
-    radial-gradient(circle at 86% 12%, rgba(48, 132, 185, 0.06), transparent 30%),
-    repeating-linear-gradient(135deg, rgba(67, 116, 157, 0.024) 0 1px, transparent 1px 18px);
-  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
-  background-size:
-    auto,
-    auto,
-    auto,
-    220px 220px;
-  color: var(--text);
-  font-family:
-    'Noto Sans CJK SC', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   display: flex;
   flex-direction: column;
+  height: 100dvh;
+  padding-top: 72px;
   overflow: hidden;
-}
-
-.intel-page::before,
-.intel-page::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-}
-
-.intel-page::before {
-  opacity: 0.32;
-  background-image:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.56),
-      rgba(235, 243, 250, 0.1) 36%,
-      rgba(62, 123, 171, 0.045)
-    ),
-    repeating-linear-gradient(0deg, rgba(37, 91, 135, 0.018) 0 1px, transparent 1px 34px),
-    repeating-linear-gradient(90deg, rgba(37, 91, 135, 0.014) 0 1px, transparent 1px 34px),
-    repeating-linear-gradient(
-      114deg,
-      transparent 0 132px,
-      rgba(71, 128, 174, 0.028) 132px 190px,
-      transparent 190px 340px
-    );
-  background-size:
-    auto,
-    34px 34px,
-    34px 34px,
-    340px 340px;
-}
-
-.intel-page::after {
-  opacity: 0.07;
-  background-image:
-    linear-gradient(rgba(25, 82, 128, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(25, 82, 128, 0.016) 1px, transparent 1px);
-  background-size: 32px 32px;
+  background: #fff;
+  color: var(--text);
+  font-family: Inter, 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .intel-topbar {
-  position: relative;
-  z-index: 1;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 18px;
-  padding: 12px 20px 10px;
-  border-bottom: 1px solid var(--stroke);
-  background: rgba(252, 254, 255, 0.93);
-  backdrop-filter: blur(14px);
-}
-
-.intel-topbar__brand {
-  display: flex;
-  align-items: flex-start;
-  gap: 18px;
-}
-
-.intel-kicker {
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--amber);
-  padding-top: 6px;
-  font-weight: 900;
+  gap: 8px 24px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--rule);
 }
 
 .intel-topbar h1 {
   margin: 0;
-  font-size: clamp(24px, 2.1vw, 34px);
-  letter-spacing: 0;
-  line-height: 1.08;
-  font-weight: 900;
+  font-size: 26px;
+  font-weight: 750;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
-.intel-topbar p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 13px;
+.intel-topbar__meta,
+.intel-mode-switch,
+.intel-view-switch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .intel-topbar__meta {
-  display: flex;
-  margin-left: auto;
-  max-width: 100%;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  gap: 16px;
 }
 
 .intel-mode-switch {
-  display: inline-flex;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--stroke);
-  border-radius: var(--panel-radius);
-  background: rgba(244, 248, 252, 0.94);
+  padding: 3px;
+  background: var(--sidebar);
+  border-radius: 8px;
 }
 
 .intel-mode-switch button {
   min-width: 44px;
   min-height: 44px;
+  padding: 0 12px;
+}
+
+.intel-mode-switch button,
+.intel-view-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
-  padding: 9px 11px;
-  font-size: 12px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.intel-mode-switch button.is-active {
-  background: var(--navy);
-  color: #fff;
-}
-
-.intel-chip {
-  border: 1px solid var(--stroke);
-  background: var(--paper-strong);
-  color: #314352;
-  border-radius: var(--panel-radius);
-  padding: 7px 10px;
-  font-size: 12px;
-  line-height: 1;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
   white-space: nowrap;
-}
-
-.intel-chip--signal {
-  border-color: rgba(38, 126, 173, 0.32);
-  background: rgba(219, 240, 252, 0.9);
-  color: #235f86;
-}
-
-.intel-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.intel-chip--action {
   cursor: pointer;
+}
+
+.intel-mode-switch button[aria-pressed='true'] {
+  color: #fff;
+  background: var(--text);
+}
+
+.intel-view-switch button {
+  min-height: 44px;
+  padding: 0 10px;
+}
+
+.intel-view-switch button:hover,
+.intel-view-switch button[aria-pressed='true'] {
+  background: var(--tint);
+  color: var(--accent);
 }
 
 .intel-shell {
-  position: relative;
-  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(220px, 270px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: clamp(280px, 20vw, 340px) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  align-items: stretch;
-  gap: 10px;
-  padding: 10px 12px 12px;
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  overflow: hidden;
 }
 
 .intel-shell.is-left-collapsed {
-  grid-template-columns: 0 minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.intel-side {
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
-  transition:
-    width 180ms ease,
-    opacity 180ms ease;
-}
-
-.intel-side.is-collapsed {
-  width: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.intel-panel,
-.intel-canvas-panel {
-  border: 1px solid var(--stroke);
-  background: var(--panel);
-  backdrop-filter: blur(18px);
-  box-shadow:
-    0 18px 44px rgba(24, 67, 106, 0.14),
-    0 4px 12px rgba(24, 67, 106, 0.1);
-  border-radius: var(--panel-radius);
-  min-height: 0;
-}
-
-.intel-panel {
-  height: 100%;
-  max-height: 100%;
-  background: rgba(252, 254, 255, 0.93);
-  padding: 15px;
+.intel-library {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 14px 0;
+  background: var(--sidebar);
+  border-right: 1px solid var(--rule);
 }
 
-.intel-panel__header {
+.intel-library__header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
+  padding-left: 10px;
 }
 
-.intel-panel__eyebrow {
-  display: block;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: var(--amber);
-  margin-bottom: 4px;
-}
-
-.intel-panel__header h2 {
+.intel-library__header h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 16px;
   font-weight: 700;
 }
 
-.intel-icon-btn,
-.intel-btn {
-  min-height: 44px;
-  border: 1px solid var(--stroke);
-  background: var(--paper-strong);
-  color: var(--navy);
-  border-radius: var(--panel-radius);
-  padding: 10px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  transition:
-    transform 120ms ease,
-    border-color 120ms ease,
-    background 120ms ease;
-}
-
-.intel-icon-btn {
-  padding: 10px 12px;
-  min-width: 44px;
-}
-
-.intel-btn:hover,
-.intel-icon-btn:hover,
-.intel-story-card:hover,
-.intel-related-card:hover {
-  transform: translateY(-1px);
-  border-color: rgba(31, 123, 189, 0.42);
-}
-
-.intel-btn:disabled,
-.intel-icon-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-  transform: none;
-}
-
-.intel-btn--ghost {
-  background: var(--paper-soft);
-}
-
-.intel-btn--assistant {
-  border-color: rgba(31, 123, 189, 0.32);
-  background: linear-gradient(135deg, rgba(31, 123, 189, 0.16), rgba(99, 179, 237, 0.12));
-  color: var(--navy);
-  font-weight: 900;
-}
-
-.intel-assistant-fab {
-  position: fixed;
-  right: 28px;
-  bottom: 28px;
-  z-index: 1200;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 0 18px 0 12px;
-  border: 1px solid rgba(31, 123, 189, 0.28);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--navy);
-  box-shadow:
-    0 16px 36px rgba(15, 23, 42, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.72) inset;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  transition:
-    transform 0.16s ease,
-    box-shadow 0.16s ease,
-    border-color 0.16s ease;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
-.intel-assistant-fab span {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #63b3ed);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.intel-assistant-fab strong {
-  font-size: 14px;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-.intel-assistant-fab:hover {
-  transform: translateY(-2px);
-}
-
-.intel-assistant-fab.is-dragging {
-  cursor: grabbing;
-  transform: scale(1.02);
-  border-color: rgba(31, 123, 189, 0.52);
-  box-shadow:
-    0 20px 44px rgba(15, 23, 42, 0.26),
-    0 0 0 1px rgba(255, 255, 255, 0.86) inset;
-  transition: none;
-}
-
-.intel-assistant-fab:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-  transform: none;
-}
-
-@media (min-width: 1101px) {
-  .intel-topbar__brand {
-    max-width: min(520px, 42vw);
-  }
-
-  .intel-topbar__meta {
-    flex: 1 1 auto;
-  }
-
-  .intel-topbar__assistant {
-    display: none;
-  }
-}
-
-.intel-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-}
-
-.intel-section--library {
-  flex: 1;
-}
-
-.intel-section--related {
-  min-height: 0;
-}
-
-.intel-section__title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: var(--soft);
-  font-size: 13px;
-  letter-spacing: 0;
-  font-weight: 800;
-}
-
-.intel-label {
-  font-size: 12px;
-  letter-spacing: 0;
+.intel-library__header h2 span {
+  margin-left: 5px;
   color: var(--muted);
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
-.intel-input,
-.intel-textarea {
-  width: 100%;
-  border: 1px solid var(--stroke);
-  background: var(--paper-strong);
-  color: var(--text);
-  border-radius: var(--panel-radius);
-  padding: 12px 14px;
-  font-size: 14px;
-  outline: none;
-}
-
-.intel-input:focus,
-.intel-textarea:focus {
-  border-color: rgba(39, 124, 139, 0.42);
-  box-shadow: 0 0 0 3px rgba(39, 124, 139, 0.12);
-}
-
-.intel-textarea {
-  resize: vertical;
-  min-height: 118px;
-}
-
-.intel-story-list,
-.intel-related-list {
-  min-height: 0;
-  overflow: auto;
+.intel-search {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 8px;
-  padding-right: 4px;
+  min-height: 44px;
+  margin: 5px 4px 12px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: #eaf0f5;
+  color: var(--muted);
+}
+
+.intel-search:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.intel-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.intel-search input::placeholder {
+  color: var(--muted);
 }
 
 .intel-story-list {
-  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 18px;
+  scrollbar-width: thin;
 }
 
-.intel-related-list {
-  max-height: 26vh;
-}
-
-.intel-story-card,
-.intel-related-card {
-  border: 1px solid var(--stroke);
-  background: var(--paper);
+.intel-story-row {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--text);
-  border-radius: var(--panel-radius);
-  padding: 10px 12px;
   text-align: left;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  box-shadow: 0 8px 18px rgba(24, 67, 106, 0.07);
-  transition:
-    transform 140ms ease,
-    border-color 140ms ease,
-    box-shadow 140ms ease,
-    background 140ms ease;
 }
 
-.intel-story-card.is-active {
-  border-color: rgba(31, 123, 189, 0.64);
-  background: rgba(226, 242, 255, 0.96);
-  box-shadow:
-    inset 4px 0 0 rgba(31, 123, 189, 0.86),
-    0 12px 24px rgba(24, 67, 106, 0.12);
+.intel-story-row:hover,
+.intel-story-row[aria-current='true'] {
+  background: var(--tint);
 }
 
-.intel-story-card__top,
-.intel-related-card__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0;
-  font-weight: 800;
+.intel-story-row[aria-current='true']::before {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  content: '';
 }
 
-.intel-story-card__signals,
-.intel-research-strip {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.intel-story-card__signals span,
-.intel-research-strip span {
-  min-width: 0;
-  border: 1px solid rgba(52, 91, 128, 0.12);
-  border-radius: 6px;
-  background: rgba(245, 250, 254, 0.72);
-  padding: 6px 7px;
-  color: var(--soft);
-  font-size: 10.5px;
-  font-weight: 900;
-  line-height: 1.25;
+.intel-story-row strong {
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.38;
 }
 
-.intel-story-card__signals span:first-child {
-  background: rgba(31, 123, 189, 0.12);
-  color: #174a72;
-}
-
-.intel-story-card strong,
-.intel-related-card strong,
-.intel-summary-card strong,
-.intel-evidence-item strong {
-  font-size: 14px;
-  line-height: 1.34;
-}
-
-.intel-story-card small,
-.intel-related-card small,
-.intel-summary-card p,
-.intel-evidence-item small {
+.intel-story-row small,
+.intel-workspace__title p,
+.intel-timeline__row small,
+.intel-focus-sheet__header p,
+.intel-focus-news small {
   color: var(--muted);
   font-size: 12px;
-  line-height: 1.35;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
 }
 
-.intel-summary-card {
-  border: 1px solid var(--stroke);
-  background: var(--paper);
-  border-radius: var(--panel-radius);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 10px 22px rgba(24, 67, 106, 0.08);
+.intel-branches h3 {
+  margin: 16px 10px 5px;
+  font-size: 13px;
 }
 
-.intel-research-strip {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.intel-research-strip label {
-  display: block;
-  margin-bottom: 3px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.intel-research-strip strong {
-  display: block;
-  font-size: 12px;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.intel-canvas-panel {
+.intel-workspace {
   position: relative;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   min-height: 0;
-  overflow: hidden;
-  padding: 58px 12px 18px;
+  isolation: isolate;
+}
+
+.intel-workspace__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding: 22px 28px 16px;
+}
+
+.intel-workspace__title {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+
+.intel-workspace__title h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 24px;
+  font-weight: 720;
+  line-height: 1.2;
+}
+
+.intel-workspace__title p {
+  margin: 8px 0 0;
+}
+
+.intel-graph {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #f6f8fa;
 }
 
 .intel-canvas {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  background-color: #f6f9fc;
-  background-image:
-    repeating-linear-gradient(0deg, rgba(43, 101, 150, 0.07) 0 1px, transparent 1px 42px),
-    repeating-linear-gradient(90deg, rgba(43, 101, 150, 0.055) 0 1px, transparent 1px 42px),
-    radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.72), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(239, 246, 252, 0.72));
-  background-repeat: repeat, repeat, no-repeat, no-repeat;
-  background-size:
-    42px 42px,
-    42px 42px,
-    auto,
-    auto;
 }
 
-.intel-canvas-toolbar,
-.intel-footerbar {
+.intel-graph-tools {
   position: absolute;
-  left: 18px;
+  top: 12px;
+  right: 16px;
   z-index: 5;
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  max-width: calc(100% - 32px);
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(31, 48, 67, 0.08);
+}
+
+.intel-icon-btn,
+.intel-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
 }
 
-.intel-canvas-toolbar {
-  top: 16px;
-  right: 18px;
+.intel-icon-btn {
+  flex: none;
+  min-width: 44px;
+  padding: 0;
+  color: var(--muted);
 }
 
-.intel-footerbar {
-  bottom: 18px;
-  right: auto;
-  width: min(620px, calc(100% - 320px));
-  min-width: min(500px, calc(100% - 36px));
-  padding: 12px 14px;
-  background: var(--paper-strong);
-  border: 1px solid var(--stroke);
-  border-radius: var(--panel-radius);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 16px 34px rgba(24, 67, 106, 0.16);
+.intel-btn {
+  padding: 0 11px;
 }
 
-.intel-footerbar__focus {
-  display: flex;
-  flex-direction: column;
+.intel-icon-btn:hover,
+.intel-icon-btn[aria-pressed='true'],
+.intel-btn:hover,
+.intel-evidence-link:hover,
+.intel-side-toggle:hover {
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.intel-btn--primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.intel-btn--primary:hover {
+  background: #154779;
+  color: #fff;
+}
+
+.intel-side-toggle {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 7px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 8px 0 0 18px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.intel-timeline {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 28px 72px;
+  overflow: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.intel-timeline__event {
+  border-top: 1px solid var(--rule);
+}
+
+.intel-timeline__row {
+  display: grid;
+  grid-template-columns: minmax(100px, 164px) minmax(0, 1fr) 17px;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 70px;
+  padding: 12px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.intel-timeline__row:hover {
+  background: var(--sidebar);
+  color: var(--accent);
+}
+
+.intel-timeline__date {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.intel-timeline__body {
+  display: grid;
   gap: 4px;
   min-width: 0;
 }
 
-.intel-footerbar__label {
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-
-.intel-footerbar__focus strong {
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.intel-footerbar__focus small,
-.intel-footerbar__legend {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.intel-footerbar__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: flex-end;
-  min-width: 210px;
+.intel-timeline__body strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 660;
+  line-height: 1.4;
 }
 
 .intel-focus-sheet {
   position: absolute;
-  right: 18px;
-  top: 72px;
-  bottom: auto;
   z-index: 7;
-  width: min(620px, calc(100% - 36px));
-  max-height: calc(100% - 90px);
+  inset: 0 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid rgba(50, 94, 132, 0.32);
-  border-radius: 12px;
-  background: rgba(252, 254, 255, 0.96);
-  box-shadow:
-    0 34px 82px rgba(21, 64, 102, 0.24),
-    0 10px 26px rgba(21, 64, 102, 0.14),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(18px);
+  gap: 20px;
+  width: min(440px, 100%);
   overflow: auto;
+  overscroll-behavior: contain;
+  padding: 22px 22px 90px;
+  background: #fff;
+  border-left: 1px solid var(--rule);
+  box-shadow: -8px 0 28px rgba(31, 48, 67, 0.1);
+  scrollbar-width: thin;
 }
 
 .intel-focus-sheet__header {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  gap: 14px;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.intel-focus-sheet__eyebrow {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--copper);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.intel-focus-sheet h3 {
+.intel-focus-sheet__header h3 {
   margin: 0;
-  font-size: 18px;
-  line-height: 1.25;
+  overflow-wrap: anywhere;
+  font-size: 20px;
+  font-weight: 720;
+  line-height: 1.35;
 }
 
-.intel-focus-sheet p {
-  margin: 6px 0 0;
+.intel-focus-sheet__header p {
+  margin: 8px 0 0;
+}
+
+.intel-focus-sheet__header .intel-icon-btn {
+  margin: -8px -8px 0 0;
+}
+
+.intel-focus-details {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.intel-focus-details dt {
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12px;
 }
 
-.intel-focus-sheet__chips,
-.intel-focus-sheet__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.intel-focus-details dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
 }
 
-.intel-focus-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.intel-focus-news h4 {
+  margin: 0 0 9px;
+  font-size: 14px;
+  font-weight: 700;
 }
 
-.intel-focus-section__title {
+.intel-focus-news ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.intel-focus-news li {
+  border-top: 1px solid var(--rule);
+}
+
+.intel-focus-news a {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
-  color: var(--soft);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.intel-focus-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.intel-focus-detail-grid div {
-  min-width: 0;
-  border: 1px solid rgba(52, 91, 128, 0.14);
-  border-radius: var(--panel-radius);
-  background: rgba(245, 250, 254, 0.78);
-  padding: 8px 10px;
-}
-
-.intel-focus-detail-grid label {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--muted);
-  font-size: 10.5px;
-  font-weight: 900;
-}
-
-.intel-focus-detail-grid strong {
-  display: block;
+  min-height: 48px;
+  padding: 10px 0;
   color: var(--text);
-  font-size: 12.5px;
-  line-height: 1.35;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.intel-focus-news a:hover {
+  color: var(--accent);
+}
+
+.intel-focus-news a > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.intel-focus-news {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
+.intel-focus-news a > svg {
+  flex: none;
+  color: var(--accent);
 }
 
-.intel-focus-news__title {
-  display: flex;
-  justify-content: space-between;
-  color: var(--soft);
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.intel-focus-news__list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.intel-focus-news__item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 11px;
-  border: 1px solid rgba(52, 91, 128, 0.14);
-  border-radius: var(--panel-radius);
-  background: rgba(252, 254, 255, 0.94);
-  color: var(--text);
-  text-decoration: none;
-  transition:
-    transform 140ms ease,
-    border-color 140ms ease,
-    box-shadow 140ms ease;
-}
-
-.intel-focus-news__item:hover {
-  transform: translateY(-1px);
-  border-color: rgba(31, 123, 189, 0.4);
-  box-shadow: 0 12px 26px rgba(28, 80, 124, 0.12);
-}
-
-.intel-focus-news__item small {
+.intel-focus-news__status,
+.intel-overlay p {
+  margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 14px;
 }
 
-.intel-focus-news__item strong {
-  display: -webkit-box;
-  font-size: 12.5px;
-  line-height: 1.4;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
+.intel-focus-sheet__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.intel-evidence-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
 }
 
 .focus-sheet-enter-active,
 .focus-sheet-leave-active {
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
+  transition: opacity 150ms ease, transform 150ms ease;
 }
 
 .focus-sheet-enter-from,
 .focus-sheet-leave-to {
   opacity: 0;
-  transform: translate(16px, 14px) scale(0.98);
-}
-
-.legend-swatch {
-  display: inline-block;
-  width: 14px;
-  height: 3px;
-  border-radius: 999px;
-  margin-right: 6px;
-  vertical-align: middle;
-}
-
-.legend-swatch--main {
-  background: #4f8d73;
-}
-
-.legend-swatch--branch {
-  background: #b99a45;
-}
-
-.legend-swatch--context {
-  background: #7e74a8;
+  transform: translateX(12px);
 }
 
 .intel-overlay {
   position: absolute;
-  inset: 76px 24px 96px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 10px;
-  background: var(--paper-strong);
-  border: 1px solid var(--stroke);
-  border-radius: var(--panel-radius);
   z-index: 6;
+  inset: 52px 16px 16px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  background: #f6f8fa;
+  padding: 16px;
+  color: var(--muted);
   text-align: center;
-  padding: 24px;
-}
-
-.intel-overlay--quiet {
-  background: var(--paper-strong);
-}
-
-.intel-overlay--error {
-  background: rgba(255, 232, 231, 0.94);
 }
 
 .intel-spinner {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 3px solid rgba(39, 124, 139, 0.18);
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--rule);
   border-top-color: var(--accent);
+  border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
 
-.intel-evidence-empty,
-.intel-evidence-loading {
-  border: 1px dashed rgba(52, 91, 128, 0.32);
-  background: var(--paper-soft);
-  border-radius: var(--panel-radius);
-  padding: 18px;
-  color: var(--muted);
-}
-
-.intel-detail-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
-.intel-detail-grid label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-}
-
-.intel-evidence-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-decoration: none;
-  color: var(--text);
-  border: 1px solid var(--stroke);
-  background: var(--paper);
-  border-radius: var(--panel-radius);
-  padding: 14px;
-}
-
-.intel-evidence-link {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  width: max-content;
-  margin-top: 10px;
-  border: 1px solid rgba(31, 123, 189, 0.36);
-  border-radius: var(--panel-radius);
-  padding: 9px 11px;
-  background: rgba(222, 240, 254, 0.92);
-  color: var(--walnut);
-  font-size: 13px;
-  font-weight: 900;
-  text-decoration: none;
-}
-
-.intel-evidence-button {
-  cursor: pointer;
-}
-
-.intel-side-toggle {
-  min-width: 44px;
-  min-height: 44px;
+.intel-visually-hidden {
   position: absolute;
-  top: 50%;
-  z-index: 6;
-  transform: translateY(-50%);
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  border: 1px solid var(--stroke);
-  background: var(--paper-strong);
-  color: var(--soft);
-  padding: 12px 10px;
-  border-radius: var(--panel-radius);
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.intel-assistant-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 18px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px 6px 7px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 3px 14px rgba(31, 48, 67, 0.15);
+  font: inherit;
+  font-size: 13px;
+  touch-action: none;
+  user-select: none;
   cursor: pointer;
 }
 
-.intel-side-toggle--left {
-  left: 12px;
+.intel-assistant-fab span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.intel-assistant-fab.is-dragging {
+  cursor: grabbing;
+}
+
+.intel-page button:focus-visible,
+.intel-page a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
-@media (max-width: 1400px) {
+@media (max-width: 1060px) {
   .intel-shell {
-    grid-template-columns: 280px minmax(0, 1fr);
-    gap: 8px;
-    padding: 8px;
+    grid-template-columns: minmax(200px, 230px) minmax(0, 1fr);
   }
 
-  .intel-shell.is-left-collapsed {
-    grid-template-columns: 0 minmax(0, 1fr);
-  }
-
-  .intel-topbar h1 {
-    font-size: 28px;
-  }
-
-  .intel-footerbar {
-    width: min(560px, calc(100% - 280px));
+  .intel-workspace__header {
+    align-items: flex-start;
+    padding: 16px 20px 10px;
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 760px) {
   .intel-page {
     height: auto;
-    min-height: 100vh;
-    overflow: auto;
-  }
-
-  .intel-topbar {
-    flex-direction: column;
-  }
-
-  .intel-assistant-fab {
-    top: auto;
-    right: 18px;
-    bottom: 18px;
+    min-height: 100dvh;
+    overflow: visible;
   }
 
   .intel-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(560px, 680px) auto;
-    overflow: visible;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
   }
 
-  .intel-side {
-    display: block;
-    height: auto;
-    max-height: none;
-    overflow: visible;
+  .intel-library {
+    padding: 6px 10px 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
   }
 
-  .intel-side-toggle {
-    display: none;
+  .intel-story-list {
+    max-height: 165px;
+    padding-bottom: 6px;
   }
 
-  .intel-panel {
-    max-height: 620px;
+  .intel-workspace {
+    height: max(530px, calc(100dvh - 180px));
   }
 
-  .intel-story-list,
-  .intel-related-list {
-    max-height: 360px;
+  .intel-timeline {
+    padding-inline: 16px;
   }
 
-  .intel-canvas-panel {
-    min-height: 680px;
-    padding-bottom: 96px;
+  .intel-timeline__row {
+    grid-template-columns: minmax(0, 1fr) 17px;
+    gap: 4px 10px;
   }
 
-  .intel-footerbar {
-    width: auto;
-    min-width: 0;
-    right: 18px;
+  .intel-timeline__date {
+    grid-column: 1;
   }
 
-  .intel-focus-sheet {
-    top: 80px;
-    left: 18px;
-    right: 18px;
-    width: auto;
+  .intel-timeline__body {
+    grid-column: 1;
   }
 
-  .intel-focus-news__list,
-  .intel-focus-detail-grid {
-    grid-template-columns: 1fr;
+  .intel-timeline__row > svg {
+    grid-column: 2;
+    grid-row: 1 / span 2;
   }
 }
 
 @media (max-width: 640px) {
   .intel-topbar {
-    gap: 12px;
-    padding: 14px 12px 12px;
+    padding: 10px 12px;
   }
 
   .intel-topbar__brand {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    width: 100%;
-    gap: 4px;
-  }
-
-  .intel-kicker {
-    padding-top: 0;
-  }
-
-  .intel-topbar__brand > div {
-    min-width: 0;
   }
 
   .intel-topbar h1 {
-    font-size: 24px;
-    overflow-wrap: anywhere;
+    font-size: 22px;
   }
 
   .intel-topbar__meta {
     width: 100%;
-    min-width: 0;
-    justify-content: flex-start;
+    gap: 6px;
   }
 
   .intel-mode-switch {
@@ -2520,43 +2049,46 @@ function clampText(value, max = 11000) {
   }
 
   .intel-mode-switch button {
-    flex: 1 1 50%;
+    flex: 1;
+    padding-inline: 6px;
   }
 
-  .intel-chip {
-    max-width: 100%;
-    line-height: 1.35;
-    white-space: normal;
-    overflow-wrap: anywhere;
+  .intel-research-link {
+    flex: none;
+    padding-inline: 6px;
   }
 
-  .intel-topbar__meta > .intel-btn {
-    flex: 1 1 calc(50% - 5px);
-    min-width: 0;
+  .intel-workspace__header {
+    padding-inline: 16px;
   }
 
-  .intel-shell {
-    gap: 6px;
-    padding: 6px;
+  .intel-workspace__title h2 {
+    font-size: 20px;
   }
 
-  .intel-panel {
-    padding: 12px;
-  }
-
-  .intel-canvas-panel {
-    min-height: 620px;
-  }
-
-  .intel-footerbar {
-    left: 10px;
+  .intel-graph-tools {
     right: 10px;
+    max-width: calc(100% - 20px);
+  }
+
+  .intel-side-toggle {
+    margin-left: 6px;
+  }
+
+  .intel-focus-sheet {
+    padding-inline: 16px;
   }
 
   .intel-assistant-fab {
     right: 12px;
     bottom: 12px;
-    padding-right: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-sheet-enter-active,
+  .focus-sheet-leave-active {
+    transition: none;
   }
 }
 </style>

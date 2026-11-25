@@ -45,15 +45,16 @@ export function normalizeL2ChainSummary(chain) {
 export function transformL3MacroResponse(payload) {
   const macro = payload.macro || {}
   const macroId = String(macro.macro_id || payload.macro_id || '')
+  const storyTitle = cleanStoryTitle(macro.title) || '未命名大事件'
   const rawNodes = payload.nodes || []
   const storyNodes = rawNodes.map((node, index) => ({
     id: node.l2_chain_id || `l3-node-${index + 1}`,
     l2_chain_id: node.l2_chain_id,
     source_kind: 'l3-chain',
     story_id: macroId,
-    story_title: cleanStoryTitle(macro.title, macro) || macroId,
+    story_title: storyTitle,
     story_role: 'primary',
-    label: cleanStoryTitle(node.title, node) || `L2 节点 ${index + 1}`,
+    label: cleanStoryTitle(node.display_title || node.title) || '未命名事件',
     event_type: node.lane || node.family_group || node.event_family || 'macro_event',
     story_angle: node.lane,
     lane: node.lane,
@@ -103,7 +104,7 @@ export function transformL3MacroResponse(payload) {
   return {
     source: 'l3-macro',
     story_id: macroId,
-    story_title: cleanStoryTitle(macro.title, macro) || macroId,
+    story_title: storyTitle,
     start_date: macro.start_date,
     end_date: macro.end_date,
     nodes: storyNodes,
@@ -135,15 +136,16 @@ export function transformL3MacroResponse(payload) {
 export function transformL2ChainResponse(payload) {
   const chain = payload.chain || {}
   const chainId = String(chain.chain_id || payload.chain_id || '')
+  const storyTitle = cleanStoryTitle(chain.title) || '未命名事件链'
   const rawNodes = payload.nodes || []
   const storyNodes = rawNodes.map((node, index) => ({
     id: node.segment_id || `segment-${index + 1}`,
     segment_id: node.segment_id,
     source_kind: 'l2-segment',
     story_id: chainId,
-    story_title: cleanStoryTitle(chain.title, chain) || chainId,
+    story_title: storyTitle,
     story_role: 'primary',
-    label: cleanStoryTitle(node.title, node) || `节点 ${index + 1}`,
+    label: cleanStoryTitle(node.display_title || node.title) || '未命名事件',
     event_type: node.story_angle || node.event_action || node.event_family || 'event',
     story_angle: node.story_angle,
     event_family: node.event_family,
@@ -194,7 +196,7 @@ export function transformL2ChainResponse(payload) {
   return {
     source: 'l2-chain',
     story_id: chainId,
-    story_title: cleanStoryTitle(chain.title, chain) || chainId,
+    story_title: storyTitle,
     start_date: chain.start_date,
     end_date: chain.end_date,
     nodes: storyNodes,

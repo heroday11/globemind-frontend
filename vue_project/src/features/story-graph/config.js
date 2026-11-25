@@ -2,7 +2,7 @@ export const L2_RUN_ID = 'fast_l2_v1'
 export const L3_RUN_ID = 'fast_l3_v1'
 
 export const FIT_VIEW_OPTIONS = { padding: 0.12, duration: 0 }
-export const INITIAL_FIT_VIEW_OPTIONS = { padding: 0.04, duration: 0, maxNodes: 18 }
+export const INITIAL_FIT_VIEW_OPTIONS = { initial: true }
 export const STORAGE_KEY_PREFIX = 'globemind:story-graph-layout:v2:'
 
 export const VISIBLE_HANDLE_STYLE = {

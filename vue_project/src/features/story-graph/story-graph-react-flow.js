@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import ReactFlow, {
+  applyEdgeChanges,
+  applyNodeChanges,
   Background,
   BaseEdge,
-  EdgeLabelRenderer,
   getNodesBounds,
   Handle,
   MarkerType,
   MiniMap,
-  Panel,
   Position,
   getBezierPath,
 } from 'reactflow'
@@ -61,6 +61,8 @@ export function createStoryGraphRenderer(container) {
   const root = createRoot(container)
   const api = {
     fitView: null,
+    zoomIn: null,
+    zoomOut: null,
     autoLayout: null,
     saveLayout: null,
   }
@@ -72,6 +74,8 @@ export function createStoryGraphRenderer(container) {
           ...props,
           onReady(nextApi) {
             api.fitView = nextApi.fitView
+            api.zoomIn = nextApi.zoomIn
+            api.zoomOut = nextApi.zoomOut
             api.autoLayout = nextApi.autoLayout
             api.saveLayout = nextApi.saveLayout
           },
@@ -81,14 +85,22 @@ export function createStoryGraphRenderer(container) {
     fitView(options) {
       api.fitView?.(options || FIT_VIEW_OPTIONS)
     },
+    zoomIn() {
+      api.zoomIn?.()
+    },
+    zoomOut() {
+      api.zoomOut?.()
+    },
     autoLayout() {
       api.autoLayout?.()
     },
     saveLayout() {
-      api.saveLayout?.()
+      return api.saveLayout?.()
     },
     destroy() {
       api.fitView = null
+      api.zoomIn = null
+      api.zoomOut = null
       api.autoLayout = null
       api.saveLayout = null
       root.unmount()
@@ -107,13 +119,12 @@ function StoryGraphCanvas({
   const [instance, setInstance] = useState(null)
   const [manualPositions, setManualPositions] = useState({})
   const [nodes, setNodes] = useState([])
-  const [saveState, setSaveState] = useState('idle')
+  const [edges, setEdges] = useState([])
   const didAutoFitRef = useRef(false)
   const storageKey = `${STORAGE_KEY_PREFIX}${storyGraph?.story_id || 'unknown'}`
 
   useEffect(() => {
     setManualPositions(readSavedLayout(storageKey))
-    setSaveState('idle')
     didAutoFitRef.current = false
   }, [storageKey])
 
@@ -125,6 +136,7 @@ function StoryGraphCanvas({
 
   useEffect(() => {
     setNodes(model.nodes)
+    setEdges(model.edges)
   }, [model])
 
   useEffect(() => {
@@ -176,25 +188,25 @@ function StoryGraphCanvas({
           options || FIT_VIEW_OPTIONS,
         )
       },
+      zoomIn() {
+        instance.zoomIn({ duration: 160 })
+      },
+      zoomOut() {
+        instance.zoomOut({ duration: 160 })
+      },
       autoLayout() {
+        didAutoFitRef.current = false
         setManualPositions({})
         clearSavedLayout(storageKey)
-        setSaveState('idle')
       },
       saveLayout() {
         const nextLayout = collectEventNodePositions(nodes)
-        writeSavedLayout(storageKey, nextLayout)
+        if (!writeSavedLayout(storageKey, nextLayout)) return false
         setManualPositions(nextLayout)
-        setSaveState('saved')
+        return true
       },
     })
   }, [eventNodes, instance, nodes, onReady, storageKey])
-
-  useEffect(() => {
-    if (saveState !== 'saved') return
-    const timer = window.setTimeout(() => setSaveState('idle'), 1400)
-    return () => window.clearTimeout(timer)
-  }, [saveState])
 
   function handleNodeDrag(_event, draggedNode) {
     if (draggedNode.type !== 'eventNode') return
@@ -222,20 +234,6 @@ function StoryGraphCanvas({
         y: draggedNode.position.y,
       },
     }))
-    setSaveState('dirty')
-  }
-
-  function handleSaveLayout() {
-    const nextLayout = collectEventNodePositions(nodes)
-    writeSavedLayout(storageKey, nextLayout)
-    setManualPositions(nextLayout)
-    setSaveState('saved')
-  }
-
-  function handleAutoLayout() {
-    setManualPositions({})
-    clearSavedLayout(storageKey)
-    setSaveState('idle')
   }
 
   return h(
@@ -245,7 +243,15 @@ function StoryGraphCanvas({
       ReactFlow,
       {
         nodes,
-        edges: model.edges,
+        edges,
+        onNodesChange(changes) {
+          const selection = changes.filter((change) => change.type === 'select')
+          if (selection.length) setNodes((current) => applyNodeChanges(selection, current))
+        },
+        onEdgesChange(changes) {
+          const selection = changes.filter((change) => change.type === 'select')
+          if (selection.length) setEdges((current) => applyEdgeChanges(selection, current))
+        },
         nodeTypes,
         edgeTypes,
         minZoom: 0.08,
@@ -300,54 +306,22 @@ function StoryGraphCanvas({
       [
         h(Background, {
           key: 'background',
-          gap: 30,
-          size: 1.1,
-          color: 'rgba(168, 193, 226, 0.15)',
+          gap: 24,
+          size: 1,
+          color: '#cdd7e2',
           variant: 'dots',
         }),
         h(MiniMap, {
           key: 'minimap',
-          position: 'top-left',
+          position: 'bottom-left',
           pannable: true,
           zoomable: true,
           className: 'story-rf-minimap',
           nodeStrokeWidth: 0,
           nodeColor(node) {
-            return node.data?.miniColor || 'rgba(97, 120, 148, 0.2)'
+            return node.data?.miniColor || 'transparent'
           },
         }),
-        h(
-          Panel,
-          {
-            key: 'toolbar',
-            position: 'top-right',
-            className: 'story-rf-toolbar',
-          },
-          [
-            h(
-              'button',
-              {
-                key: 'save',
-                type: 'button',
-                className: ['story-rf-toolbar__button', saveState === 'saved' ? 'is-saved' : '']
-                  .join(' ')
-                  .trim(),
-                onClick: handleSaveLayout,
-              },
-              saveState === 'saved' ? '已保存' : '保存',
-            ),
-            h(
-              'button',
-              {
-                key: 'layout',
-                type: 'button',
-                className: 'story-rf-toolbar__button is-primary',
-                onClick: handleAutoLayout,
-              },
-              '自动布局',
-            ),
-          ],
-        ),
       ],
     ),
   )
@@ -361,9 +335,7 @@ function StoryEventNode({ data, selected }) {
         .join(' ')
         .trim(),
       style: {
-        '--event-fill': data.fill,
         '--event-stroke': data.stroke,
-        '--event-shadow': data.shadow,
         width: `${data.width}px`,
         height: `${data.height}px`,
       },
@@ -378,22 +350,10 @@ function StoryEventNode({ data, selected }) {
       renderHandle('source', 'top', Position.Top, false),
       renderHandle('source', 'bottom', Position.Bottom, false),
       h('div', { className: 'story-rf-event__shell' }, [
-        h(
-          'div',
-          { className: 'story-rf-event__type' },
-          data.sequenceLabel
-            ? `${data.sequenceLabel} · ${data.eventTypeLabel}`
-            : data.eventTypeLabel,
-        ),
-        h('div', { className: 'story-rf-event__title' }, data.title),
-        data.timeLabel ? h('div', { className: 'story-rf-event__time' }, data.timeLabel) : null,
-        h(
-          'div',
-          { className: 'story-rf-event__meta' },
-          data.metaText || formatCountLabel(data.articleCount, {
-            unit: '条新闻',
-            unknown: '新闻数未知',
-          }),
+        h('div', { className: 'story-rf-event__type' }, data.eventTypeLabel),
+        h('div', { className: 'story-rf-event__title', title: data.title }, data.title),
+        h('div', { className: 'story-rf-event__meta' },
+          [data.timeLabel, data.articleLabel].filter(Boolean).join(' · '),
         ),
       ]),
     ],
@@ -460,45 +420,24 @@ function IntelEdge(props) {
     sourcePosition,
     targetPosition,
   }
-  const [path, labelX, labelY] = getBezierPath({
+  const [path] = getBezierPath({
     ...pathArgs,
     curvature: data.curvature ?? (data.layer === 'context' ? 0.36 : 0.24),
   })
 
-  const label = data.label && data.layer !== 'context' ? data.label : null
-
-  return h(React.Fragment, null, [
-    h(BaseEdge, {
-      key: `${id}-path`,
-      id,
-      path,
-      markerEnd,
-      className,
-      interactionWidth: 44,
-      style: {
-        stroke: data.stroke,
-        strokeWidth: data.strokeWidth,
-        strokeDasharray: data.dashArray,
-        opacity: data.opacity,
-      },
-    }),
-    label
-      ? h(
-          EdgeLabelRenderer,
-          { key: `${id}-label` },
-          h(
-            'div',
-            {
-              className: 'story-rf-edge-label',
-              style: {
-                transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-              },
-            },
-            label,
-          ),
-        )
-      : null,
-  ])
+  return h(BaseEdge, {
+    id,
+    path,
+    markerEnd,
+    className,
+    interactionWidth: 44,
+    style: {
+      stroke: data.stroke,
+      strokeWidth: data.strokeWidth,
+      strokeDasharray: data.dashArray,
+      opacity: data.opacity,
+    },
+  })
 }
 
 function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
@@ -597,41 +536,36 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
 
   const groupedStories = [primaryStory, ...branches]
   groupedStories.forEach((story) => {
-    const bounds = computeStoryBounds(story, positions)
-    groupNodes.push({
-      id: `group-${story.storyId}`,
-      type: 'groupNode',
-      position: { x: bounds.x, y: bounds.y },
-      draggable: false,
-      selectable: false,
-      connectable: false,
-      focusable: false,
-      data: {
-        storyId: story.storyId,
-        storyRole: story.storyRole,
-        isMacro: isMacroStory(story),
-        title: story.storyTitle,
-        subtitle: buildStorySubtitle(story),
-        relationLayerLabel: story.relation?.layer === 'backbone' ? '主干分支' : '上下文分支',
-        width: bounds.width,
-        height: bounds.height,
-      },
-      style: {
-        width: bounds.width,
-        height: bounds.height,
-        zIndex: 0,
-      },
-    })
+    if (story.storyRole === 'branch') {
+      const bounds = computeStoryBounds(story, positions)
+      groupNodes.push({
+        id: `group-${story.storyId}`,
+        type: 'groupNode',
+        position: { x: bounds.x, y: bounds.y },
+        draggable: false,
+        selectable: false,
+        connectable: false,
+        focusable: false,
+        data: {
+          storyId: story.storyId,
+          storyRole: story.storyRole,
+          title: story.storyTitle,
+          subtitle: buildStorySubtitle(story),
+          relationLayerLabel: story.relation?.layer === 'backbone' ? '主干分支' : '上下文分支',
+          width: bounds.width,
+          height: bounds.height,
+        },
+        style: { width: bounds.width, height: bounds.height, zIndex: 0 },
+      })
+    }
 
-    story.orderedNodes.forEach((node, index) => {
+    story.orderedNodes.forEach((node) => {
       const point = positions.get(node.id)
-      const isPrimary = story.storyRole === 'primary'
-      const fill = eventColor(node.event_type)
-      const stroke = eventBorderColor(node.event_type, isPrimary)
-      const shadow = eventShadowColor(node.event_type, isPrimary)
+      const stroke = EVENT_PALETTES[eventPaletteKey(node.event_type)].stroke
       const { width: nodeWidth, height: nodeHeight } = getNodeSize(story.storyRole)
-      const isMacro = isMacroStory(story)
       const inspectorPayload = buildStoryGraphNodeInspector(node, { storyId: story.storyId })
+      const timeLabel = formatNodeTimeRange(node.start_date, node.end_date)
+      const articleLabel = formatCountLabel(node.article_count, { unit: '条报道', unknown: '' })
 
       eventNodes.push({
         id: node.id,
@@ -643,32 +577,21 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
         sourcePosition: point.defaultSourcePosition,
         targetPosition: point.defaultTargetPosition,
         focusable: true,
-        ariaLabel: `图谱节点：${inspectorPayload.title}；${formatNodeTimeRange(node.start_date, node.end_date) || '日期未知'}；${formatCountLabel(node.article_count, { unit: '条新闻', unknown: '新闻数未知' })}`,
+        ariaLabel: [inspectorPayload.title, timeLabel, articleLabel].filter(Boolean).join('，'),
         data: {
           payload: inspectorPayload,
           storyId: story.storyId,
           storyRole: story.storyRole,
-          sequenceLabel: isMacro ? String(index + 1).padStart(2, '0') : '',
-          fill,
           stroke,
-          shadow,
           width: nodeWidth,
           height: nodeHeight,
           eventTypeLabel:
             EVENT_TYPE_LABELS[node.event_type] ||
             String(node.event_type || '事件').replaceAll('_', ' '),
-          title: shorten(
-            node.label || `${node.initiator || '?'} → ${node.target || '?'}`,
-            isPrimary ? 38 : 36,
-          ),
-          articleCount: node.article_count ?? null,
-          segmentCount: node.segment_count ?? null,
-          metaText:
-            node.source_kind === 'l3-chain' || node.l2_chain_id
-              ? `${formatCountLabel(node.segment_count, { unit: '个片段', unknown: '片段数未知' })} · ${formatCountLabel(node.article_count, { unit: '条新闻', unknown: '新闻数未知' })}`
-              : '',
-          timeLabel: formatNodeTimeRange(node.start_date, node.end_date),
-          miniColor: fill,
+          title: inspectorPayload.title,
+          articleLabel,
+          timeLabel,
+          miniColor: stroke,
         },
         style: {
           zIndex: 6,
@@ -680,6 +603,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
   const flowEdges = isMacroStory(primaryStory)
     ? buildMacroDisplayEdges(primaryStory, visibleEdges)
     : visibleEdges
+  const eventTitles = new Map(eventNodes.map((node) => [node.id, node.data.title]))
 
   flowEdges.forEach((edge) => {
     const sourcePoint = positions.get(edge.from_id)
@@ -699,7 +623,8 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
       id: `edge-${edge.from_id}-${edge.to_id}-${edge.edge_type}-${edge.layer || 'story'}`,
       source: edge.from_id,
       target: edge.to_id,
-      ariaLabel: `图谱关系：${inspectorPayload.title}；${inspectorPayload.subtitle}`,
+      ariaLabel: [inspectorPayload.title, eventTitles.get(edge.from_id), eventTitles.get(edge.to_id)]
+        .filter(Boolean).join('，'),
       sourceHandle: `source-${handles.source}`,
       targetHandle: `target-${handles.target}`,
       type: 'intelEdge',
@@ -717,7 +642,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
         height: 11,
         color: stroke,
       },
-      zIndex: 18,
+      zIndex: 1,
       data: {
         payload: inspectorPayload,
         layer: edge.layer || 'story',
@@ -726,7 +651,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
         relationReason: edge.relation_reason,
         weight: null,
         stroke,
-        strokeWidth: isContext ? 2.4 : isMacroSequence ? 2.8 : edge.layer === 'story' ? 3.1 : 2.8,
+        strokeWidth: isContext ? 1.8 : 2.1,
         dashArray: isContext
           ? '7 10'
           : isMacroSequence
@@ -734,9 +659,8 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
             : edge.layer === 'story'
               ? '11 8'
               : '9 8',
-        opacity: isContext ? 0.78 : isMacroSequence ? 0.76 : 0.94,
+        opacity: isContext ? 0.54 : 0.62,
         curvature: isContext ? 0.34 : isMacroStoryEdge ? (isMacroSequence ? 0.22 : 0.3) : 0.22,
-        label: shouldShowEdgeLabel(edge, isMacroStoryEdge) ? edgeLabel(edge) : '',
       },
     })
   })
@@ -898,9 +822,9 @@ function formatNodeTimeRange(start, end) {
   if (!startText) return endText
   if (!endText || startText === endText) return startText
   if (startText.slice(0, 4) === endText.slice(0, 4)) {
-    return `${startText} ~ ${endText.slice(5)}`
+    return `${startText} 至 ${endText.slice(5)}`
   }
-  return `${startText} ~ ${endText}`
+  return `${startText} 至 ${endText}`
 }
 
 function formatRange(start, end) {
@@ -910,40 +834,9 @@ function formatRange(start, end) {
   return start || end
 }
 
-function shorten(text, limit) {
-  const value = String(text || '').trim()
-  if (!value) return '未命名'
-  return value.length > limit ? `${value.slice(0, limit - 1)}…` : value
-}
-
-function edgeLabel(edge) {
-  const normalized = storyRelationLabel(edge.edge_type)
-  return edge.layer === 'story' ? shorten(normalized, 18) : shorten(normalized, 20)
-}
-
-function shouldShowEdgeLabel(edge, isMacroStoryEdge) {
-  if (!isMacroStoryEdge) return true
-  if (edge.layer === 'context') return false
-  return (
-    edge.edge_type && edge.edge_type !== 'macro_sequence' && edge.edge_type !== 'branch_sequence'
-  )
-}
-
 function edgeStroke(edge) {
   if (edge.layer === 'context') return EDGE_COLORS.context
   return EDGE_COLORS[edge.edge_type] || EDGE_COLORS.continuation
-}
-
-function eventColor(eventType) {
-  return EVENT_PALETTES[eventPaletteKey(eventType)].fill
-}
-
-function eventBorderColor(eventType) {
-  return EVENT_PALETTES[eventPaletteKey(eventType)].stroke
-}
-
-function eventShadowColor(eventType) {
-  return EVENT_PALETTES[eventPaletteKey(eventType)].shadow
 }
 
 function eventPaletteKey(eventType) {
@@ -995,8 +888,9 @@ function readSavedLayout(storageKey) {
 function writeSavedLayout(storageKey, layout) {
   try {
     window.localStorage.setItem(storageKey, JSON.stringify(layout))
+    return true
   } catch {
-    return
+    return false
   }
 }
 
@@ -1086,8 +980,10 @@ function applyViewportToEventNodes(instance, nodes, container, options = FIT_VIE
   )
   if (!measuredNodes.length) return false
 
-  const fitNodes = Number.isFinite(options.maxNodes) && options.maxNodes > 0
-    ? measuredNodes.slice(0, options.maxNodes)
+  const { clientWidth: width, clientHeight: height } = container
+  if (!width || !height || measuredNodes.length !== nodes.length) return false
+  const fitNodes = options.initial
+    ? measuredNodes.slice(0, Math.max(1, Math.floor(width / 225)))
     : measuredNodes
   const bounds = getNodesBounds(fitNodes)
   if (
@@ -1097,6 +993,17 @@ function applyViewportToEventNodes(instance, nodes, container, options = FIT_VIE
     bounds.height <= 0
   ) {
     return false
+  }
+
+  if (options.initial) {
+    const zoom = Math.min(0.96, (width - 32) / measuredNodes[0].width, (height - 72) / bounds.height)
+    if (zoom <= 0) return false
+    instance.setViewport({
+      x: Math.min(28, width * 0.05) - bounds.x * zoom,
+      y: height / 2 - (bounds.y + bounds.height / 2) * zoom,
+      zoom,
+    })
+    return true
   }
 
   instance.fitView?.({

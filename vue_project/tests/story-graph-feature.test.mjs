@@ -14,6 +14,7 @@ import {
   buildStoryStatsText,
   buildStoryGraphWorkspaceRequest,
   buildStorySummaryLine,
+  cleanStoryTitle,
   createLatestRequestGate,
   createStoryGraphApi,
   edgeLabel,
@@ -102,12 +103,12 @@ test('story graph API requests preserve L2/L3 endpoint and parameter contracts',
   assert.equal(calls[3].options.withCredentials, true)
 })
 
-test('query status explicitly clears provenance for empty and failed searches', () => {
+test('query status gives concise feedback for empty and failed searches', () => {
   assert.deepEqual(
     buildStoryGraphQueryStatus('search-empty', { mode: 'l3', query: '伊朗' }),
     {
       kind: 'search-empty',
-      message: '当前查询“伊朗”没有匹配的大事件，未沿用上一次图谱、统计或结论。',
+      message: '没有找到与「伊朗」匹配的大事件。',
       role: 'status',
     },
   )
@@ -116,15 +117,15 @@ test('query status explicitly clears provenance for empty and failed searches', 
     mode: 'l2',
   })
   assert.equal(failed.role, 'alert')
-  assert.match(failed.message, /画布、统计和结论已清空/)
+  assert.equal(failed.message, '暂时无法加载走势链，请重试。')
   assert.doesNotMatch(failed.message, /network unavailable/)
   assert.match(
     buildStoryGraphQueryStatus('workspace-loading', { mode: 'l2', storyId: 'chain-1' }).message,
-    /旧图谱已清空/,
+    /正在加载走势链/,
   )
   assert.match(
     buildStoryGraphQueryStatus('workspace-empty', { mode: 'l3', storyId: 'macro-1' }).message,
-    /未保留上一次图谱、统计或结论/,
+    /所选大事件暂无事件节点/,
   )
 })
 
@@ -616,6 +617,28 @@ test('presentation and adapter configuration remain deterministic', () => {
   assert.equal(storyGraphAdapterConfig.storageKeyPrefix, 'globemind:story-graph-layout:v2:')
 })
 
+test('graph titles show the headline without an actor-pair prefix or rewritten casing', () => {
+  const headline = 'As Hezbollah rejects disarmament, Israel, US warn of Iranian influence in Lebanon - analysis'
+  const title = `israel->hezbollah: ${headline}`
+  assert.equal(cleanStoryTitle(`Israel → Hezbollah · ${headline}`), headline)
+  assert.equal(cleanStoryTitle('Diplomat: Talks brought us closer to an agreement'), 'Diplomat: Talks brought us closer to an agreement')
+  assert.equal(cleanStoryTitle('Le ministre annonce un accord'), 'Le ministre annonce un accord')
+
+  const macroGraph = transformL3MacroResponse({
+    macro: { macro_id: 'macro', title: 'Regional developments' },
+    nodes: [{ l2_chain_id: 'chain', title }],
+  })
+  assert.equal(macroGraph.nodes[0].label, headline)
+  assert.equal(buildStoryGraphAccessibleList(macroGraph).nodes[0].title, headline)
+
+  const chainGraph = transformL2ChainResponse({
+    chain: { chain_id: 'chain', title },
+    nodes: [{ segment_id: 'segment', title, display_title: 'Hezbollah rejects disarmament' }],
+  })
+  assert.equal(chainGraph.story_title, headline)
+  assert.equal(chainGraph.nodes[0].label, 'Hezbollah rejects disarmament')
+})
+
 test('route consumes story graph only through the feature public entry', async () => {
   const pageUrl = new URL('../src/views/StoryGraphView.vue', import.meta.url)
   const source = await readFile(pageUrl, 'utf8')
@@ -666,5 +689,6 @@ test('story graph has a narrow mobile layout that wraps controls instead of clip
   assert.match(source, /\.intel-topbar__brand\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/)
   assert.match(source, /\.intel-topbar__meta\s*\{[\s\S]*?width:\s*100%/)
   assert.match(source, /\.intel-mode-switch\s*\{[\s\S]*?width:\s*100%/)
-  assert.match(source, /\.intel-chip\s*\{[\s\S]*?white-space:\s*normal/)
+  assert.match(source, /\.intel-topbar h1\s*\{[\s\S]*?white-space:\s*nowrap/)
+  assert.match(source, /\.intel-timeline__row\s*\{[\s\S]*?minmax\(0, 1fr\)/)
 })

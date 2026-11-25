@@ -144,7 +144,7 @@ export function buildMacroTimelineX(nodes) {
     if (index > 0) {
       const previous = sorted[index - 1]
       const gapDays = Math.max(0, (macroNodeTime(node) - macroNodeTime(previous)) / 86400000)
-      cursor += 176 + clamp(Math.log1p(gapDays) * 16, 0, 48)
+      cursor += 208 + clamp(Math.log1p(gapDays) * 16, 0, 48)
     }
     points.push({ id: node.id, x: cursor })
   })
@@ -206,7 +206,7 @@ export function avoidMacroCollisions(x, y, placed) {
   for (const offset of offsets) {
     const candidateY = y + offset
     const collides = placed.some(
-      (point) => Math.abs(point.x - x) < 202 && Math.abs(point.y - candidateY) < 118,
+      (point) => Math.abs(point.x - x) < 224 && Math.abs(point.y - candidateY) < 126,
     )
     if (!collides) return { x, y: candidateY }
   }
