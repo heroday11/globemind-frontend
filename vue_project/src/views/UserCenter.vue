@@ -240,4 +240,8 @@ function openNewUserGuide() {
     padding: 20px 16px 40px;
   }
 }
+
+.uc-main--personal {
+  padding-top: clamp(36px, 6.7svh, 60px);
+}
 </style>
