@@ -154,14 +154,14 @@ function handleMouseMove(e) {
   inset: -10%;
   pointer-events: none;
   z-index: 0;
-  transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform 0.3s ease-out;
 }
 
 .orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.45;
+  filter: blur(65px);
+  opacity: 0.7;
 }
 
 .orb--1 {
@@ -170,7 +170,7 @@ function handleMouseMove(e) {
   top: 10%;
   left: 5%;
   background: radial-gradient(circle, rgba(59, 130, 246, 0.28), transparent 70%);
-  animation: orbFloat1 18s ease-in-out infinite;
+  animation: orbFloat1 9s ease-in-out infinite;
 }
 
 .orb--2 {
@@ -179,7 +179,7 @@ function handleMouseMove(e) {
   top: 45%;
   right: -5%;
   background: radial-gradient(circle, rgba(139, 92, 246, 0.24), transparent 70%);
-  animation: orbFloat2 22s ease-in-out infinite;
+  animation: orbFloat2 11s ease-in-out infinite;
 }
 
 .orb--3 {
@@ -188,7 +188,7 @@ function handleMouseMove(e) {
   bottom: 5%;
   left: 30%;
   background: radial-gradient(circle, rgba(6, 182, 212, 0.22), transparent 70%);
-  animation: orbFloat3 20s ease-in-out infinite;
+  animation: orbFloat3 10s ease-in-out infinite;
 }
 
 .orb--4 {
@@ -197,7 +197,18 @@ function handleMouseMove(e) {
   top: 25%;
   left: 55%;
   background: radial-gradient(circle, rgba(245, 158, 11, 0.14), transparent 70%);
-  animation: orbFloat4 24s ease-in-out infinite;
+  animation: orbFloat4 12s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-layer {
+    transform: none !important;
+    transition: none;
+  }
+
+  .orb {
+    animation: none;
+  }
 }
 
 @keyframes orbFloat1 {
@@ -206,7 +217,7 @@ function handleMouseMove(e) {
     transform: translate(0, 0) scale(1);
   }
   33% {
-    transform: translate(40px, -30px) scale(1.08);
+    transform: translate(90px, -55px) scale(1.12);
   }
   66% {
     transform: translate(-20px, 20px) scale(0.94);
@@ -219,7 +230,7 @@ function handleMouseMove(e) {
     transform: translate(0, 0) scale(1);
   }
   50% {
-    transform: translate(-35px, -25px) scale(1.1);
+    transform: translate(-75px, -55px) scale(1.14);
   }
 }
 
@@ -232,7 +243,7 @@ function handleMouseMove(e) {
     transform: translate(25px, 30px) scale(0.92);
   }
   66% {
-    transform: translate(-30px, -15px) scale(1.06);
+    transform: translate(-65px, -45px) scale(1.12);
   }
 }
 
@@ -242,7 +253,7 @@ function handleMouseMove(e) {
     transform: translate(0, 0) scale(1);
   }
   50% {
-    transform: translate(-20px, -35px) scale(1.12);
+    transform: translate(-50px, -70px) scale(1.15);
   }
 }
 

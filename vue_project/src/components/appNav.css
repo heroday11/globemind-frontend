@@ -38,7 +38,7 @@
   right: 0;
   height: 64px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(110px, 1fr) max-content minmax(max-content, 1fr);
   grid-template-rows: minmax(0, 1fr);
   align-items: center;
   gap: clamp(8px, 0.75vw, 16px);
@@ -53,6 +53,7 @@
   grid-column: 1;
   height: 48px;
   width: clamp(170px, 14vw, 220px);
+  max-width: 100%;
   flex: none;
   display: flex;
   align-items: center;
@@ -721,7 +722,7 @@
 
 /* 顶部登录弹窗：覆盖当前页面，背景变暗，登录卡片居中 */
 
-@media (1180px <= width < 1280px) {
+@media (1180px <= width < 1440px) {
   .middle {
     padding-inline: 10px;
   }
@@ -731,13 +732,13 @@
   }
 }
 
-@media (1180px <= width < 1200px) {
+@media (1180px <= width < 1360px) {
   .header {
     --gm-header-search-width: clamp(66px, calc(12vw - 57px), 76px);
   }
 
   .nav-list {
-    column-gap: 5px;
+    column-gap: 4px;
   }
 
   .header-actions {
