@@ -178,23 +178,6 @@
               </div>
             </dl>
 
-            <section v-if="showFocusEvidence" class="intel-focus-news">
-              <h4>原始报道</h4>
-              <p v-if="evidenceLoading" class="intel-focus-news__status" role="status">正在加载报道…</p>
-              <ul v-else-if="focusEvidenceNews.length">
-                <li v-for="item in focusEvidenceNews" :key="item.news_id">
-                  <a :href="item.safe_url" target="_blank" rel="noopener">
-                    <span>
-                      <strong>{{ item.title }}</strong>
-                      <small v-if="evidenceNewsMeta(item)">{{ evidenceNewsMeta(item) }}</small>
-                    </span>
-                    <ArrowUpRight :size="16" aria-hidden="true" />
-                  </a>
-                </li>
-              </ul>
-              <p v-else class="intel-focus-news__status">暂无可打开的报道</p>
-            </section>
-
             <div class="intel-focus-sheet__actions">
               <button
                 v-if="selectedInspector.kind === 'l3-chain' && selectedInspector.l2ChainId"
@@ -211,6 +194,23 @@
                 交给数据助手
               </button>
             </div>
+
+            <section v-if="showFocusEvidence" class="intel-focus-news">
+              <h4>原始报道</h4>
+              <p v-if="evidenceLoading" class="intel-focus-news__status" role="status">正在加载报道…</p>
+              <ul v-else-if="focusEvidenceNews.length">
+                <li v-for="item in focusEvidenceNews" :key="item.news_id">
+                  <a :href="item.safe_url" target="_blank" rel="noopener">
+                    <span>
+                      <strong>{{ item.title }}</strong>
+                      <small v-if="evidenceNewsMeta(item)">{{ evidenceNewsMeta(item) }}</small>
+                    </span>
+                    <ArrowUpRight :size="16" aria-hidden="true" />
+                  </a>
+                </li>
+              </ul>
+              <p v-else class="intel-focus-news__status">暂无可打开的报道</p>
+            </section>
           </section>
         </Transition>
       </main>
