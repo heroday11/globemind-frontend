@@ -279,7 +279,8 @@ function formatTime(value, timeZone) {
 <style scoped>
 .briefings {
   --briefing-accent: #135a72; --briefing-muted: #526575; --briefing-muted-bg: #f2f6f8;
-  width: min(85%, 1280px); margin: 0 auto; padding: 24px 0 36px;
+  --briefing-top-padding: 24px;
+  width: min(85%, 1280px); margin: 0 auto; padding: var(--briefing-top-padding) 0 36px;
   color: var(--text-primary, #1d2932);
 }
 .briefing-header {
@@ -369,6 +370,28 @@ dialog::backdrop { background: #18253066; }
 .report-dialog { width: min(100% - 24px, 720px); }
 .report-heading { display: flex; gap: 12px; align-items: start; justify-content: space-between; }
 .report-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0 0 16px; }
+@media (min-width: 981px) {
+  .briefing-header {
+    /* The iframe starts below the workbench tabs. */
+    box-sizing: border-box; min-height: calc(100vh / 3 - var(--briefing-top-padding));
+  }
+  .overview {
+    align-self: stretch; align-content: center; padding: clamp(12px, 2.5vh, 24px) 24px;
+    border: 1px solid #dbe3e8; border-radius: 8px; background: var(--briefing-muted-bg);
+  }
+  .section-label { margin-bottom: 6px; }
+  .intro { margin-top: 12px; }
+  .example { margin-top: 14px; }
+}
+@media (min-width: 981px) and (max-width: 1200px) {
+  .briefing-header { column-gap: 16px; padding-bottom: 14px; }
+  .overview { row-gap: 0; padding: 10px 14px; }
+  .overview-copy { display: contents; }
+  .overview-icon { grid-row: 1 / 3; }
+  .intro, .example { grid-column: 1 / -1; }
+  .intro { margin-top: 9px; }
+  .example { margin-top: 10px; }
+}
 @media (max-width: 980px) {
   .briefing-header { grid-template-columns: minmax(0, 1fr); }
   .overview { --overview-scale: .8; }
