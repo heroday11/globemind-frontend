@@ -228,9 +228,6 @@
       <div class="result-toolbar" data-tour="search-result-tools">
         <span class="analysis-surface">{{ activeSearchSurfaceLabel }}</span>
         <span class="data-total">{{ isSearchMode ? '搜索结果' : '数据总量' }}：{{ totalItems }} 条</span>
-        <span class="toolbar-spacer" />
-        <button type="button" class="assistant-btn" @click="sendSearchToAssistant">数据助手研判</button>
-        <button type="button" class="export-btn" @click="exportData">导出</button>
         <p class="critical-action-status" role="status" aria-live="polite" aria-atomic="true">{{ criticalActionStatus }}</p>
       </div>
 
@@ -2009,11 +2006,6 @@ const scrollToTop = () => {
   })
 }
 
-function csvCell(value) {
-  const text = String(value ?? '').replace(/\r?\n/g, ' ').trim()
-  return `"${text.replace(/"/g, '""')}"`
-}
-
 function exportRow(item) {
   const timeSemantics = normalizeNewsTimeSemantics(item)
   return {
@@ -2028,55 +2020,6 @@ function exportRow(item) {
     collected_at: timeSemantics.collectedAt || '',
     updated_at: timeSemantics.updatedAt || '',
     url: item.request_url || item.url || item.link || '',
-  }
-}
-
-function downloadTextFile(filename, content, mime = 'text/plain;charset=utf-8') {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 0)
-}
-
-const exportData = () => {
-  const selectedItems = filteredNewsList.value.filter((item) => item.selected)
-  if (selectedItems.length === 0) {
-    criticalActionStatus.value = '导出未开始：请先选择至少一条数据。'
-    ElMessage.warning('请先选择要导出的数据')
-    return
-  }
-  try {
-    const headers = [
-      'id',
-      'title',
-      'abstract',
-      'source',
-      'language',
-      'published_at',
-      'event_time_start',
-      'event_time_end',
-      'collected_at',
-      'updated_at',
-      'url',
-    ]
-    const rows = selectedItems.map(exportRow)
-    const csv = [
-      headers.join(','),
-      ...rows.map((row) => headers.map((key) => csvCell(row[key])).join(',')),
-    ].join('\n')
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    downloadTextFile(`globemind-news-export-${stamp}.csv`, `\ufeff${csv}`, 'text/csv;charset=utf-8')
-    criticalActionStatus.value = `导出成功：已生成 ${selectedItems.length} 条数据的 CSV 文件。`
-    ElMessage.success(`已导出 ${selectedItems.length} 条数据`)
-  } catch (error) {
-    console.error('导出失败:', error)
-    criticalActionStatus.value = '导出失败：浏览器未能生成下载文件，请重试或检查下载权限。'
-    ElMessage.error('导出失败，请重试或检查浏览器下载权限')
   }
 }
 

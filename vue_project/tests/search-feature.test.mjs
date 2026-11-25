@@ -1149,7 +1149,7 @@ test('critical search actions expose guest persistence, login resume, export, an
   assert.match(source, /账号同步失败/)
   assert.match(source, /浏览器阻止了会话存储/)
   assert.match(source, /已从本浏览器的临时收藏/)
-  assert.match(source, /导出失败，请重试或检查浏览器下载权限/)
+  assert.doesNotMatch(source, /@click="exportData"/)
   assert.match(loginModal, /role="dialog"/)
   assert.match(loginModal, /for="login-modal-username"/)
   assert.match(loginModal, /aria-live="assertive"/)

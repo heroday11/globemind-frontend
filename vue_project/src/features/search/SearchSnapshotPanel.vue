@@ -51,10 +51,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="snapshot-panel" aria-labelledby="search-snapshot-heading">
+  <details class="snapshot-panel" aria-labelledby="search-snapshot-heading">
+    <summary id="search-snapshot-heading" class="snapshot-summary">检索基线与变化比较</summary>
     <header class="snapshot-header">
       <div>
-        <h2 id="search-snapshot-heading">检索基线与变化比较</h2>
         <p>保存两次真实查询执行，比较已捕获范围内的条件、结果和位次。</p>
       </div>
       <button type="button" :disabled="!token || disabled" @click="refreshHistory">刷新历史快照</button>
@@ -114,13 +114,13 @@ onUnmounted(() => {
         <ul><li v-for="code in state.comparison.reason_codes" :key="`reason-${code}`">{{ searchComparisonMessage(code) }}</li><li v-for="code in state.comparison.limitations" :key="`limit-${code}`">{{ searchComparisonMessage(code) }}</li></ul>
       </article>
     </template>
-  </section>
+  </details>
 </template>
 
 <style scoped>
 .snapshot-panel { margin: 18px 0; padding: 16px 20px; border: 1px solid var(--border-color, #dce3ed); border-radius: 12px; color: var(--text-color, #243047); background: var(--card-bg, #fff); }
-.snapshot-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-h2 { font-size: 17px; margin: 0 0 4px; }
+.snapshot-header { margin-top: 12px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.snapshot-summary { cursor: pointer; font-size: 17px; font-weight: 700; }
 h3 { font-size: 16px; margin: 12px 0; }
 h4 { font-size: 14px; margin: 16px 0 8px; }
 p, li, label, button, select { font-size: 13px; line-height: 1.7; }
