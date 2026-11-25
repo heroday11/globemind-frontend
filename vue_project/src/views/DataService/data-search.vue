@@ -61,11 +61,11 @@
       <div class="sidebar-block sidebar-block--favorites">
         <div class="sidebar-block-title">当前文件夹</div>
         <div class="current-folder-heading">
+          <label v-if="isEditingTheme" class="search-sr-only" for="search-folder-name">文件夹名称</label>
           <input
             v-if="isEditingTheme"
             id="search-folder-name"
             v-model="themeNameDraft"
-            aria-label="文件夹名称"
             class="folder-edit-input"
             @keydown.enter.prevent="saveThemeName"
             @keydown.esc.prevent="isEditingTheme = false"
