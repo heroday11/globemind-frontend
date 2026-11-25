@@ -275,8 +275,11 @@ const router = createRouter({
         {
           path: 'ground-news-gba',
           name: 'GroundNewsGbaHome',
-          component: routeViewLoaders.groundNewsHome,
-          meta: { groundNewsScope: 'gba', title: '粤港澳事件总览 · GlobeMind' }
+          redirect: (to) => ({
+            name: 'GroundNewsHome',
+            query: { ...to.query, country: 'CN', place: 'region-chn-1180' },
+            hash: to.hash,
+          })
         },
         {
           path: 'decision-desk',

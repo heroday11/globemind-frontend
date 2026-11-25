@@ -668,18 +668,16 @@ test('home metrics preserve missing values instead of presenting fabricated zero
   )
 })
 
-test('home page consumes latest stories through the feature model contract', async () => {
+test('home page displays categorized news through the shared edition model', async () => {
   const source = await readFile(
     new URL('../src/views/GroundNewsHome.vue', import.meta.url),
     'utf8',
   )
 
-  assert.match(
-    source,
-    /const latestStories = computed\(\(\) => homeModel\.value\.latestStories\)/,
-  )
-  assert.match(source, /featureFreshness\(freshnessReport\.value, ['"]ground-news['"]\)/)
-  assert.match(source, /groundNewsFreshness\.value\.historical/)
+  assert.match(source, /buildGroundNewsHomeModel\(current\.value/)
+  assert.match(source, /homeModel\.value\.storySections/)
+  assert.match(source, /region-chn-1180/)
+  assert.doesNotMatch(source, /getHome\(|关联线索/)
   assert.doesNotMatch(source, />\s*Live Wire\s*</)
   assert.doesNotMatch(source, />\s*今日简报\s*</)
   assert.doesNotMatch(source, />\s*本周多源\s*</)

@@ -2,10 +2,10 @@
   <section class="global-overview" aria-label="筛选全球事件" data-tour="ground-news-edition">
     <div class="overview-controls">
       <div class="perspective" role="group" aria-label="事件视角">
-        <button type="button" :aria-expanded="panel === 'map'" :class="{ selected: mode === 'map' && (panel || country) }" @click="togglePanel('map')">
+        <button type="button" :aria-expanded="panel === 'map'" :class="{ selected: panel === 'map' || country }" @click="togglePanel('map')">
           <Globe :size="17" />地图
         </button>
-        <button type="button" :aria-expanded="panel === 'keyword'" :class="{ selected: mode === 'keyword' }" @click="togglePanel('keyword')">
+        <button type="button" :aria-expanded="panel === 'keyword'" :class="{ selected: panel === 'keyword' || query }" @click="togglePanel('keyword')">
           <Search :size="17" />关键词
         </button>
       </div>
@@ -67,7 +67,7 @@
         <button type="submit">搜索</button>
       </form>
       <div class="keyword-presets" aria-label="常用关键词">
-        <button v-for="term in presets" :key="term" type="button" :aria-pressed="appliedKeyword === term" @click="searchKeyword(term)">
+        <button v-for="term in presets" :key="term" type="button" :aria-pressed="query === term" @click="searchKeyword(term)">
           {{ term }}
         </button>
       </div>
@@ -75,7 +75,7 @@
 
     <header v-if="current" class="results-heading" role="status">
       <h2>{{ resultsHeading }}</h2>
-      <span>{{ formatNumber(current.match_count) }} 件收录<span v-if="current.match_count > current.stories.length"> · 显示前 {{ current.stories.length }} 件</span></span>
+      <span>{{ formatNumber(current.match_count) }} 件收录</span>
     </header>
   </section>
 </template>
@@ -83,21 +83,22 @@
 <script setup>
 import { CalendarDays, Globe, Search } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { groundNewsApi } from './api.js'
 import { homeFormatDate } from './home.js'
 import GroundNewsWorldMap from './GroundNewsWorldMap.vue'
 
-const mode = ref('map')
+const route = useRoute()
+const router = useRouter()
 const panel = ref('')
-const selection = ref(null)
+const mapFocus = ref(null)
 const keyword = ref('')
-const appliedKeyword = ref('')
 const snapshot = shallowRef(null)
 const snapshotKey = ref('')
 const loadedCountry = ref('')
 const loading = ref(false)
 const error = ref(false)
-const presets = ['外交', '经贸', '科技', '选举', '气候']
+const presets = ['政治', '经济', '文化', '科技', '社会']
 const locationReasons = [
   ['no_location_field', '地点字段未填'],
   ['unmatched_location', '地点有歧义或缺少地名'],
@@ -106,9 +107,9 @@ const locationReasons = [
 const numberFormat = new Intl.NumberFormat('zh-CN')
 const formatNumber = (value) => numberFormat.format(value)
 
-const country = computed(() => (mode.value === 'map' ? selection.value?.country || '' : ''))
-const place = computed(() => (mode.value === 'map' ? selection.value?.place || '' : ''))
-const query = computed(() => (mode.value === 'keyword' ? appliedKeyword.value : ''))
+const country = computed(() => typeof route.query.country === 'string' ? route.query.country : '')
+const place = computed(() => country.value && typeof route.query.place === 'string' ? route.query.place : '')
+const query = computed(() => typeof route.query.q === 'string' ? route.query.q.slice(0, 100).trim() : '')
 const filterKey = computed(() => JSON.stringify([country.value, place.value, query.value]))
 const current = computed(() => (snapshotKey.value === filterKey.value ? snapshot.value : null))
 const countries = computed(() => snapshot.value?.countries ?? [])
@@ -128,6 +129,12 @@ const places = computed(() =>
     : [],
 )
 const activePlace = computed(() => places.value.find((item) => item.id === place.value))
+const activeCountry = computed(() => countries.value.find((item) => item.code === country.value))
+const selection = computed(() => {
+  if (!country.value) return null
+  if (mapFocus.value?.country === country.value && mapFocus.value?.place === place.value) return mapFocus.value
+  return { country: country.value, place: place.value, coordinates: activePlace.value?.coordinates || activeCountry.value?.coordinates }
+})
 const provinces = computed(() => places.value.filter((item) => item.id.startsWith('region-chn-')))
 const province = computed(() => {
   if (country.value !== 'CN') return ''
@@ -139,19 +146,22 @@ const localPlaces = computed(() => country.value === 'CN'
   : places.value,
 )
 const resultsHeading = computed(() => {
-  if (query.value) return query.value + ' · 重点事件'
-  const region = countries.value.find((item) => item.code === country.value)
-  const name = activePlace.value?.name || region?.name
-  return name ? name + ' · 重点事件' : '全球重点事件'
+  const area = activePlace.value?.name || activeCountry.value?.name
+  if (query.value) return [area, query.value, '重点事件'].filter(Boolean).join(' · ')
+  return area ? area + ' · 重点事件' : '全球重点事件'
 })
 
 function togglePanel(next) {
-  mode.value = next
   panel.value = panel.value === next ? '' : next
 }
 
+function updateScope(filters) {
+  void router.replace({ query: { ...route.query, ...filters }, hash: '' })
+}
+
 function selectFocus(focus) {
-  selection.value = focus
+  mapFocus.value = focus
+  updateScope({ country: focus?.country || undefined, place: focus?.place || undefined })
 }
 
 function selectCountry(code) {
@@ -167,7 +177,7 @@ function selectPlace(id) {
 
 function searchKeyword(term) {
   if (typeof term === 'string') keyword.value = term
-  appliedKeyword.value = keyword.value.trim()
+  updateScope({ q: keyword.value.trim() || undefined })
 }
 
 function clearKeyword() {
@@ -201,6 +211,7 @@ async function refresh() {
   }
 }
 
+watch(query, (value) => { keyword.value = value }, { immediate: true })
 watch(filterKey, refresh, { immediate: true })
 onBeforeUnmount(() => request?.abort())
 defineExpose({ refresh, loading, error, current })
