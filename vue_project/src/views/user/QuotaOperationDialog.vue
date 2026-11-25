@@ -15,7 +15,7 @@ const saving = ref(false)
 <template>
   <el-dialog
     :model-value="Boolean(operation)"
-    :title="operation === 'adjust' ? '调整我的额度' : '开通套餐'"
+    :title="operation === 'redeem' ? '输入额度兑换码' : '开通套餐'"
     class="quota-operation-dialog"
     width="min(420px, calc(100vw - 32px))"
     append-to-body

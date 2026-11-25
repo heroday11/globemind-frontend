@@ -603,7 +603,7 @@ async function loadQuota() {
 }
 
 async function onQuotaSaved(operation) {
-  ElMessage.success(operation === 'adjust' ? '额度已调整' : '套餐已开通')
+  ElMessage.success(operation === 'redeem' ? '额度兑换成功' : '套餐已开通')
   await loadQuota()
 }
 
@@ -1049,8 +1049,8 @@ onBeforeUnmount(() => {
             </p>
           </template>
           <p v-else class="pc-quota-muted">额度信息暂时不可用</p>
-          <div v-if="accountRole === 'member' && currentUserId" class="pc-quota-actions">
-            <button type="button" class="el-button" @click="quotaOperation = 'adjust'">调整我的额度</button>
+          <div v-if="!canManageQuota && currentUserId" class="pc-quota-actions">
+            <button type="button" class="el-button" @click="quotaOperation = 'redeem'">输入额度兑换码</button>
             <button type="button" class="el-button" @click="quotaOperation = 'subscribe'">开通套餐</button>
           </div>
         </section>
@@ -1901,7 +1901,7 @@ onBeforeUnmount(() => {
       </section>
     </div>
     <QuotaOperationDialog
-      v-if="accountRole === 'member' && currentUserId"
+      v-if="!canManageQuota && currentUserId"
       :user-id="currentUserId"
       :operation="quotaOperation"
       @close="quotaOperation = ''"

@@ -5,8 +5,8 @@ import { BookOpen, CircleHelp, FileText, LogOut, Star, UserRound } from 'lucide-
 const navItems = [
   { path: '/user-center/personal-center', label: '个人中心', icon: UserRound },
   { path: '/user-center/my-applications', label: '我的报告', icon: FileText },
-  { path: '/user-center/help-docs', label: '帮助文档', icon: BookOpen },
   { path: '/user-center/my-collections', label: '我的收录', icon: Star },
+  { path: '/user-center/help-docs', label: '帮助文档', icon: BookOpen },
   { path: '/user-center/logout', label: '退出登录', icon: LogOut, muted: true },
 ]
 
@@ -20,7 +20,6 @@ function openNewUserGuide() {
     <aside class="uc-sidebar" aria-label="用户中心导航">
       <div class="uc-side-head">
         <span class="uc-side-title">用户中心</span>
-        <span class="uc-side-sub">账号与偏好</span>
       </div>
       <nav class="uc-nav">
         <router-link
@@ -75,9 +74,8 @@ function openNewUserGuide() {
 }
 
 .uc-side-head {
-  padding: clamp(22px, 3vw, 30px) 20px clamp(18px, 2.5vw, 22px);
+  padding: 12px 20px 8px;
   border-bottom: 1px solid var(--uc-border-soft);
-  margin-bottom: 8px;
 }
 
 .uc-side-title {
@@ -88,26 +86,18 @@ function openNewUserGuide() {
   letter-spacing: 0;
 }
 
-.uc-side-sub {
-  display: block;
-  margin-top: 6px;
-  font-size: 0.84rem;
-  color: var(--uc-muted);
-  font-weight: 500;
-}
-
 .uc-nav {
   display: flex;
   flex-direction: column;
-  padding: 8px 12px;
-  gap: 4px;
+  padding: 6px 12px;
+  gap: 2px;
 }
 
 .uc-nav-link {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 6px 14px;
   border-radius: var(--uc-radius-sm);
   text-decoration: none;
   color: var(--uc-muted);

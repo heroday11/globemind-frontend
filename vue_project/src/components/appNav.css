@@ -31,7 +31,6 @@
 
 .header {
   --gm-header-search-width: clamp(76px, calc(11vw - 64px), 150px);
-  --gm-header-side-width: calc(237px + var(--gm-header-search-width));
   padding-inline: clamp(12px, 1.25vw, 24px);
   position: fixed;
   top: 0;
@@ -39,7 +38,7 @@
   right: 0;
   height: 64px;
   display: grid;
-  grid-template-columns: var(--gm-header-side-width) minmax(0, 1fr) var(--gm-header-side-width);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: minmax(0, 1fr);
   align-items: center;
   gap: clamp(8px, 0.75vw, 16px);
@@ -124,13 +123,11 @@
   color: #6fff00;
 }
 
-.header-showcase .nav-item > .router-link-active,
-.header-showcase .nav-item-active .dropdown-trigger span {
+.header-showcase .nav-item > .router-link-active {
   color: #eff4ff;
 }
 
-.header-showcase .nav-item > .router-link-active::after,
-.header-showcase .nav-item-active .dropdown-trigger::after {
+.header-showcase .nav-item > .router-link-active::after {
   background: #6fff00;
 }
 
@@ -425,8 +422,7 @@
   font-weight: 700;
 }
 
-.nav-item > .router-link-active::after,
-.nav-item-active .dropdown-trigger::after {
+.nav-item > .router-link-active::after {
   content: '';
   position: absolute;
   bottom: 0;
@@ -464,17 +460,6 @@
 
 .header-transparent .dropdown-icon {
   color: rgba(15, 23, 42, 0.55);
-}
-
-.header-transparent .nav-item-active .dropdown-trigger span {
-  color: #082f49;
-  font-weight: 700;
-}
-
-/* 下拉菜单项的激活状态样式 */
-.nav-item-active .dropdown-trigger span {
-  color: #0c4a6e;
-  font-weight: 700;
 }
 
 /* 关于我们按钮样式 */
@@ -736,7 +721,7 @@
 
 /* 顶部登录弹窗：覆盖当前页面，背景变暗，登录卡片居中 */
 
-@media (1024px <= width < 1280px) {
+@media (1180px <= width < 1280px) {
   .middle {
     padding-inline: 10px;
   }
@@ -746,10 +731,9 @@
   }
 }
 
-@media (1024px <= width < 1200px) {
+@media (1180px <= width < 1200px) {
   .header {
     --gm-header-search-width: clamp(66px, calc(12vw - 57px), 76px);
-    --gm-header-side-width: calc(169px + var(--gm-header-search-width));
   }
 
   .nav-list {
@@ -953,10 +937,16 @@
   gap: 2px;
 }
 
+.mobile-display-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .mobile-font-size {
   --font-size-button-width: 44px;
   --font-size-button-height: 44px;
-  align-self: flex-start;
+  flex: none;
   margin-inline-start: 14px;
 }
 
@@ -1012,7 +1002,6 @@ a.mobile-nav-item:hover {
 }
 
 a.mobile-nav-item.router-link-active,
-.mobile-nav-item .mobile-nav-item-row--active,
 .mobile-submenu-item.router-link-active {
   color: #2563eb;
   background: rgba(59, 130, 246, 0.08);
@@ -1149,7 +1138,7 @@ a.mobile-nav-item.router-link-active,
 /* ============================================================
    Responsive: hide desktop nav on mobile, show hamburger
    ============================================================ */
-@media (width < 1024px) {
+@media (width < 1180px) {
   .mobile-hamburger {
     display: flex;
   }

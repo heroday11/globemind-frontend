@@ -7,28 +7,29 @@ const navigation = await readFile(
   'utf8',
 )
 
-test('desktop and mobile More menus share the same destination links', () => {
-  const definitions = navigation.match(/const moreLinks = \[([\s\S]*?)\]/)?.[1]
+test('desktop and mobile expose the same primary destinations in order', () => {
+  const definitions = navigation.match(/const primaryLinks = \[([\s\S]*?)\]/)?.[1]
   assert.ok(definitions)
   assert.deepEqual([...definitions.matchAll(/path: '([^']+)', label: '([^']+)'/g)].map(
     ([, path, label]) => [path, label],
   ), [
-    ['/sentiment-analysis', '涉华舆情分析'],
+    ['/', '首页'],
     ['/data-service/ground-news', '全球新闻观察台'],
+    ['/sentiment-analysis', '涉华舆情分析'],
     ['/data-service/data-search', '数据服务'],
+    ['/data-service/story-graph', '事件故事脉络'],
+    ['/data-assistant', '数据助手'],
+    ['/data-service/report-center', '报告中心'],
+    ['/financial-terminal', '数值分析预警'],
     ['/academic-data', 'Agent 能力市场'],
   ])
 
-  for (const id of ['desktop-more-menu', 'mobile-more-menu']) {
-    const menu = navigation.match(new RegExp(`<div id="${id}"[^>]*>([\\s\\S]*?)</div>`))?.[1]
-    assert.ok(menu, id)
-    assert.match(menu, /<router-link\s+v-for="link in moreLinks"[\s\S]*?:to="link.path"/)
-    assert.match(navigation, new RegExp(`aria-controls="${id}"`))
-  }
+  assert.match(navigation, /<nav class="nav-center"[\s\S]*?<li v-for="link in primaryLinks"[\s\S]*?<router-link\s+:to="link.path"/)
+  assert.match(navigation, /<nav class="mobile-nav"[\s\S]*?<router-link\s+v-for="link in primaryLinks"[\s\S]*?:to="link.path"/)
+  assert.doesNotMatch(navigation, /desktop-more-menu|mobile-more-menu/)
 })
 
-test('desktop dropdowns stay open when focus moves inside their own item', () => {
-  assert.match(navigation, /function closeMoreOnFocusOut\(event\)[\s\S]{0,180}currentTarget\.contains\(event\.relatedTarget\)/)
+test('the user center stays open when focus moves inside its menu', () => {
   assert.match(
     navigation,
     /leaveUserCenterDropdown = \(event\)[\s\S]{0,180}currentTarget\?\.contains\?\.\(event\.relatedTarget\)/,

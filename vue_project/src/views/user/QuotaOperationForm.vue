@@ -14,6 +14,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['close', 'saved', 'busy'])
 const fieldId = useId()
+const code = ref('')
 const amount = ref('')
 const reason = ref('')
 const planId = ref('')
@@ -23,6 +24,8 @@ const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
 const adjusting = computed(() => props.operation === 'adjust')
+const redeemingQuota = computed(() => props.operation === 'redeem')
+
 async function request(path, body, signal) {
   const response = await fetch(`${API_PREFIX}/billing${path}`, {
     method: body ? 'POST' : 'GET',
@@ -39,6 +42,7 @@ async function request(path, body, signal) {
 }
 
 watch(() => props.operation, async (operation, _previous, onCleanup) => {
+  code.value = ''
   amount.value = ''
   reason.value = ''
   planId.value = ''
@@ -62,26 +66,33 @@ watch(() => props.operation, async (operation, _previous, onCleanup) => {
 async function submit() {
   if (saving.value || props.disabled) return
   let body
+  let path = '/redeem'
   if (adjusting.value) {
+    path = `/users/${props.userId}/adjustments`
     if (!Number(amount.value) || !reason.value.trim()) {
       error.value = '请输入非零的调整金额和调整原因'
       return
     }
     body = { amount_cny: String(amount.value), reason: reason.value.trim() }
-  } else {
+  } else if (props.admin) {
     if (!planId.value) return
+    path = `/users/${props.userId}/subscriptions`
     body = { plan_id: Number(planId.value) }
-    if (props.admin && days.value) {
+    if (days.value) {
       body.ends_at = new Date(Date.now() + Number(days.value) * 86400_000).toISOString()
     }
+  } else {
+    if (!code.value.trim() || (!redeemingQuota.value && !planId.value)) return
+    body = { code: code.value.trim() }
+    if (!redeemingQuota.value) body.plan_id = Number(planId.value)
   }
   const operation = props.operation
-  const suffix = operation === 'adjust' ? 'adjustments' : 'subscriptions'
   saving.value = true
   emit('busy', true)
   error.value = ''
   try {
-    await request(`/users/${props.userId}/${suffix}`, body)
+    await request(path, body)
+    code.value = ''
     amount.value = ''
     reason.value = ''
     planId.value = ''
@@ -104,12 +115,12 @@ async function submit() {
       <label :for="`${fieldId}-quota-adjust-reason`">调整原因</label>
       <input :id="`${fieldId}-quota-adjust-reason`" v-model="reason" type="text" required maxlength="500" />
     </template>
-    <template v-else>
+    <template v-else-if="!redeemingQuota">
       <label :for="`${fieldId}-quota-plan`">套餐</label>
       <select :id="`${fieldId}-quota-plan`" v-model="planId" required :disabled="loading || !plans.length">
         <option value="">{{ loading ? '正在读取套餐…' : plans.length ? '请选择套餐' : '暂无可开通的套餐' }}</option>
         <option v-for="plan in plans" :key="plan.id" :value="plan.id">
-          {{ plan.name }}（{{ formatQuotaMoney(plan.quota_cny) }} / {{ plan.validity_days }} 天）
+          {{ plan.name }}（{{ formatQuotaMoney(plan.price_cny ?? plan.quota_cny) }} / {{ plan.validity_days }} 天）
         </option>
       </select>
       <template v-if="admin">
@@ -124,11 +135,15 @@ async function submit() {
         />
       </template>
     </template>
+    <template v-if="!admin">
+      <label :for="`${fieldId}-quota-code`">{{ redeemingQuota ? '额度兑换码' : '套餐兑换码' }}</label>
+      <input :id="`${fieldId}-quota-code`" v-model="code" type="text" autocomplete="off" spellcheck="false" required maxlength="128" />
+    </template>
     <p v-if="error" class="quota-operation__error" role="alert">{{ error }}</p>
     <div class="quota-operation__actions">
       <button v-if="!inline" class="el-button" type="button" :disabled="saving" @click="emit('close')">取消</button>
-      <button class="el-button el-button--primary" type="submit" :disabled="disabled || saving || (!adjusting && !planId)">
-        {{ saving ? '保存中…' : adjusting ? '保存调整' : '开通套餐' }}
+      <button class="el-button el-button--primary" type="submit" :disabled="disabled || saving || (operation === 'subscribe' && !planId) || (!admin && !code.trim())">
+        {{ saving ? '提交中…' : adjusting ? '保存调整' : redeemingQuota ? '兑换额度' : '开通套餐' }}
       </button>
     </div>
   </form>

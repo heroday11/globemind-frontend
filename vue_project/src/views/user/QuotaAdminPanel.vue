@@ -28,6 +28,12 @@ const role = ref('')
 const roleError = ref('')
 const savingRole = ref(false)
 const notice = ref('')
+const codeAmount = ref('')
+const codePlanId = ref('')
+const codePlans = ref([])
+const issuedCode = ref('')
+const codeError = ref('')
+const issuingCode = ref(false)
 const usage = ref([])
 const adjustments = ref([])
 const adjustmentsError = ref('')
@@ -207,6 +213,36 @@ async function saveRole() {
   }
 }
 
+async function loadCodePlans() {
+  try {
+    const response = await fetch(`${API_PREFIX}/billing/plans`, { headers: headers(), cache: 'no-store' })
+    if (!response.ok) throw new Error('读取套餐失败')
+    codePlans.value = (await response.json()).filter((plan) => plan.active && plan.price_cny != null)
+  } catch (failure) {
+    codeError.value = failure.message
+  }
+}
+
+async function issueCode() {
+  issuingCode.value = true
+  codeError.value = ''
+  issuedCode.value = ''
+  try {
+    const response = await fetch(`${API_PREFIX}/billing/admin/redemption-codes`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(codePlanId.value ? { plan_id: codePlanId.value } : { amount_cny: String(codeAmount.value) }),
+    })
+    const payload = await response.json()
+    if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : '签发兑换码失败')
+    issuedCode.value = payload.code
+  } catch (failure) {
+    codeError.value = failure.message
+  } finally {
+    issuingCode.value = false
+  }
+}
+
 onMounted(loadUsers)
 </script>
 
@@ -222,6 +258,20 @@ onMounted(loadUsers)
 
     <p v-if="error" class="qam-error" role="alert">{{ error }}</p>
     <p v-if="notice" class="qam-notice" role="status">{{ notice }}</p>
+
+    <details class="qam-detail" @toggle="$event.target.open && !codePlans.length && loadCodePlans()">
+      <summary>签发兑换码</summary>
+      <form class="qam-head-actions qam-code-form" @submit.prevent="issueCode">
+        <select v-model="codePlanId" class="qam-input" aria-label="兑换内容">
+          <option value="">自定义额度</option>
+          <option v-for="plan in codePlans" :key="plan.id" :value="plan.id">{{ plan.name }}</option>
+        </select>
+        <input v-if="!codePlanId" v-model="codeAmount" class="qam-input" type="number" step="0.00000001" min="0.00000001" required aria-label="兑换额度（元）" placeholder="兑换额度（元）" />
+        <button type="submit" class="qam-btn" :disabled="issuingCode">生成一次性兑换码</button>
+        <input v-if="issuedCode" :value="issuedCode" class="qam-input" aria-label="已签发的兑换码" readonly @focus="$event.target.select()" />
+      </form>
+      <p v-if="codeError" class="qam-error" role="alert">{{ codeError }}</p>
+    </details>
 
     <div class="qam-table-wrap">
       <table class="qam-table">
@@ -398,6 +448,7 @@ onMounted(loadUsers)
 .qam-head { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .qam-title { margin: 6px 0 6px; color: #1f2a44; font-size: 20px; }
 .qam-head-actions { display: flex; align-items: center; gap: 10px; }
+.qam-code-form { margin-top: 12px; flex-wrap: wrap; }
 .qam-input { min-width: 0; padding: 9px 12px; border: 1px solid #d8dfec; border-radius: 9px; background: #fff; color: #1f2a44; font-size: 13px; }
 .qam-input:focus-visible { outline: 3px solid #b9c5ff; outline-offset: 1px; }
 .qam-btn { padding: 9px 16px; border: 1px solid #d8dfec; border-radius: 9px; background: #fff; color: #33415f; font-size: 13px; font-weight: 600; cursor: pointer; }

@@ -2,17 +2,13 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  Blocks,
   ChevronDown,
   CircleHelp,
   Crosshair,
-  Database,
   FileText,
   Folder,
-  Globe,
   Info,
   LogOut,
-  MessageCircle,
   Search,
   User,
   X,
@@ -34,11 +30,17 @@ const route = useRoute()
 const navLogoUrl = '/imgs/logo2_orig.png'
 const DROPDOWN_CLOSE_DELAY = 280
 const PRIMARY_PRELOAD_DELAY = 120
-const moreLinks = [
-  { path: '/sentiment-analysis', label: '涉华舆情分析', icon: MessageCircle },
-  { path: '/data-service/ground-news', label: '全球新闻观察台', icon: Globe },
-  { path: '/data-service/data-search', label: '数据服务', icon: Database },
-  { path: '/academic-data', label: 'Agent 能力市场', icon: Blocks },
+
+const primaryLinks = [
+  { path: '/', label: '首页' },
+  { path: '/data-service/ground-news', label: '全球新闻观察台' },
+  { path: '/sentiment-analysis', label: '涉华舆情分析' },
+  { path: '/data-service/data-search', label: '数据服务' },
+  { path: '/data-service/story-graph', label: '事件故事脉络' },
+  { path: '/data-assistant', label: '数据助手' },
+  { path: '/data-service/report-center', label: '报告中心' },
+  { path: '/financial-terminal', label: '数值分析预警' },
+  { path: '/academic-data', label: 'Agent 能力市场' },
 ]
 
 const preloadController = createRoutePreloadController(props.routePreloaders, {
@@ -65,7 +67,7 @@ const mobileDrawerClose = ref(null)
 // 移动端子菜单展开
 const mobileExpandedMenus = ref({})
 
-const mobileLayout = window.matchMedia('(width < 1024px)')
+const mobileLayout = window.matchMedia('(width < 1180px)')
 
 function handleMobileLayoutChange(event) {
   if (event.matches) closeDropdowns()
@@ -175,13 +177,9 @@ const isShowcasePage = computed(() => route.name === 'ShowcaseOrbis')
 /** 数值分析预警：白色顶栏 */
 const isFinancialTerminal = computed(() => route.path === '/financial-terminal')
 
-const isMoreActive = computed(() =>
-  moreLinks.some(({ path }) => route.path === path || route.path.startsWith(path + '/')) ||
-  route.path.startsWith('/data-service/ground-news-'),
-)
-const isMoreOpen = ref(false)
-const desktopMoreItem = ref(null)
-const desktopMoreTrigger = ref(null)
+function isGroundNewsSubroute(path) {
+  return path === '/data-service/ground-news' && route.path.startsWith('/data-service/ground-news-')
+}
 
 // 用户中心下拉菜单状态
 const isUserCenterDropdownOpen = ref(false)
@@ -200,28 +198,6 @@ function clearDropdownTimers() {
 function closeDropdowns() {
   clearDropdownTimers()
   isUserCenterDropdownOpen.value = false
-  isMoreOpen.value = false
-}
-
-function toggleMoreDropdown() {
-  const opening = !isMoreOpen.value
-  closeDropdowns()
-  isMoreOpen.value = opening
-}
-
-function closeMoreOnFocusOut(event) {
-  if (!event.currentTarget.contains(event.relatedTarget)) isMoreOpen.value = false
-}
-
-function closeMoreOnOutsideClick(event) {
-  if (!desktopMoreItem.value?.contains(event.target)) isMoreOpen.value = false
-}
-
-function closeMoreOnEscape(event) {
-  if (!isMoreOpen.value) return
-  event.stopPropagation()
-  isMoreOpen.value = false
-  desktopMoreTrigger.value?.focus()
 }
 
 function preloadRoute(path) {
@@ -247,7 +223,6 @@ onMounted(() => {
   // 路由回退时，强制触发页面重绘，解决布局错乱
   window.dispatchEvent(new Event('resize'))
   window.addEventListener(getAuthChangedEventName(), handleRouteChange)
-  document.addEventListener('pointerdown', closeMoreOnOutsideClick)
   mobileLayout.addEventListener('change', handleMobileLayoutChange)
 
   // document.body.style.paddingTop = '60px'
@@ -263,7 +238,6 @@ onUnmounted(() => {
   window.removeEventListener('routeToHome', handleRouteToHome)
   window.removeEventListener('showLoginModal', handleShowLoginModal)
   window.removeEventListener(getAuthChangedEventName(), handleRouteChange)
-  document.removeEventListener('pointerdown', closeMoreOnOutsideClick)
   mobileLayout.removeEventListener('change', handleMobileLayoutChange)
 
   if (shouldHideNavbar.value) {
@@ -273,7 +247,6 @@ onUnmounted(() => {
 
 // 鼠标进入用户中心导航项
 const enterUserCenterDropdown = () => {
-  isMoreOpen.value = false
   isUserCenterDropdownOpen.value = true
   clearDropdownTimers()
   preloadRoute('/user-center/personal-center')
@@ -355,12 +328,15 @@ const submitGlobalSearch = () => {
       <nav class="nav-center" aria-label="主导航">
         <div class="middle">
           <ul class="nav-list">
-        <!-- 使用 <router-link> 实现路由跳转，to 属性指定目标路径 -->
-        <li class="nav-item"><router-link to="/" @pointerenter="preloadRoute('/')" @focus="preloadRoute('/')" @click="closeDropdowns">首页</router-link></li>
-        <li class="nav-item"><router-link to="/data-service/story-graph" @pointerenter="preloadRoute('/data-service/story-graph')" @focus="preloadRoute('/data-service/story-graph')" @click="closeDropdowns">事件故事脉络</router-link></li>
-        <li class="nav-item"><router-link to="/data-service/report-center" @pointerenter="preloadRoute('/data-service/report-center')" @focus="preloadRoute('/data-service/report-center')" @click="closeDropdowns">报告中心</router-link></li>
-        <li class="nav-item"><router-link to="/data-assistant" @pointerenter="preloadRoute('/data-assistant')" @focus="preloadRoute('/data-assistant')" @click="closeDropdowns">数据助手</router-link></li>
-        <li class="nav-item"><router-link to="/financial-terminal" @pointerenter="preloadRoute('/financial-terminal')" @focus="preloadRoute('/financial-terminal')" @click="closeDropdowns">数值分析预警</router-link></li>
+        <li v-for="link in primaryLinks" :key="link.path" class="nav-item">
+          <router-link
+            :to="link.path"
+            :class="{ 'router-link-active': isGroundNewsSubroute(link.path) }"
+            @pointerenter="preloadRoute(link.path)"
+            @focus="preloadRoute(link.path)"
+            @click="closeDropdowns"
+          >{{ link.label }}</router-link>
+        </li>
         <li
           v-if="hasToken"
           class="nav-item dropdown-item"
@@ -432,49 +408,16 @@ const submitGlobalSearch = () => {
             </button>
           </div>
         </li>
-        <li
-          ref="desktopMoreItem"
-          class="nav-item"
-          :class="{ 'nav-item-active': isMoreActive }"
-          @focusout="closeMoreOnFocusOut"
-          @keydown.esc="closeMoreOnEscape"
-        >
-          <button
-            ref="desktopMoreTrigger"
-            type="button"
-            class="dropdown-trigger"
-            :aria-expanded="isMoreOpen"
-            aria-controls="desktop-more-menu"
-            @click="toggleMoreDropdown"
-          >
-            <span>更多</span>
-            <ChevronDown class="nav-icon dropdown-icon" :class="{ rotate: isMoreOpen }" :size="14" aria-hidden="true" />
-          </button>
-          <div id="desktop-more-menu" v-show="isMoreOpen" class="dropdown-menu" :class="{ show: isMoreOpen }">
-            <router-link
-              v-for="link in moreLinks"
-              :key="link.path"
-              :to="link.path"
-              class="dropdown-item-content"
-              @pointerenter="preloadRoute(link.path)"
-              @focus="preloadRoute(link.path)"
-              @click="closeDropdowns"
-            >
-              <component :is="link.icon" class="nav-icon dropdown-item-icon" :size="16" aria-hidden="true" />
-              <span>{{ link.label }}</span>
-            </router-link>
-          </div>
-        </li>
           </ul>
         </div>
       </nav>
 
       <div class="header-actions header-actions--right">
+        <FontSizeControl class="nav-font-size" />
         <router-link class="about-us-link" to="/about-us" aria-label="关于我们" title="关于我们" @pointerenter="preloadRoute('/about-us')" @focus="preloadRoute('/about-us')" @click="closeDropdowns">
           <Info class="nav-icon about-us-icon" :size="16" aria-hidden="true" />
           <span>关于我们</span>
         </router-link>
-        <FontSizeControl class="nav-font-size" />
         <button class="action-btn guide-btn" data-tour="guide-entry" type="button" title="新手指南" aria-label="打开新手指南" @click="openNewUserGuide">
           <CircleHelp class="nav-icon" :size="19" />
         </button>
@@ -552,22 +495,14 @@ const submitGlobalSearch = () => {
 
           <!-- 移动端导航列表 -->
           <nav class="mobile-nav" aria-label="移动端主导航">
-            <router-link class="mobile-nav-item" to="/" @click="closeMobileMenuForNavigation">
-              <span>首页</span>
-            </router-link>
-            <router-link class="mobile-nav-item" to="/data-service/story-graph" @click="closeMobileMenuForNavigation">
-              <span>事件故事脉络</span>
-            </router-link>
-
-            <router-link class="mobile-nav-item" to="/data-service/report-center" @click="closeMobileMenuForNavigation">
-              <span>报告中心</span>
-            </router-link>
-            <router-link class="mobile-nav-item" to="/data-assistant" @click="closeMobileMenuForNavigation">
-              <span>数据助手</span>
-            </router-link>
-            <router-link class="mobile-nav-item" to="/financial-terminal" @click="closeMobileMenuForNavigation">
-              <span>数值分析预警</span>
-            </router-link>
+            <router-link
+              v-for="link in primaryLinks"
+              :key="link.path"
+              :to="link.path"
+              :class="{ 'router-link-active': isGroundNewsSubroute(link.path) }"
+              class="mobile-nav-item"
+              @click="closeMobileMenuForNavigation"
+            >{{ link.label }}</router-link>
 
             <!-- 用户中心（含子菜单） -->
             <template v-if="hasToken">
@@ -607,35 +542,12 @@ const submitGlobalSearch = () => {
               </div>
             </template>
 
-            <div class="mobile-nav-item">
-              <button
-                type="button"
-                class="mobile-nav-item-row"
-                :class="{ 'mobile-nav-item-row--active': isMoreActive }"
-                :aria-expanded="Boolean(mobileExpandedMenus.more)"
-                aria-controls="mobile-more-menu"
-                @click="toggleMobileSubmenu('more')"
-              >
-                <span>更多</span>
-                <ChevronDown class="nav-icon mobile-nav-arrow" :class="{ 'arrow-open': mobileExpandedMenus.more }" :size="14" aria-hidden="true" />
-              </button>
-              <div id="mobile-more-menu" v-show="mobileExpandedMenus.more" class="mobile-submenu">
-                <router-link
-                  v-for="link in moreLinks"
-                  :key="link.path"
-                  :to="link.path"
-                  class="mobile-submenu-item"
-                  @click="closeMobileMenuForNavigation"
-                >
-                  {{ link.label }}
-                </router-link>
-              </div>
+            <div class="mobile-display-actions">
+              <FontSizeControl class="mobile-font-size" />
+              <router-link class="mobile-nav-item-row" to="/about-us" @click="closeMobileMenuForNavigation">
+                <span>关于我们</span>
+              </router-link>
             </div>
-
-            <router-link class="mobile-nav-item-row" to="/about-us" @click="closeMobileMenuForNavigation">
-              <span>关于我们</span>
-            </router-link>
-            <FontSizeControl class="mobile-font-size" />
             <button class="mobile-nav-item-row" type="button" @click="openNewUserGuide">
               <span>新手指南</span>
               <CircleHelp class="nav-icon" :size="18" />

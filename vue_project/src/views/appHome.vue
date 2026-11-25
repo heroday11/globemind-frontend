@@ -105,8 +105,10 @@ function handleMouseMove(e) {
                 <path d="M9 19v5M6 21.5h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
               </svg>
             </div>
-            <h3 class="card-title">{{ card.title }}</h3>
-            <p class="card-subtitle">{{ card.subtitle }}</p>
+            <div class="card-heading">
+              <h2 class="card-title">{{ card.title }}</h2>
+              <p class="card-subtitle">{{ card.subtitle }}</p>
+            </div>
             <span class="card-cta">
               进入
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" class="card-cta-arrow" aria-hidden="true">
@@ -290,24 +292,25 @@ function handleMouseMove(e) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 28px;
+  margin: 2rem 0;
+  text-align: center;
 }
 
 .hero-title {
-  margin: 0 0 8px;
+  margin: 0 0 0.75rem;
   color: #172033;
-  font-size: clamp(26px, 2.4vw, 36px);
-  line-height: 1.15;
-  letter-spacing: 0;
-  text-align: center;
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-wrap: balance;
 }
 
 .hero-tagline {
   margin: 0;
-  font-size: 21px;
+  font-size: 1.125rem;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  color: rgba(71, 85, 105, 0.75);
+  line-height: 1.5;
+  color: #475569;
   animation: fadeInUp 0.8s 0.15s ease both;
 }
 
@@ -325,8 +328,8 @@ function handleMouseMove(e) {
    ============================================================ */
 .bento {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 60px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
   width: 100%;
   margin-bottom: 32px;
 }
@@ -477,25 +480,24 @@ function handleMouseMove(e) {
   color: #2563eb;
 }
 
+.card-heading {
+  max-width: 80%;
+}
+
 .card-title {
   margin: 0;
-  max-width: 80%;
-  font-size: clamp(26px, 2.25vw, 36px);
+  font-size: 1.75rem;
   font-weight: 800;
   line-height: 1.3;
   color: #1e293b;
-  letter-spacing: 0.01em;
-  text-wrap: balance;
 }
 
 .card-subtitle {
-  margin: 0;
-  max-width: 85%;
-  font-size: clamp(18px, 1.45vw, 22px);
-  font-weight: 750;
-  line-height: 1.35;
-  color: #1e293b;
-  text-wrap: balance;
+  margin: 0.375rem 0 0;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #475569;
 }
 
 .card-cta {
@@ -577,18 +579,13 @@ function handleMouseMove(e) {
     justify-content: flex-start;
   }
 
-  .hero {
-    margin-bottom: 28px;
-  }
-
   .hero-title {
-    font-size: 24px;
+    font-size: 2.25rem;
   }
 
   .hero-tagline {
-    font-size: 16px;
-    text-align: center;
-    padding: 0 16px;
+    font-size: 1rem;
+    text-wrap: balance;
   }
 
   .hero-line {
@@ -609,7 +606,7 @@ function handleMouseMove(e) {
   }
 
   .card-title {
-    font-size: 28px;
+    font-size: 1.5rem;
   }
 
   .card-icon {
@@ -626,9 +623,8 @@ function handleMouseMove(e) {
     gap: 12px;
   }
 
-  .card-subtitle {
+  .card-heading {
     max-width: 100%;
-    font-size: 17px;
   }
 
   .home-footer {
@@ -646,21 +642,13 @@ function handleMouseMove(e) {
     justify-content: flex-start;
   }
 
-  .hero-tagline {
-    font-size: 14px;
-  }
-
   .hero-title {
-    font-size: 22px;
+    font-size: 2rem;
   }
 
   .card {
     min-height: 250px;
     padding: 20px;
-  }
-
-  .card-title {
-    font-size: clamp(20px, 5.9vw, 23px);
   }
 
   .home-footer {
