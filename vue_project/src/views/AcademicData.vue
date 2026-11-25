@@ -464,6 +464,7 @@
         </section>
       </main>
 
+    <Teleport to="body">
       <Transition name="modal-fade">
         <div v-if="detailSkill" class="skill-modal-backdrop" @click.self="closeSkillDetail">
           <section class="skill-modal" role="dialog" aria-modal="true" :aria-label="skillName(detailSkill)">
@@ -617,6 +618,7 @@
           </section>
         </div>
       </Transition>
+    </Teleport>
   </div>
 </template>
 
