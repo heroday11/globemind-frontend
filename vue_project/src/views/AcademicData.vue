@@ -56,57 +56,46 @@
     </aside>
 
     <main class="vault-main">
-      <section class="vault-hero" :class="{ 'market-heading': !isPluginDomain }">
+      <section class="vault-hero market-heading">
         <div class="hero-copy">
-          <h2>{{ isPluginDomain ? 'DSH 插件' : 'Agent 能力市场' }}</h2>
-          <p v-if="isPluginDomain">为数据助手添加会话检索、语音输入和智能体协作等能力。</p>
-          <p v-else>
-            文献检索、数据分析、报告交付、视频制作与专家知识源。
-          </p>
-        </div>
-
-        <div v-if="isPluginDomain" class="hero-ledger" :aria-label="isPluginDomain ? '插件目录统计' : '知识库统计'">
-          <div v-for="{ label, value } in heroStatistics" :key="label" class="ledger-cell">
-            <span>{{ value }}</span>
-            <p>{{ label }}</p>
-          </div>
+          <h2>Agent 能力市场</h2>
+          <p>文献检索、数据分析、报告交付、视频制作与专家知识源。</p>
         </div>
       </section>
 
-      <section v-if="!isPluginDomain && !catalogLoading && !catalogError" class="featured-skills" aria-labelledby="featured-skills-title">
+      <section v-if="featuredCards.length" class="featured-skills" aria-labelledby="featured-skills-title">
         <header class="panel-header">
           <div>
-            <h3 id="featured-skills-title">高频通用能力</h3>
+            <h3 id="featured-skills-title">{{ isPluginDomain ? '精选插件' : '高频通用能力' }}</h3>
           </div>
-          <span class="curation-count">{{ totalSkills }} 项精选能力</span>
+          <span class="curation-count">{{ isPluginDomain ? featuredCards.length + ' 项精选插件' : totalSkills + ' 项精选能力' }}</span>
         </header>
 
         <div class="featured-skill-grid">
           <article
-            v-for="item in featuredSkills"
-            :key="item.skill.id"
+            v-for="card in featuredCards"
+            :key="card.key"
             class="featured-skill-card"
-            :class="{ selected: isSkillSelected(item.skill.id) }"
+            :class="{ selected: card.selected }"
           >
-            <button class="featured-skill-main" type="button" @click="openSkillDetail(item.skill)">
+            <button class="featured-skill-main" type="button" @click="card.open">
               <span class="featured-skill-icon">
-                <component :is="domainIcon(item.skill.domainId)" />
+                <component :is="card.icon" />
               </span>
               <span class="featured-skill-copy">
-                <small>{{ item.eyebrow }}</small>
-                <strong>{{ skillName(item.skill) }}</strong>
-                <span>{{ item.summary }}</span>
+                <small>{{ card.category }}</small>
+                <strong>{{ card.title }}</strong>
+                <span>{{ card.description }}</span>
               </span>
             </button>
             <button
               class="featured-skill-toggle"
               type="button"
-              :aria-label="isSkillSelected(item.skill.id) ? `移除${skillName(item.skill)}` : `选择${skillName(item.skill)}`"
-              :title="isSkillSelected(item.skill.id) ? '移除 skill' : '选择使用'"
-              @click="toggleSkill(item.skill)"
+              :aria-label="(card.action.featuredLabel || card.action.label) + ' ' + card.title"
+              :title="card.action.featuredLabel || card.action.label"
+              @click="card.action.run"
             >
-              <CheckCircle2 v-if="isSkillSelected(item.skill.id)" />
-              <Plus v-else />
+              <component :is="card.selected ? CheckCircle2 : card.action.icon" />
             </button>
           </article>
         </div>
@@ -116,9 +105,38 @@
         <div class="skill-library" data-tour="knowledge-skills">
           <header class="panel-header">
             <div>
-              <h3>{{ isPluginDomain ? 'DSH 插件目录' : activeDomainTitle }}</h3>
+              <h3>{{ activeDomainTitle }}</h3>
             </div>
             <div class="panel-actions">
+              <div v-if="isPluginDomain && pluginIndex" class="directory-filters">
+                <div class="directory-groups" role="group" aria-label="插件目录">
+                  <button
+                    class="use-skill-btn"
+                    type="button"
+                    :aria-pressed="pluginGroup === 'featured'"
+                    @click="selectPluginGroup('featured')"
+                  >
+                    精选 <span>{{ matchingPlugins.featured.length }}</span>
+                  </button>
+                  <button
+                    class="use-skill-btn"
+                    type="button"
+                    :aria-pressed="pluginGroup === 'other'"
+                    @click="selectPluginGroup('other')"
+                  >
+                    其他 <span>{{ matchingPlugins.other.length }}</span>
+                  </button>
+                </div>
+                <div class="directory-category">
+                  <label for="dsh-plugin-category">用途</label>
+                  <select id="dsh-plugin-category" v-model="pluginCategory">
+                    <option value="">全部用途</option>
+                    <option v-for="category in pluginIndex.categories" :key="category.id" :value="category.id">
+                      {{ pluginText(category.title) }}
+                    </option>
+                  </select>
+                </div>
+              </div>
               <button
                 v-if="isPluginDomain && getToken()"
                 class="sync-pill plugin-status-refresh"
@@ -136,12 +154,12 @@
             </div>
           </header>
 
-          <div v-if="activeDomain && activeDomainId !== 'all'" class="domain-brief">
+          <div v-if="activeDomain || isPluginDomain" class="domain-brief">
             <div class="domain-brief-icon">
-              <component :is="domainIcon(activeDomain.id)" />
+              <component :is="isPluginDomain ? PlugZap : domainIcon(activeDomain.id)" />
             </div>
             <div>
-              <strong>{{ activeDomain.name }}</strong>
+              <strong>{{ isPluginDomain ? 'DSH 插件' : activeDomain.name }}</strong>
             </div>
           </div>
 
@@ -149,35 +167,6 @@
             <p v-if="pluginStatusError" class="form-error" role="alert">{{ pluginStatusError }}</p>
             <p v-if="pluginNotice" class="db-privacy-note" role="status">{{ pluginNotice }}</p>
           </template>
-          <div v-if="isPluginDomain && pluginIndex" class="dsh-market-filters">
-            <div class="dsh-market-views" role="group" aria-label="插件目录">
-              <button
-                class="use-skill-btn"
-                type="button"
-                :aria-pressed="pluginGroup === 'featured'"
-                @click="selectPluginGroup('featured')"
-              >
-                精选 <span>{{ matchingPlugins.featured.length }}</span>
-              </button>
-              <button
-                class="use-skill-btn"
-                type="button"
-                :aria-pressed="pluginGroup === 'other'"
-                @click="selectPluginGroup('other')"
-              >
-                其他 <span>{{ matchingPlugins.other.length }}</span>
-              </button>
-            </div>
-            <div class="modal-chip-list dsh-category-filter">
-              <label for="dsh-plugin-category">用途</label>
-              <select id="dsh-plugin-category" v-model="pluginCategory">
-                <option value="">全部用途</option>
-                <option v-for="category in pluginIndex.categories" :key="category.id" :value="category.id">
-                  {{ pluginText(category.title) }}
-                </option>
-              </select>
-            </div>
-          </div>
 
           <div v-if="directoryLoading" class="empty-state catalog-state" role="status">
             <RefreshCw class="catalog-spinner" />
@@ -196,22 +185,14 @@
             <article
               v-for="card in catalogCards"
               :key="card.key"
-              class="skill-card"
-              :class="{ selected: card.selected, 'market-skill-card': !isPluginDomain }"
+              class="skill-card market-skill-card"
+              :class="{ selected: card.selected }"
               role="button"
               tabindex="0"
               @click="card.open"
               @keydown.enter.prevent="card.open"
               @keydown.space.prevent="card.open"
             >
-              <div v-if="isPluginDomain" class="skill-card-accent" aria-hidden="true">
-                <span>{{ card.kind }}</span>
-                <strong>{{ card.count }}</strong>
-              </div>
-              <div v-if="isPluginDomain" class="skill-card-badges">
-                <span class="status-badge" :class="card.statusClass">{{ card.status }}</span>
-                <span v-for="badge in card.badges" :key="badge" class="license-badge">{{ badge }}</span>
-              </div>
               <div class="skill-card-top">
                 <div class="skill-icon"><component :is="card.icon" /></div>
                 <div>
@@ -219,22 +200,8 @@
                   <h4>{{ card.title }}</h4>
                 </div>
               </div>
-              <div v-if="isPluginDomain" class="skill-card-highlight">
-                <span>{{ card.highlight }}</span>
-                <strong>{{ card.highlightDetail }}</strong>
-              </div>
               <p class="skill-desc">{{ card.description }}</p>
-              <div v-if="isPluginDomain" class="skill-tags">
-                <span v-for="tag in card.tags" :key="tag">{{ tag }}</span>
-              </div>
-              <dl v-if="isPluginDomain" class="skill-meta">
-                <div v-for="[label, value] in card.facts" :key="label">
-                  <dt>{{ label }}</dt>
-                  <dd>{{ value }}</dd>
-                </div>
-              </dl>
               <div class="skill-footer">
-                <span v-if="isPluginDomain" class="safety-note">{{ card.note }}</span>
                 <button
                   class="use-skill-btn"
                   type="button"
@@ -414,24 +381,24 @@
 
     <Teleport to="body">
       <Transition name="modal-fade">
-        <div v-if="detailSkill" class="skill-modal-backdrop" @click.self="closeSkillDetail">
-          <section class="skill-modal" role="dialog" aria-modal="true" :aria-label="skillName(detailSkill)">
-            <button type="button" class="modal-close" title="关闭" @click="closeSkillDetail">
+        <div v-if="detailCard" class="skill-modal-backdrop" @click.self="closeDetail">
+          <section class="skill-modal" role="dialog" aria-modal="true" :aria-label="detailCard.title">
+            <button type="button" class="modal-close" aria-label="关闭" @click="closeDetail">
               <X />
             </button>
 
             <div class="modal-head">
               <div class="modal-icon">
-                <component :is="domainIcon(detailSkill.domainId)" />
+                <component :is="detailCard.icon" />
               </div>
               <div>
-                <span>{{ detailSkill.domainName }}</span>
-                <h3>{{ skillName(detailSkill) }}</h3>
-                <p>{{ skillDescription(detailSkill) }}</p>
+                <span>{{ detailCard.category }}</span>
+                <h3>{{ detailCard.title }}</h3>
+                <p>{{ detailCard.description }}</p>
               </div>
             </div>
 
-            <dl v-if="skillSource || detailSkill.version || detailSkill.updatedAt" class="market-details">
+            <dl v-if="detailSkill && (skillSource || detailSkill.version || detailSkill.updatedAt)" class="market-details">
               <div v-if="skillSource">
                 <dt>来源</dt>
                 <dd><a :href="skillSource" target="_blank" rel="noopener noreferrer">{{ detailSkill.source || '上游项目' }} <ExternalLink /></a></dd>
@@ -452,57 +419,50 @@
               </div>
             </dl>
 
-            <div class="modal-actions">
-              <button
-                class="modal-use-btn"
-                :class="{ 'is-selected': isSkillSelected(detailSkill.id) }"
-                type="button"
-                @click="toggleSkill(detailSkill)"
-              >
-                <CheckCircle2 v-if="isSkillSelected(detailSkill.id)" />
-                <Plus v-else />
-                {{ isSkillSelected(detailSkill.id) ? '已加入使用列表' : '选择使用这个 Skill' }}
-              </button>
-            </div>
-          </section>
-        </div>
-      </Transition>
-
-      <Transition name="modal-fade">
-        <div v-if="detailPlugin" class="skill-modal-backdrop" @click.self="closePluginDetail">
-          <section class="skill-modal" role="dialog" aria-modal="true" :aria-label="pluginText(detailPlugin.title)">
-            <button type="button" class="modal-close" aria-label="关闭" @click="closePluginDetail"><X /></button>
-            <div class="modal-head">
-              <div class="modal-icon"><PlugZap /></div>
-              <div>
-                <span>{{ pluginCategoryTitle(detailPlugin.category) }}</span>
-                <h3>{{ pluginText(detailPlugin.title) }}</h3>
-                <p>{{ pluginText(detailPlugin.description) }}</p>
+            <dl v-else-if="detailPlugin" class="market-details plugin-details">
+              <div v-if="detailPlugin.author">
+                <dt>发布者</dt>
+                <dd>{{ detailPlugin.author }}</dd>
               </div>
-            </div>
-            <div class="modal-grid">
-              <section class="modal-section">
-                <h4>版本与来源</h4>
-                <dl class="modal-fact-list dsh-plugin-facts">
-                  <div><dt>发布者</dt><dd>{{ detailPlugin.author }}</dd></div>
-                  <div><dt>安装来源</dt><dd><a :href="safeExternalHttpUrl(detailPlugin.homepage)" target="_blank" rel="noopener noreferrer">{{ detailPlugin.name }}</a></dd></div>
-                  <div v-if="detailPlugin.requirements"><dt>运行条件</dt><dd>{{ detailPlugin.requirements }}</dd></div>
-                  <div v-if="detailPlugin.unavailable"><dt>添加限制</dt><dd>{{ detailPlugin.unavailable }}</dd></div>
-                  <div>
-                    <dt><label for="dsh-plugin-version">版本</label></dt>
-                    <dd><select id="dsh-plugin-version" v-model="pluginVersion" :disabled="pluginState?.installed || pluginState?.provided || Boolean(pendingPluginAction) || pluginActionBusy">
-                      <option v-for="version in detailPlugin.versions" :key="version.version" :value="version.version">{{ version.version }}</option>
-                    </select></dd>
-                  </div>
-                  <div><dt>兼容性</dt><dd>{{ pluginCompatibilityLabel }}</dd></div>
-                  <div><dt>状态</dt><dd>{{ pluginStateLabel(detailPlugin) }}</dd></div>
-                </dl>
-              </section>
-            </div>
-            <p v-if="pluginActionMessage" class="db-privacy-note" role="status">{{ pluginActionMessage }}</p>
-            <p v-if="pluginActionError" class="form-error" role="alert">{{ pluginActionError }}</p>
+              <div>
+                <dt>安装来源</dt>
+                <dd>
+                  <a :href="safeExternalHttpUrl(detailPlugin.homepage)" target="_blank" rel="noopener noreferrer">
+                    {{ detailPlugin.name }} <ExternalLink />
+                  </a>
+                  <template v-if="pluginVersionSource"> · {{ pluginVersionSource }}</template>
+                </dd>
+              </div>
+              <div v-if="detailPlugin.requirements"><dt>运行条件</dt><dd>{{ detailPlugin.requirements }}</dd></div>
+              <div v-if="detailPlugin.unavailable"><dt>添加限制</dt><dd>{{ detailPlugin.unavailable }}</dd></div>
+              <div>
+                <dt><label for="dsh-plugin-version">版本</label></dt>
+                <dd>
+                  <select id="dsh-plugin-version" v-model="pluginVersion" :disabled="pluginState?.installed || pluginState?.provided || Boolean(pendingPluginAction) || pluginActionBusy">
+                    <option v-for="version in detailPlugin.versions" :key="version.version" :value="version.version">{{ version.version }}</option>
+                  </select>
+                </dd>
+              </div>
+              <div><dt>兼容性</dt><dd>{{ pluginCompatibilityLabel }}</dd></div>
+              <div><dt>状态</dt><dd>{{ pluginStateLabel(detailPlugin) }}</dd></div>
+            </dl>
+            <p v-if="detailPlugin && pluginActionMessage" class="db-privacy-note" role="status">{{ pluginActionMessage }}</p>
+            <p v-if="detailPlugin && pluginActionError" class="form-error" role="alert">{{ pluginActionError }}</p>
+
             <div class="modal-actions">
-              <router-link v-if="!getToken() && !detailPlugin.unavailable" class="use-skill-btn" :to="pluginLoginRoute">登录后管理插件</router-link>
+              <template v-if="detailSkill">
+                <button
+                  class="modal-use-btn"
+                  :class="{ 'is-selected': isSkillSelected(detailSkill.id) }"
+                  type="button"
+                  @click="toggleSkill(detailSkill)"
+                >
+                  <CheckCircle2 v-if="isSkillSelected(detailSkill.id)" />
+                  <Plus v-else />
+                  {{ isSkillSelected(detailSkill.id) ? '已加入使用列表' : '选择使用这个 Skill' }}
+                </button>
+              </template>
+              <router-link v-else-if="!getToken() && !detailPlugin.unavailable" class="use-skill-btn" :to="pluginLoginRoute">登录后管理插件</router-link>
               <template v-else-if="pendingPluginAction">
                 <button class="use-skill-btn" type="button" :disabled="pluginActionBusy" @click="pendingPluginAction = ''">取消</button>
                 <button class="modal-use-btn" type="button" :disabled="pluginActionBusy" @click="applyPluginAction">
@@ -715,6 +675,7 @@ const activeDomain = computed(() =>
 )
 
 const activeDomainTitle = computed(() => {
+  if (isPluginDomain.value) return 'DSH 插件目录'
   if (activeDomainId.value === 'all') return '精选 Skill 目录'
   return activeDomain.value?.name || '专家 Skill'
 })
@@ -1074,6 +1035,12 @@ const filteredPlugins = computed(() => matchingPlugins.value[pluginGroup.value].
   !pluginCategory.value || plugin.category === pluginCategory.value,
 ))
 const pluginState = computed(() => pluginStates.value[detailPlugin.value?.name])
+const pluginVersionSource = computed(() => {
+  const source = detailPlugin.value?.versions.find(version => version.version === pluginVersion.value)?.source
+  if (source?.type === 'npm') return 'npm'
+  if (source?.type === 'git') return 'Git'
+  return ''
+})
 const pluginCompatibility = computed(() => pluginState.value?.versions.find(version =>
   version.version === (pluginState.value.installedVersion || pluginVersion.value),
 )?.compatibility)
@@ -1112,15 +1079,23 @@ const catalogCards = computed(() => isPluginDomain.value
   : filteredSkills.value.map(skillCard),
 )
 
-const heroStatistics = computed(() => {
-  const index = pluginIndex.value
-  const available = index?.plugins.filter(plugin => !plugin.unavailable).length
-  return [
-    { label: '插件总数', value: index?.plugins.length ?? '—' },
-    { label: '可添加', value: available ?? '—' },
-    { label: '仅浏览', value: index ? index.plugins.length - available : '—' },
-    { label: '用途分类', value: index?.categories.length ?? '—' },
-  ]
+const featuredCards = computed(() => {
+  if (isPluginDomain.value) {
+    if (pluginGroup.value !== 'featured' || pluginCategory.value || searchKeyword.value.trim()) return []
+    return matchingPlugins.value.featured.slice(0, 4).map(pluginCard)
+  }
+  if (catalogLoading.value || catalogError.value) return []
+  return featuredSkills.value.map(({ skill, eyebrow, summary }) => ({
+    ...skillCard(skill),
+    category: eyebrow,
+    description: summary,
+  }))
+})
+
+const detailCard = computed(() => {
+  if (detailSkill.value) return skillCard(detailSkill.value)
+  if (detailPlugin.value) return pluginCard(detailPlugin.value)
+  return null
 })
 
 function reloadDirectory() {
@@ -1140,6 +1115,7 @@ function skillCard(skill) {
     action: {
       icon: selected ? CheckCircle2 : Plus,
       label: selected ? '已选择使用' : '选择使用',
+      featuredLabel: selected ? '移除' : '选择使用',
       run: () => toggleSkill(skill),
     },
   }
@@ -1147,35 +1123,15 @@ function skillCard(skill) {
 
 function pluginCard(plugin) {
   const state = pluginStates.value[plugin.name]
-  const version = plugin.versions.find(item => item.version === state?.defaultVersion) || plugin.versions[0]
-  const source = version?.source
-  const sourceLabel = source?.type === 'npm' ? 'npm' : source?.type === 'git' ? 'Git' : ''
   const selected = state?.enabled === true
   const open = () => openPluginDetail(plugin)
   const canAdd = pluginCanBeAdded(plugin)
-  const tags = []
-  if (sourceLabel) tags.push(sourceLabel)
-  if (version?.engines?.dsh) tags.push('DSH ' + version.engines.dsh)
   return {
     key: 'plugin:' + plugin.name,
-    kind: 'DSH',
-    count: plugin.versions.length,
     icon: PlugZap,
     category: pluginCategoryTitle(plugin.category),
     title: pluginText(plugin.title),
-    status: pluginStateLabel(plugin),
-    statusClass: selected && !state.error ? 'ready' : 'runtime',
-    badges: plugin.author ? [plugin.author] : [],
-    highlight: '推荐版本',
-    highlightDetail: version?.version || '—',
     description: pluginText(plugin.description),
-    tags,
-    facts: [
-      ['来源', [plugin.author, sourceLabel].filter(Boolean).join(' · ')],
-      ['激活条件', plugin.requirements || (plugin.unavailable ? '查看添加限制' : '在当前数据助手中启用')],
-      ['运行时', 'DSH'],
-    ],
-    note: plugin.unavailable || (selected ? '已在当前数据助手中启用' : state?.error ? '请查看详情中的兼容性和状态' : '添加时确认插件来源和版本'),
     selected,
     open,
     action: { icon: canAdd ? Plus : FileSearch, label: canAdd ? '添加' : '查看详情', run: open },
@@ -1274,9 +1230,13 @@ async function applyPluginAction() {
   }
 }
 
+function closeDetail() {
+  if (detailSkill.value) closeSkillDetail()
+  if (detailPlugin.value) closePluginDetail()
+}
+
 function handleKeydown(event) {
-  if (event.key === 'Escape' && detailSkill.value) closeSkillDetail()
-  if (event.key === 'Escape' && detailPlugin.value) closePluginDetail()
+  if (event.key === 'Escape') closeDetail()
 }
 
 onMounted(() => {
@@ -1304,40 +1264,46 @@ onBeforeUnmount(() => {
   width: 14px;
   height: 14px;
 }
-.dsh-market-filters {
+.directory-filters,
+.directory-groups,
+.directory-category {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+}
+.directory-filters {
   flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: space-between;
-  margin: 0 0 1rem;
+  justify-content: flex-end;
 }
-.dsh-market-views {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 0.5rem;
-}
-.dsh-market-views button {
-  min-height: 36px;
+.directory-groups button {
+  min-height: 30px;
   white-space: nowrap;
 }
-.dsh-market-views button[aria-pressed='true'] {
+.directory-groups button[aria-pressed='true'] {
   border-color: currentColor;
   font-weight: 700;
 }
-.dsh-category-filter {
-  align-items: center;
+.directory-category {
+  color: var(--vault-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
-.dsh-category-filter select,
-.dsh-plugin-facts select {
+.directory-category select,
+.plugin-details select {
   max-width: 100%;
   padding: 0.3rem 0.5rem;
-  border: 1px solid var(--w36-border, #b9c3cb);
+  border: 1px solid var(--vault-line);
   border-radius: 6px;
-  background: transparent;
+  background: var(--vault-surface-2);
   color: inherit;
 }
-.dsh-plugin-facts dd {
-  overflow-wrap: anywhere;
+@media (max-width: 720px) {
+  .skill-library .panel-header {
+    flex-wrap: wrap;
+  }
+  .skill-library .panel-actions,
+  .directory-filters {
+    justify-content: flex-start;
+  }
 }
 </style>
