@@ -30,6 +30,7 @@ import {
 } from './config.js'
 import {
   avoidMacroCollisions,
+  buildMacroEvolutionEdges,
   compareMacroChronology,
   buildMacroLaneMap,
   buildMacroLaneOffsets,
@@ -714,15 +715,19 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
   })
 
   const isMacro = isMacroStory(primaryStory)
-  const timelineEdges = !isMacro && showTimelineLinks ? visibleEdges : []
-  const flowEdges = [...(storyGraph.interactions || []), ...timelineEdges]
+  const interactions = storyGraph.interactions || []
+  const baseEdges = isMacro
+    ? buildMacroEvolutionEdges(primaryStory.orderedNodes, interactions)
+    : showTimelineLinks ? visibleEdges : []
+  const flowEdges = [...interactions, ...baseEdges]
   const eventTitles = new Map(eventNodes.map((node) => [node.id, node.data.title]))
   const pairEdges = new Map()
 
   flowEdges.forEach((edge) => {
     const isInteraction = edge.kind === 'interaction'
-    const sourceId = isInteraction ? edge.sourceId : edge.from_id
-    const targetId = isInteraction ? edge.targetId : edge.to_id
+    const isEvolution = edge.kind === 'evolution'
+    const sourceId = edge.sourceId ?? edge.from_id
+    const targetId = edge.targetId ?? edge.to_id
     const sourcePoint = positions.get(sourceId)
     const targetPoint = positions.get(targetId)
     if (!sourcePoint || !targetPoint) return
@@ -732,7 +737,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
     pairEdges.set(pair, parallelIndex + 1)
     const span = Math.abs(targetPoint.x - sourcePoint.x)
     const arcDirection = ((sourcePoint.timelineIndex ?? 0) + parallelIndex) % 2 ? 1 : -1
-    const arc = !isInteraction && (span > 470 || parallelIndex)
+    const arc = !isMacro && (span > 470 || parallelIndex)
       ? arcDirection * (128 + Math.min(span * 0.13, 290) + 65 * parallelIndex)
       : 0
     const verticalHandle = arc > 0 ? 'bottom' : 'top'
@@ -744,8 +749,10 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
       (sourcePoint.isMacro || targetPoint.isMacro) &&
       (edge.edge_type === 'macro_sequence' || edge.edge_type === 'branch_sequence')
     const isMacroStoryEdge = sourcePoint.isMacro || targetPoint.isMacro
-    const stroke = isInteraction ? edge.turningPoint ? '#234a78' : '#657689' : edgeStroke(edge)
-    const inspectorPayload = isInteraction ? edge : buildStoryGraphEdgeInspector(edge)
+    const stroke = isEvolution
+      ? '#75879b'
+      : isInteraction ? edge.turningPoint ? '#234a78' : '#657689' : edgeStroke(edge)
+    const inspectorPayload = isInteraction || isEvolution ? edge : buildStoryGraphEdgeInspector(edge)
     const relationKind = edge.relation_semantics?.relation_kind
     const sourceMatches = perspectiveNodeIds.has(sourceId)
     const targetMatches = perspectiveNodeIds.has(targetId)
@@ -759,7 +766,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
     )
 
     edges.push({
-      id: isInteraction ? edge.id : `edge-${sourceId}-${targetId}-${edge.edge_type}-${edge.layer || 'story'}`,
+      id: edge.id ?? `edge-${sourceId}-${targetId}-${edge.edge_type}-${edge.layer || 'story'}`,
       source: sourceId,
       target: targetId,
       ariaLabel: [inspectorPayload.title, eventTitles.get(sourceId), eventTitles.get(targetId)]
@@ -770,6 +777,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
       className: [
         'story-rf-edge',
         isInteraction ? 'story-rf-edge--interaction' : '',
+        isEvolution ? 'story-rf-edge--evolution' : '',
         matchesPerspective ? '' : 'story-rf-edge--muted',
         isContext ? 'story-rf-edge--context' : 'story-rf-edge--story',
         isMacroStoryEdge ? 'story-rf-edge--macro' : '',
@@ -795,11 +803,11 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
         relationReason: edge.relation_reason,
         weight: null,
         stroke,
-        strokeWidth: edge.turningPoint ? 3 : isContext ? 1.8 : 2.1,
-        dashArray: isInteraction || isMacroSequence
+        strokeWidth: edge.turningPoint ? 3 : isEvolution || isContext ? 1.8 : 2.1,
+        dashArray: isInteraction || isEvolution || isMacroSequence
           ? undefined
           : isContext ? '7 10' : edge.layer === 'story' ? '11 8' : '9 8',
-        opacity: isInteraction ? 1 : isMacro ? 0.43 : isContext ? 0.54 : 0.62,
+        opacity: isInteraction ? 1 : isEvolution ? 0.7 : isContext ? 0.54 : 0.62,
         arc,
         curvature: isContext ? 0.34 : isMacroStoryEdge ? (isMacroSequence ? 0.22 : 0.3) : 0.22,
       },

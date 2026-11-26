@@ -39,6 +39,8 @@ import {
   transformL3MacroResponse,
 } from '../src/features/story-graph/index.js'
 
+import { buildMacroEvolutionEdges } from '../src/features/story-graph/flow-model.js'
+
 const boundedRelationSemantics = (publicEdgeType, overrides = {}) => ({
   schema_version: 'story-relation-semantics-v1',
   ontology_state: 'bounded',
@@ -475,6 +477,21 @@ test('flow model orders nodes and synthesizes stable macro lane edges', () => {
     relationStrengthLabel({ edge_weight: 0.9 }),
     '关系强度未知（方法或证据不可用，不可作为事实）',
   )
+})
+
+test('L3 evolution connects chronological neighbors and reuses a direct relationship', () => {
+  const nodes = [
+    { id: 'd', start_date: '2026-04-04', node_order: 1 },
+    { id: 'c', start_date: '2026-04-03', node_order: 2 },
+    { id: 'a', start_date: '2026-04-01', node_order: 3 },
+    { id: 'b', start_date: '2026-04-02', node_order: 4 },
+  ]
+  const edges = buildMacroEvolutionEdges(nodes, [{ sourceId: 'c', targetId: 'b' }])
+  assert.deepEqual(edges.map(({ sourceId, targetId }) => [sourceId, targetId]), [
+    ['a', 'b'],
+    ['c', 'd'],
+  ])
+  assert.deepEqual(buildMacroEvolutionEdges(nodes.slice(0, 1), []), [])
 })
 
 test('relation ontology rejects influence, causal, malformed, and synthetic upgrades', () => {

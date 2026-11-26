@@ -59,6 +59,25 @@ export function buildMacroDisplayEdges(story, visibleEdges) {
   return displayEdges
 }
 
+export function buildMacroEvolutionEdges(nodes, interactions) {
+  const ordered = nodes.slice().sort(compareMacroChronology)
+  const relatedPairs = new Set(interactions.map(({ sourceId, targetId }) =>
+    JSON.stringify([sourceId, targetId].sort()),
+  ))
+
+  return ordered.slice(1).flatMap((target, index) => {
+    const source = ordered[index]
+    if (relatedPairs.has(JSON.stringify([source.id, target.id].sort()))) return []
+    return [{
+      id: JSON.stringify(['evolution', source.id, target.id]),
+      kind: 'evolution',
+      sourceId: source.id,
+      targetId: target.id,
+      title: '基础演化',
+    }]
+  })
+}
+
 export function buildMacroLaneMap(nodes) {
   const laneMap = new Map()
   nodes.forEach((node) => {
