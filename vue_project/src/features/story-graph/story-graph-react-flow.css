@@ -72,16 +72,11 @@
 
 .story-rf-edge-label--interaction .react-flow__edge-text {
   fill: #193b61;
+  font-size: 19px;
 }
 
 .story-rf-edge-label--interaction:active .react-flow__edge-textbg {
   cursor: grabbing;
-}
-
-.story-rf-edge-label__leader {
-  stroke: #657689;
-  stroke-dasharray: 3 3;
-  pointer-events: none;
 }
 
 .story-rf-root .react-flow__node-groupNode {

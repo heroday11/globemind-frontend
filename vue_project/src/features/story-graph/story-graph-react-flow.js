@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import ReactFlow, {
   applyEdgeChanges,
@@ -12,7 +12,6 @@ import ReactFlow, {
   MiniMap,
   Position,
   getBezierPath,
-  useStore,
 } from 'reactflow'
 
 import 'reactflow/dist/style.css'
@@ -440,7 +439,7 @@ function IntelEdge(props) {
     markerEnd,
     className,
   } = props
-  const zoom = useStore((state) => (data.label ? state.transform[2] : 1))
+
 
   const pathArgs = {
     sourceX,
@@ -450,7 +449,7 @@ function IntelEdge(props) {
     sourcePosition,
     targetPosition,
   }
-  const [directPath, directLabelX, directLabelY] = getBezierPath({
+  const [directPath] = getBezierPath({
     ...pathArgs,
     curvature: data.curvature ?? (data.layer === 'context' ? 0.36 : 0.24),
   })
@@ -460,8 +459,7 @@ function IntelEdge(props) {
   const path = data.arc
     ? `M ${sourceX} ${sourceY} C ${sourceX} ${railY}, ${targetX} ${railY}, ${targetX} ${targetY}`
     : directPath
-  const labelX = data.arc ? (sourceX + targetX) / 2 : directLabelX
-  const labelY = data.arc ? (sourceY + 6 * railY + targetY) / 8 : directLabelY
+
 
   return h(
     React.Fragment,
@@ -481,35 +479,67 @@ function IntelEdge(props) {
     }),
     data.label && h(StoryEdgeLabel, {
       label: data.label,
-      x: labelX,
-      y: labelY,
-      zoom,
+      path,
       movable: data.payload.kind === 'interaction',
     }),
   )
 }
 
-function StoryEdgeLabel({ label, x, y, zoom, movable }) {
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
+function StoryEdgeLabel({ label, path, movable }) {
+  const [fraction, setFraction] = useState(0.5)
+  const [point, setPoint] = useState(null)
+  const labelRef = useRef(null)
+  const geometry = useRef(null)
   const gesture = useRef(null)
   const moved = useRef(false)
 
+  useLayoutEffect(() => {
+    const curve = labelRef.current.parentElement.querySelector('.react-flow__edge-path')
+    const length = curve?.getTotalLength()
+    geometry.current = length > 0 ? { curve, length } : null
+    setPoint(length > 0 ? curve.getPointAtLength(fraction * length) : null)
+  }, [path, fraction])
+
   function start(event) {
-    if (event.button !== 0) return
+    if (event.button !== 0 || !geometry.current) return
     event.stopPropagation()
     moved.current = false
-    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, offset }
+    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
   function move(event) {
     const active = gesture.current
-    if (active?.id !== event.pointerId) return
-    const dx = event.clientX - active.x
-    const dy = event.clientY - active.y
-    if (!moved.current && Math.hypot(dx, dy) < 4) return
+    if (active?.id !== event.pointerId || !geometry.current) return
+    if (!moved.current && Math.hypot(event.clientX - active.x, event.clientY - active.y) < 4) return
+    const { curve, length } = geometry.current
+    const matrix = curve.getScreenCTM()
+    if (!matrix) return
+    const pointer = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse())
+    let best = fraction
+    let bestDistance = Infinity
+    function sample(position) {
+      const candidate = curve.getPointAtLength(position * length)
+      const distance = Math.hypot(candidate.x - pointer.x, candidate.y - pointer.y)
+      if (distance < bestDistance) {
+        best = position
+        bestDistance = distance
+      }
+    }
+
+    const steps = 40
+    const min = 0.12
+    const max = 0.88
+    const stepSize = (max - min) / steps
+    for (let step = 0; step <= steps; step += 1) sample(min + step * stepSize)
+    // Refine near the closest point so dragging stays smooth on longer curves.
+    const center = best
+    for (let step = -8; step <= 8; step += 1) {
+      sample(Math.max(min, Math.min(max, center + step * stepSize / 8)))
+    }
+
     moved.current = true
-    setOffset({ x: active.offset.x + dx / zoom, y: active.offset.y + dy / zoom })
+    setFraction(best)
   }
 
   function stop(event) {
@@ -519,11 +549,12 @@ function StoryEdgeLabel({ label, x, y, zoom, movable }) {
   return h(
     'g',
     {
+      ref: labelRef,
       'aria-hidden': true,
       className: movable
         ? 'story-rf-edge-label story-rf-edge-label--interaction nodrag nopan'
         : 'story-rf-edge-label',
-      transform: `translate(${x} ${y})`,
+      transform: point ? `translate(${point.x} ${point.y})` : undefined,
       ...(movable && {
         onPointerDown: start,
         onPointerMove: move,
@@ -537,15 +568,7 @@ function StoryEdgeLabel({ label, x, y, zoom, movable }) {
         },
       }),
     },
-    (offset.x !== 0 || offset.y !== 0) && h('line', {
-      x2: offset.x,
-      y2: offset.y,
-      className: 'story-rf-edge-label__leader',
-      vectorEffect: 'non-scaling-stroke',
-    }),
-    h('g', { transform: `translate(${offset.x} ${offset.y}) scale(${1 / zoom})` },
-      h(EdgeText, { x: 0, y: 0, label, labelBgPadding: [5, 2], labelBgBorderRadius: 4 }),
-    ),
+    point && h(EdgeText, { x: 0, y: 0, label, labelBgPadding: [5, 2], labelBgBorderRadius: 4 }),
   )
 }
 

@@ -18,6 +18,7 @@ const IRAN_INTERACTIONS = [
     sourceId: 'fast_l2_v1_e6bf1ae0af11b539',
     targetId: 'fast_l2_v1_8c75b318097e48f4',
     title: '供应受阻推升油价',
+    turningPoint: true,
     summary: '《耶路撒冷邮报》将油价大涨归因于霍尔木兹海峡关闭造成的石油运输和供应中断。',
     evidence: {
       title: 'Oil surges past $100 amid Iran conflict as G7 weighs emergency reserve release',
@@ -29,6 +30,7 @@ const IRAN_INTERACTIONS = [
     sourceId: 'fast_l2_v1_e6bf1ae0af11b539',
     targetId: 'fast_l2_v1_ce5a3e97cc9349fe',
     title: '引发退约表态',
+    turningPoint: true,
     summary: '据 CBS 报道，特朗普以北约盟友未参与对伊战争为由，表示考虑让美国退出北约。',
     evidence: {
       title: 'Trump says he may try to pull U.S. out of NATO since allies “weren’t there for us” in Iran war',
@@ -40,6 +42,7 @@ const IRAN_INTERACTIONS = [
     sourceId: 'fast_l2_v1_584be832d1a81e8d',
     targetId: 'fast_l2_v1_d901bb4b33d22b9a',
     title: '停火后派团谈判',
+    turningPoint: true,
     summary: '美伊宣布临时停火后，白宫宣布派谈判团队赴巴基斯坦，就停火协议继续磋商。',
     evidence: {
       title: 'US dispatching negotiating team for Iran talks, Tehran signals willingness to hand over uranium',
