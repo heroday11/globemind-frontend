@@ -90,7 +90,7 @@ import GroundNewsWorldMap from './GroundNewsWorldMap.vue'
 
 const route = useRoute()
 const router = useRouter()
-const panel = ref('')
+const panel = ref('map')
 const mapFocus = ref(null)
 const keyword = ref('')
 const snapshot = shallowRef(null)

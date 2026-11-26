@@ -1,6 +1,28 @@
 <template>
   <div class="world-map">
+    <figure v-if="isChina" class="world-map__china">
+      <img
+        :src="chinaStandardMapUrl"
+        width="2183"
+        height="2663"
+        alt="中华人民共和国标准地图，展示台湾省、南海诸岛和陆地国界"
+        draggable="false"
+        @click="selectChinaProvince"
+      />
+      <figcaption>
+        <span>自然资源部监制 · GS(2019)1818号</span>
+        <div class="world-map__tools world-map__tools--inline">
+          <a :href="chinaStandardMapUrl" target="_blank" rel="noopener" title="查看原图" aria-label="查看中国标准地图原图（新标签页）">
+            <Maximize2 :size="16" />
+          </a>
+          <button type="button" title="回到全球" aria-label="回到全球" @click="reset">
+            <RotateCcw :size="16" />
+          </button>
+        </div>
+      </figcaption>
+    </figure>
     <div
+      v-show="!isChina"
       ref="stage"
       class="world-map__stage"
       :class="{ 'is-dragging': pointerId !== null }"
@@ -29,10 +51,11 @@
 
 <script setup>
 import { geoContains, geoGraticule10, geoNaturalEarth1, geoPath, geoStream } from 'd3-geo'
-import { Crosshair, Minus, Plus, RotateCcw } from 'lucide-vue-next'
+import { Crosshair, Maximize2, Minus, Plus, RotateCcw } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import geometryUrl from '@/assets/ground-news/world-countries.json?url'
 import chinaGeometryUrl from '@/assets/ground-news/china-provinces.json?url'
+import chinaStandardMapUrl from '@/assets/ground-news/china-standard-map.jpg?url'
 
 const props = defineProps({
   countries: { type: Array, required: true },
@@ -50,9 +73,7 @@ const preview = ref(null)
 const marker = ref(null)
 const features = shallowRef([])
 const provinces = shallowRef([])
-const isChina = computed(() => props.selection?.country === 'CN' && provinces.value.length > 0)
-const shapes = computed(() => isChina.value ? provinces.value : features.value)
-const locations = computed(() => new Map(props.places.map((place) => [place.id, place])))
+const isChina = computed(() => props.selection?.country === 'CN')
 let chinaRequest
 const countryCounts = computed(() => new Map(props.countries.map((item) => [item.code, item.count])))
 const sphere = { type: 'Sphere' }
@@ -70,7 +91,7 @@ const markerStyle = computed(() => {
 })
 
 function draw() {
-  if (!stage.value || !ready.value) return
+  if (isChina.value || !stage.value || !ready.value) return
   const { width, height } = stage.value.getBoundingClientRect()
   if (!width || !height) return
   const context = canvas.value.getContext('2d')
@@ -85,9 +106,7 @@ function draw() {
   context.setTransform(ratio, 0, 0, ratio, 0, 0)
   context.clearRect(0, 0, width, height)
   dimensions = [width, height]
-  const extent = isChina.value ? [[16, 12], [width - 28, height - 12]] : [[4, 8], [width - 4, height - 8]]
-  const geometry = isChina.value ? { type: 'FeatureCollection', features: shapes.value } : sphere
-  projection = geoNaturalEarth1().fitExtent(extent, geometry)
+  projection = geoNaturalEarth1().fitExtent([[4, 8], [width - 4, height - 8]], sphere)
   const focus = props.selection?.coordinates || [0, 18]
   if (zoom.value > 1) {
     const original = projection(focus)
@@ -100,16 +119,12 @@ function draw() {
   const path = geoPath(projection, context)
   trace(sphere, '#e9f2f5', '#d1e1e8')
   trace(graticule, null, '#d9e6ec')
-  if (isChina.value) {
-    for (const feature of features.value) trace(feature, '#e0e9e5', '#f4f8f5')
-  }
-  for (const feature of shapes.value) {
-    const count = (isChina.value ? locations.value.get(feature.id)?.count : countryCounts.value.get(feature.id)) || 0
+  for (const feature of features.value) {
+    const count = countryCounts.value.get(feature.id) || 0
     const surface = count > 100 ? '#81b7a9' : count > 20 ? '#a1c9bd' : count ? '#bdd7ce' : '#dfe7e3'
-    const selected = (isChina.value ? props.selection?.place : props.selection?.country) === feature.id
+    const selected = props.selection?.country === feature.id
     trace(feature, selected ? '#428f80' : surface, selected ? '#1f6e60' : '#f4f8f5')
   }
-  if (isChina.value) drawProvinceNames(context, width, height)
   const displayPlaces = props.places
     .filter((place) => place.kind === 'city')
     .sort((a, b) => b.count - a.count)
@@ -140,26 +155,23 @@ function draw() {
   }
 }
 
-function drawProvinceNames(context, width, height) {
-  context.font = '11px Inter, "Noto Sans CJK SC", "PingFang SC", sans-serif'
-  context.textAlign = 'center'
-  context.textBaseline = 'middle'
-  const labels = []
-  for (const feature of provinces.value) {
-    const place = locations.value.get(feature.id)
-    if (!place) continue
-    const [x, y] = projection(place.coordinates)
-    const name = place.name.replace(/(壮族自治区|维吾尔自治区|回族自治区|自治区|省|市)$/, '')
-    const half = context.measureText(name).width / 2 + 2
-    if (x - half < 2 || x + half > width - 2 || y < 10 || y > height - 10) continue
-    if (labels.some((box) => Math.abs(x - box.x) < half + box.half && Math.abs(y - box.y) < 13)) continue
-    labels.push({ x, y, half })
-    context.strokeStyle = '#fbffff'
-    context.lineWidth = 3
-    context.strokeText(name, x, y)
-    context.fillStyle = '#274a47'
-    context.fillText(name, x, y)
-  }
+function selectChinaProvince(event) {
+  const image = event.currentTarget
+  if (!image.naturalWidth) return
+  const box = image.getBoundingClientRect()
+  const x = (event.clientX - box.left) * image.naturalWidth / box.width
+  const y = (event.clientY - box.top) * image.naturalHeight / box.height
+  if (x < 42 || x > 2140 || y < 163 || y > 2555) return
+
+  // Fit the printed graticule in GS(2019)1818 for province selection.
+  const dx = x - 1193
+  const dy = y + 3089
+  const toDegrees = 180 / Math.PI
+  const longitude = 105.18 + Math.atan2(dx, dy) * toDegrees / 0.456
+  const latitude = (5689 - Math.hypot(dx, dy)) * toDegrees / 2565
+  const coordinates = [longitude, latitude]
+  const province = provinces.value.find((feature) => geoContains(feature, coordinates))
+  if (province) emit('focus', { country: 'CN', place: province.id, coordinates })
 }
 
 function scheduleDraw() {
@@ -206,15 +218,10 @@ function finishFocus(event) {
     return
   }
   const valid = coordinates?.every(Number.isFinite) && Math.abs(coordinates[0]) <= 180 && Math.abs(coordinates[1]) <= 90
-  const candidates = shapes.value.filter((feature) => feature.id)
+  const candidates = features.value.filter((feature) => feature.id)
   const direct = valid && candidates.find((feature) => geoContains(feature, coordinates))
   const match = direct ? { id: direct.id, coordinates } : nearestBoundary(point, candidates)
-  if (!match) return
-  emit('focus', {
-    country: isChina.value ? 'CN' : match.id,
-    place: isChina.value ? match.id : '',
-    coordinates: match.coordinates,
-  })
+  if (match) emit('focus', { country: match.id, place: '', coordinates: match.coordinates })
 }
 
 function nearestBoundary([x, y], candidates) {
@@ -298,6 +305,25 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.world-map__china { margin: 0; width: fit-content; max-width: 100%; }
+.world-map__china img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 580px;
+  cursor: crosshair;
+}
+.world-map__china figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  color: #566b75;
+  font-size: 12px;
+}
 .world-map__stage {
   position: relative;
   width: 100%;
@@ -333,7 +359,8 @@ canvas { display: block; width: 100%; height: 100%; }
   top: 9px;
   right: 9px;
 }
-.world-map__tools button {
+.world-map__tools--inline { position: static; display: flex; }
+.world-map__tools :is(a, button) {
   display: grid;
   width: 32px;
   height: 32px;
