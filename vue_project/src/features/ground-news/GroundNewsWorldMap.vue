@@ -3,7 +3,7 @@
     <div
       ref="stage"
       class="world-map__stage"
-      :class="{ 'is-dragging': pointerId !== null }"
+      :class="{ 'is-dragging': pointerId !== null, 'is-china': isChina }"
       @pointerdown="startFocus"
       @pointermove="moveFocus"
       @pointerup="finishFocus"
@@ -66,6 +66,7 @@ const islandLabels = [
   { name: '中沙群岛', coordinates: [117.74, 15.15], dot: true },
 ]
 const countryCounts = computed(() => new Map(props.countries.map((item) => [item.code, item.count])))
+const defaultFocus = [-98.5, 39.8]
 const sphere = { type: 'Sphere' }
 const graticule = geoGraticule10()
 let observer
@@ -101,8 +102,8 @@ function draw() {
     ? { type: 'FeatureCollection', features: [china.value.outline, china.value.maritimeBoundary] }
     : sphere
   projection = geoNaturalEarth1().fitExtent(extent, geometry)
-  const focus = props.selection?.coordinates || [0, 18]
-  if (zoom.value > 1) {
+  const focus = props.selection ? props.selection.coordinates : defaultFocus
+  if (zoom.value > 1 && focus) {
     const original = projection(focus)
     const center = projection.translate()
     projection.scale(projection.scale() * zoom.value).translate([
@@ -147,7 +148,7 @@ function draw() {
     context.strokeStyle = '#fff'
     context.stroke()
   }
-  marker.value = projection(focus)
+  marker.value = focus ? projection(focus) : null
 
   function drawRegion(shape, count, selected) {
     const surface = count > 100 ? '#81b7a9' : count > 20 ? '#a1c9bd' : count ? '#bdd7ce' : '#dfe7e3'
@@ -359,6 +360,7 @@ onBeforeUnmount(() => {
   border: 1px solid #d8e6e7;
   border-radius: 8px;
 }
+.world-map__stage.is-china { height: clamp(230px, 27.5vw, 340px); }
 .world-map__stage.is-dragging { cursor: grabbing; }
 canvas { display: block; width: 100%; height: 100%; }
 .world-map__dart {
