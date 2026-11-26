@@ -1,7 +1,7 @@
 export const OPINION_CACHE_TTL_MS = 2 * 60 * 1000
 export const OPINION_REFRESH_INTERVAL_MS = 10 * 60 * 1000
-export const TREND_CACHE_KEY = 'globemind:sentiment-analysis:trend:v5'
-export const OVERVIEW_CACHE_KEY = 'globemind:sentiment-analysis:overview:v5'
+export const TREND_CACHE_KEY = 'globemind:sentiment-analysis:trend:v6'
+export const OVERVIEW_CACHE_KEY = 'globemind:sentiment-analysis:overview:v6'
 
 export function createSentimentSnapshotCache({
   now = Date.now,

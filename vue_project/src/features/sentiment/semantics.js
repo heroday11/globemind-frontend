@@ -514,20 +514,27 @@ export function semanticTrendProjection(payload) {
   if (isCoreOpinionTrend(payload)) return coreTrendProjection(payload, empty)
   const stance = opinionSemanticSnapshot(payload).stance
   const dates = Array.isArray(payload?.dates) ? payload.dates : []
-  const values = Array.isArray(payload?.values) ? payload.values.map(finiteNumber) : []
+  const values = Array.isArray(payload?.values) ? payload.values : []
+  const preserveCalendar = empty.meta.method?.index_version === 'event_balanced_daily_stance_v1'
+  const invalidValue = values.some((value) => (
+    value === null ? !preserveCalendar : finiteNumber(value) === null || value < -100 || value > 100
+  ))
+  const latest = finiteNumber(values[values.length - 1])
   if (
     stance.state !== 'available'
     || stance.scale !== 'aggregate_stance_index'
     || payload?.metric_id !== 'weighted_target_stance_index'
     || !dates.length
     || dates.length !== values.length
-    || values.some((value) => value === null || value < -100 || value > 100)
-    || Math.abs(values[values.length - 1] - stance.score) > 1e-9
+    || invalidValue
+    || latest === null
+    || Math.abs(latest - stance.score) > 1e-9
   ) return empty
   return {
     ...empty,
     dates,
     values,
+    preserveCalendar,
     heat: Array.isArray(payload?.heat) ? payload.heat : [],
   }
 }
