@@ -60,11 +60,20 @@ const edgeTypes = {
 }
 
 const LABELED_TEMPORAL_TYPES = new Set([
+  'continuation',
+  'continued',
+  'progression',
   'transition',
   'response',
   'same_thread',
   'event_to_outcome',
 ])
+
+const LAYOUT_EDGE_LABELS = {
+  macro_sequence: '主线排序',
+  branch_sequence: '支线排序',
+  branch: '布局分支',
+}
 
 export function createStoryGraphRenderer(container) {
   const root = createRoot(container)
@@ -700,7 +709,10 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
       zIndex: 1,
       data: {
         payload: inspectorPayload,
-        label: showLabel ? inspectorPayload.title : '',
+        label:
+          relationKind === 'layout_only'
+            ? LAYOUT_EDGE_LABELS[edge.edge_type]
+            : showLabel ? inspectorPayload.title : undefined,
         layer: edge.layer || 'story',
         route: 'bezier',
         edgeType: edge.edge_type,
@@ -1044,7 +1056,7 @@ function applyViewportToEventNodes(instance, nodes, container, options = FIT_VIE
   const { clientWidth: width, clientHeight: height } = container
   if (!width || !height || measuredNodes.length !== nodes.length) return false
   const fitNodes = options.initial
-    ? measuredNodes.slice(0, Math.max(1, Math.floor(width / 320)))
+    ? measuredNodes.slice(0, Math.max(2, Math.floor(width / 320)))
     : measuredNodes
   const bounds = getNodesBounds(fitNodes)
   if (
@@ -1057,7 +1069,8 @@ function applyViewportToEventNodes(instance, nodes, container, options = FIT_VIE
   }
 
   if (options.initial) {
-    const zoom = Math.min(0.96, (width - 32) / measuredNodes[0].width, (height - 72) / bounds.height)
+    const fitWidth = width < 520 ? bounds.width : measuredNodes[0].width
+    const zoom = Math.min(0.96, (width - 32) / fitWidth, (height - 72) / bounds.height)
     if (zoom <= 0) return false
     instance.setViewport({
       x: Math.min(28, width * 0.05) - bounds.x * zoom,
