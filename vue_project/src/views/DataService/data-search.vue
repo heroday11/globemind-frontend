@@ -1054,10 +1054,14 @@ import {
   searchSortSemantics,
 } from '@/features/search/index.js'
 import {
+  FAVORITES_STORAGE_KEY,
+  DELETED_FOLDERS_STORAGE_KEY,
   upsertReportFavorite,
   removeReportFavorite,
   getReportFavoritesForTopic,
   getFavoritesMap,
+  getDeletedFavoriteFolders,
+  restoreFavoriteFolder,
   setFavoritesMap,
   getWarningsForTopic,
   getWarningsMap,
@@ -2306,6 +2310,7 @@ const loadFavorites = async () => {
         .filter((x) => Number.isFinite(x.news_id))
     }
     const favMap = { ...getFavoritesMap() }
+    const deletedFolders = getDeletedFavoriteFolders()
 
     const mergeRow = (map, tp, nid, defaults) => {
       const arr = Array.isArray(map[tp]) ? [...map[tp]] : []
@@ -2323,24 +2328,11 @@ const loadFavorites = async () => {
           ? String(it.topic).trim()
           : DEFAULT_FOLDER_NAME
       const kind = String(it.kind || 'favorite').toLowerCase()
-      if (kind !== 'warning') {
+      if (kind !== 'warning' && !deletedFolders.has(tp)) {
         mergeRow(favMap, tp, nid, { topic: tp })
       }
     }
     setFavoritesMap(favMap)
-    const extraTopics = new Set(themeList.value)
-    for (const it of items) {
-      const kind = String(it.kind || 'favorite').toLowerCase()
-      if (kind === 'warning') continue
-      const tp =
-        it.topic !== undefined && it.topic !== null && String(it.topic).trim() !== ''
-          ? String(it.topic).trim()
-          : DEFAULT_FOLDER_NAME
-      extraTopics.add(tp)
-    }
-    themeList.value = [...extraTopics].filter(Boolean)
-    saveThemeListToStorage()
-    loadFavoriteCards()
   } catch (e) {
     if (!isSearchAbortError(e, auxiliaryRequestController.signal)) {
       console.error('加载收藏失败:', e)
@@ -2481,7 +2473,16 @@ const saveThemeListToStorage = () => {
 }
 
 const loadThemeListFromStorage = () => {
-  themeList.value = themeStorage.loadThemes(themeName.value)
+  themeList.value = themeStorage.loadThemes(themeName.value, {
+    favoriteFolders: Object.keys(getFavoritesMap()),
+    deletedFolders: getDeletedFavoriteFolders(),
+  })
+  if (!themeList.value.includes(themeName.value)) {
+    themeName.value = themeList.value[0]
+    themeNameDraft.value = themeName.value
+    themeStorage.saveCurrent(themeName.value)
+    isEditingTheme.value = false
+  }
 }
 
 const switchTheme = (t) => {
@@ -2561,8 +2562,8 @@ const deleteTheme = async (topic) => {
 const addNewTheme = () => {
   const now = new Date()
   const name = createSearchThemeName(themeList.value, now)
-  themeList.value = [...themeList.value, name]
-  saveThemeListToStorage()
+  restoreFavoriteFolder(name)
+  setFavoritesMap({ ...getFavoritesMap(), [name]: [] })
   themeName.value = name
   themeNameDraft.value = name
   themeStorage.saveCurrent(name)
@@ -2585,6 +2586,7 @@ const saveThemeName = () => {
   const prev = normalizeFolderName(themeName.value)
   const next = normalizeFolderName(themeNameDraft.value)
   if (prev !== next) {
+    restoreFavoriteFolder(next)
     const fav = { ...getFavoritesMap() }
     if (fav[prev]) {
       fav[next] = fav[prev]
@@ -2645,13 +2647,22 @@ const handleLoginSuccess = () => {
 }
 
 const handleReportFavoritesUpdated = () => {
+  loadThemeListFromStorage()
   loadFavoriteCards()
+}
+
+const handleReportFavoritesStorage = (event) => {
+  if (event.key === FAVORITES_STORAGE_KEY || event.key === DELETED_FOLDERS_STORAGE_KEY) {
+    handleReportFavoritesUpdated()
+  }
 }
 
 onMounted(async () => {
   themeName.value = themeStorage.readCurrent()
   themeNameDraft.value = themeName.value
   loadThemeListFromStorage()
+  window.addEventListener('reportFavoritesUpdated', handleReportFavoritesUpdated)
+  window.addEventListener('storage', handleReportFavoritesStorage)
   jumpPage.value = currentPage.value
   const filterOptionsPromise = loadFilterOptions()
   const searchCapabilitiesPromise = loadSearchCapabilities()
@@ -2675,7 +2686,6 @@ onMounted(async () => {
   }
   // 监听登录成功事件
   window.addEventListener('loginSuccess', handleLoginSuccess)
-  window.addEventListener('reportFavoritesUpdated', handleReportFavoritesUpdated)
 })
 
 onUnmounted(() => {
@@ -2686,6 +2696,7 @@ onUnmounted(() => {
   // 移除事件监听
   window.removeEventListener('loginSuccess', handleLoginSuccess)
   window.removeEventListener('reportFavoritesUpdated', handleReportFavoritesUpdated)
+  window.removeEventListener('storage', handleReportFavoritesStorage)
 })
 </script>
 

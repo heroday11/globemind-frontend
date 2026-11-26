@@ -1,4 +1,5 @@
-const STORAGE_BY_TOPIC = 'report_center_favorites_by_topic_v1'
+export const FAVORITES_STORAGE_KEY = 'report_center_favorites_by_topic_v1'
+export const DELETED_FOLDERS_STORAGE_KEY = 'report_center_deleted_folders_v1'
 const LEGACY_FLAT_KEY = 'report_center_favorites_v1'
 
 function safeParse(json, fallback) {
@@ -21,17 +22,31 @@ function migrateLegacyFlatIfNeeded(map) {
   return map
 }
 
+export function getDeletedFavoriteFolders() {
+  const value = safeParse(localStorage.getItem(DELETED_FOLDERS_STORAGE_KEY), [])
+  return new Set(Array.isArray(value) ? value.filter((name) => typeof name === 'string') : [])
+}
+
+export function restoreFavoriteFolder(name) {
+  const deleted = getDeletedFavoriteFolders()
+  if (deleted.delete(name)) {
+    localStorage.setItem(DELETED_FOLDERS_STORAGE_KEY, JSON.stringify([...deleted]))
+  }
+}
+
 export function getFavoritesMap() {
-  const raw = localStorage.getItem(STORAGE_BY_TOPIC)
+  const raw = localStorage.getItem(FAVORITES_STORAGE_KEY)
   let map = safeParse(raw, {})
   if (!map || typeof map !== 'object' || Array.isArray(map)) map = {}
-  map = migrateLegacyFlatIfNeeded(map)
+  if (raw === null) map = migrateLegacyFlatIfNeeded(map)
+  for (const name of getDeletedFavoriteFolders()) delete map[name]
   return map
 }
 
 export function setFavoritesMap(map) {
-  const next = map && typeof map === 'object' && !Array.isArray(map) ? map : {}
-  localStorage.setItem(STORAGE_BY_TOPIC, JSON.stringify(next))
+  const next = map && typeof map === 'object' && !Array.isArray(map) ? { ...map } : {}
+  for (const name of getDeletedFavoriteFolders()) delete next[name]
+  localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next))
   window.dispatchEvent(new CustomEvent('reportFavoritesUpdated'))
 }
 
@@ -184,6 +199,9 @@ export function removeWarningCard(newsId, topic) {
 export function deleteThemeData(topic) {
   const t = String(topic || '').trim()
   if (!t) return
+  const deleted = getDeletedFavoriteFolders()
+  deleted.add(t)
+  localStorage.setItem(DELETED_FOLDERS_STORAGE_KEY, JSON.stringify([...deleted]))
   const fav = { ...getFavoritesMap() }
   delete fav[t]
   setFavoritesMap(fav)

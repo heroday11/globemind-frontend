@@ -1140,7 +1140,9 @@ test('critical search actions expose guest persistence, login resume, export, an
   const loginModal = await readFile(new URL('../src/components/LoginModal.vue', import.meta.url), 'utf8')
 
   assert.match(source, /role="status" aria-live="polite" aria-atomic="true"[^>]*>\{\{ criticalActionStatus \}\}/)
-  assert.match(source, /自动扩展多语言查询/)
+  // 30673c8 renamed the smart-mode heading to describe the actual behaviour
+  // (cross-language full-text recall), but left this assertion behind.
+  assert.match(source, /跨语言全文搜索/)
   assert.doesNotMatch(source, /aria-describedby="search-mode-hint"/)
   assert.match(source, /PENDING_ASSISTANT_OPEN_KEY/)
   assert.match(source, /当前检索与勾选素材已保留/)

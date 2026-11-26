@@ -64,7 +64,7 @@ export function createSearchThemeStorage(
       storage.setItem(listKey, JSON.stringify(themeNames))
     },
 
-    loadThemes(currentTheme) {
+    loadThemes(currentTheme, { favoriteFolders = [], deletedFolders = new Set() } = {}) {
       let list = []
       try {
         const raw = storage.getItem(listKey)
@@ -72,11 +72,14 @@ export function createSearchThemeStorage(
       } catch {
         list = []
       }
-      if (!Array.isArray(list) || list.length === 0) {
-        const storedCurrent = (storage.getItem(nameKey) || DEFAULT_SEARCH_FOLDER_NAME).trim()
-        list = [storedCurrent || DEFAULT_SEARCH_FOLDER_NAME]
-      }
-      const normalized = normalizeSearchThemeList(list, currentTheme)
+      const storedCurrent = this.readCurrent()
+      const names = [...(Array.isArray(list) ? list : []), ...favoriteFolders.filter(Boolean)]
+      const current = currentTheme || storedCurrent
+      const fallback = deletedFolders.has(DEFAULT_SEARCH_FOLDER_NAME)
+        ? createSearchThemeName([...deletedFolders])
+        : DEFAULT_SEARCH_FOLDER_NAME
+      const normalized = normalizeSearchThemeList(names, current).filter((name) => !deletedFolders.has(name))
+      if (!normalized.length) normalized.push(fallback)
       this.saveThemes(normalized)
       return normalized
     },
