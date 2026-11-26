@@ -85,7 +85,21 @@
           <div class="intel-workspace__title">
             <h2>{{ displayStoryTitle(currentStory) }}</h2>
             <p v-if="workspaceMeta">{{ workspaceMeta }}</p>
+            <p v-if="workspaceView === 'graph' && !storyInteractions.length">
+              暂无来源支持的作用关系
+            </p>
           </div>
+          <select
+            v-if="workspaceView === 'graph' && storyInteractions.length"
+            class="intel-interaction-select"
+            aria-label="作用关系"
+            @change="openInteraction"
+          >
+            <option value="">作用关系（{{ storyInteractions.length }}）</option>
+            <option v-for="item in storyInteractions" :key="item.id" :value="item.id">
+              {{ item.title }}
+            </option>
+          </select>
           <div class="intel-view-switch" role="group" aria-label="浏览方式">
             <button type="button" :aria-pressed="workspaceView === 'graph'" @click="workspaceView = 'graph'">
               <Waypoints :size="16" aria-hidden="true" /> 图谱
@@ -114,13 +128,12 @@
               <Maximize :size="17" aria-hidden="true" />
             </button>
             <button
-              v-if="graphMetrics.contextLinks"
               class="intel-icon-btn"
               type="button"
-              :title="showContextLinks ? '隐藏关联线' : '显示关联线'"
-              aria-label="关联线"
-              :aria-pressed="showContextLinks"
-              @click="toggleContextLinks"
+              :title="showTimelineLinks ? '隐藏脉络线' : '显示脉络线'"
+              aria-label="脉络线"
+              :aria-pressed="showTimelineLinks"
+              @click="showTimelineLinks = !showTimelineLinks"
             >
               <Link2 :size="17" aria-hidden="true" />
             </button>
@@ -183,7 +196,15 @@
               </div>
             </dl>
 
-            <div class="intel-focus-sheet__actions">
+            <div v-if="selectedInspector.kind === 'interaction'" class="intel-focus-news">
+              <h4>来源报道</h4>
+              <p>{{ selectedInspector.summary }}</p>
+              <a class="intel-evidence-link" :href="selectedInspector.evidence.url" target="_blank" rel="noopener">
+                {{ selectedInspector.evidence.title }} <ArrowUpRight :size="16" aria-hidden="true" />
+              </a>
+            </div>
+
+            <div v-else class="intel-focus-sheet__actions">
               <button
                 v-if="selectedInspector.kind === 'l3-chain' && selectedInspector.l2ChainId"
                 class="intel-btn intel-btn--primary"
@@ -309,7 +330,8 @@ const queryStatus = ref(buildStoryGraphQueryStatus('idle', { mode: graphMode.val
 const leftCollapsed = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches)
 const workspaceView = ref('graph')
 const graphLoadFailed = ref(false)
-const showContextLinks = ref(true)
+const showTimelineLinks = ref(false)
+const storyInteractions = computed(() => currentStory.value?.interactions || [])
 const layoutSaved = ref(false)
 const agentMessages = ref([])
 const assistantSessionId = ref('')
@@ -452,6 +474,7 @@ const selectedInspectorTitle = computed(() => {
 
 const focusMeta = computed(() => {
   const item = selectedInspector.value
+  if (item?.kind === 'interaction') return '报道中的作用关系'
   if (!item || item.kind === 'edge') return ''
   return [
     storyDateRange(item.startDate, item.endDate),
@@ -580,13 +603,14 @@ const focusEvidenceText = computed(() => {
 
 const focusDetailRows = computed(() => {
   const item = selectedInspector.value
-  if (item?.kind !== 'edge') return []
+  if (item?.kind !== 'edge' && item?.kind !== 'interaction') return []
   const rows = [
     ['起点', findStoryNodeTitle(item.sourceId)],
     ['终点', findStoryNodeTitle(item.targetId)],
-    ['主张 ID', item.claimId],
-    ['引用定位', item.citationLocator],
   ]
+  if (item.kind === 'edge') {
+    rows.push(['主张 ID', item.claimId], ['引用定位', item.citationLocator])
+  }
   return rows
     .map(([label, value]) => ({ label, value: displayValue(value) }))
     .filter((row) => isMeaningfulDisplayValue(row.value))
@@ -605,7 +629,7 @@ watch(storySearch, () => {
   handleStorySearchChange()
 })
 
-watch(showContextLinks, async () => {
+watch(showTimelineLinks, async () => {
   if (currentStory.value) await renderWorkspaceGraph()
 })
 
@@ -922,7 +946,7 @@ async function renderWorkspaceGraph(requestToken = null, story = currentStory.va
 
   graph.value.render({
     storyGraph: story,
-    showContextLinks: showContextLinks.value,
+    showTimelineLinks: showTimelineLinks.value,
     onSelectInspector: selectInspector,
     onCanvasClick() {
       selectedInspector.value = makeMainInspector(currentStory.value, graphMode.value)
@@ -1002,8 +1026,12 @@ function closeFocusPanel() {
   focusPanelOpen.value = false
 }
 
-function toggleContextLinks() {
-  showContextLinks.value = !showContextLinks.value
+function openInteraction(event) {
+  const interaction = storyInteractions.value.find((item) => item.id === event.target.value)
+  event.target.value = ''
+  if (!interaction) return
+  graph.value?.focusInteraction(interaction)
+  selectInspector(interaction)
 }
 
 function reloadPage() {
@@ -1615,6 +1643,18 @@ function clampText(value, max = 11000) {
 
 .intel-workspace__title p {
   margin: 8px 0 0;
+}
+
+.intel-interaction-select {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
 }
 
 .intel-graph-notice {

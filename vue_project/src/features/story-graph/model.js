@@ -1,3 +1,4 @@
+import { getStoryInteractions } from './interactions.js'
 import { L2_RUN_ID, L3_RUN_ID } from './config.js'
 import { normalizeStoryRelationClaim } from './claims.js'
 import { cleanEntityLabel, cleanStoryTitle, macroStoryTitle } from './presentation.js'
@@ -46,6 +47,7 @@ export function normalizeL2ChainSummary(chain) {
 export function transformL3MacroResponse(payload) {
   const macro = payload.macro || {}
   const macroId = String(macro.macro_id || payload.macro_id || '')
+  const runId = payload.run_id || macro.run_id || L3_RUN_ID
   const storyTitle = macroStoryTitle(macro) || '未命名大事件'
   const rawNodes = payload.nodes || []
   const storyNodes = rawNodes.map((node, index) => ({
@@ -110,6 +112,7 @@ export function transformL3MacroResponse(payload) {
     end_date: macro.end_date,
     nodes: storyNodes,
     edges: storyEdges,
+    interactions: getStoryInteractions(runId, macroId, storyNodes),
     related_stories: [],
     sampling,
     l3_macro: macro,
@@ -129,7 +132,7 @@ export function transformL3MacroResponse(payload) {
         && samplingComponent?.state === 'bounded_partial'
         ? samplingComponent.evaluated_count
         : null,
-      run_id: payload.run_id || macro.run_id || L3_RUN_ID,
+      run_id: runId,
     },
   }
 }

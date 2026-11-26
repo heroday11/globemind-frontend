@@ -79,6 +79,7 @@ export function createStoryGraphRenderer(container) {
   const root = createRoot(container)
   const api = {
     fitView: null,
+    focusInteraction: null,
     zoomIn: null,
     zoomOut: null,
     autoLayout: null,
@@ -92,6 +93,7 @@ export function createStoryGraphRenderer(container) {
           ...props,
           onReady(nextApi) {
             api.fitView = nextApi.fitView
+            api.focusInteraction = nextApi.focusInteraction
             api.zoomIn = nextApi.zoomIn
             api.zoomOut = nextApi.zoomOut
             api.autoLayout = nextApi.autoLayout
@@ -102,6 +104,9 @@ export function createStoryGraphRenderer(container) {
     },
     fitView(options) {
       api.fitView?.(options || FIT_VIEW_OPTIONS)
+    },
+    focusInteraction(interaction) {
+      api.focusInteraction?.(interaction)
     },
     zoomIn() {
       api.zoomIn?.()
@@ -117,6 +122,7 @@ export function createStoryGraphRenderer(container) {
     },
     destroy() {
       api.fitView = null
+      api.focusInteraction = null
       api.zoomIn = null
       api.zoomOut = null
       api.autoLayout = null
@@ -128,7 +134,7 @@ export function createStoryGraphRenderer(container) {
 
 function StoryGraphCanvas({
   storyGraph,
-  showContextLinks,
+  showTimelineLinks,
   onSelectInspector,
   onCanvasClick,
   onReady,
@@ -147,8 +153,8 @@ function StoryGraphCanvas({
   }, [storageKey])
 
   const model = useMemo(
-    () => buildFlowModel(storyGraph, showContextLinks, manualPositions),
-    [storyGraph, showContextLinks, manualPositions],
+    () => buildFlowModel(storyGraph, showTimelineLinks, manualPositions),
+    [storyGraph, showTimelineLinks, manualPositions],
   )
   const eventNodes = useMemo(() => nodes.filter((node) => node.type === 'eventNode'), [nodes])
 
@@ -172,7 +178,7 @@ function StoryGraphCanvas({
             instance,
             eventNodes,
             canvasRef.current,
-            INITIAL_FIT_VIEW_OPTIONS,
+            { ...INITIAL_FIT_VIEW_OPTIONS, interaction: storyGraph?.interactions?.[0] },
           )
           if (applied) {
             didAutoFitRef.current = true
@@ -193,7 +199,7 @@ function StoryGraphCanvas({
       if (timer) window.clearTimeout(timer)
       if (frame) window.cancelAnimationFrame(frame)
     }
-  }, [eventNodes, instance, model.fitSignature])
+  }, [eventNodes, instance, model.fitSignature, storyGraph])
 
   useEffect(() => {
     if (!instance) return
@@ -205,6 +211,9 @@ function StoryGraphCanvas({
           canvasRef.current,
           options || FIT_VIEW_OPTIONS,
         )
+      },
+      focusInteraction(interaction) {
+        applyViewportToEventNodes(instance, eventNodes, canvasRef.current, { interaction })
       },
       zoomIn() {
         instance.zoomIn({ duration: 160 })
@@ -473,7 +482,9 @@ function IntelEdge(props) {
         'g',
         {
           'aria-hidden': true,
-          className: 'story-rf-edge-label',
+          className: data.payload.kind === 'interaction'
+            ? 'story-rf-edge-label story-rf-edge-label--interaction'
+            : 'story-rf-edge-label',
           transform: `translate(${labelX} ${labelY}) scale(${1 / zoom})`,
         },
         h(EdgeText, {
@@ -487,7 +498,7 @@ function IntelEdge(props) {
   )
 }
 
-function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
+function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
   const storyMap = new Map()
   const positions = new Map()
   const eventNodes = []
@@ -495,7 +506,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
   const edges = []
   const visibleEdges = (storyGraph?.edges || [])
     .map((edge) => normalizeStoryRelation(edge))
-    .filter((edge) => includeContext || edge.layer !== 'context')
+
 
   for (const node of storyGraph?.nodes || []) {
     const storyId = String(node.story_id || storyGraph.story_id)
@@ -647,18 +658,22 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
     })
   })
 
-  const flowEdges = isMacroStory(primaryStory)
+  const timelineEdges = isMacroStory(primaryStory)
     ? buildMacroDisplayEdges(primaryStory, visibleEdges)
     : visibleEdges
+  const flowEdges = [...(storyGraph.interactions || []), ...(showTimelineLinks ? timelineEdges : [])]
   const eventTitles = new Map(eventNodes.map((node) => [node.id, node.data.title]))
   const pairEdges = new Map()
 
   flowEdges.forEach((edge) => {
-    const sourcePoint = positions.get(edge.from_id)
-    const targetPoint = positions.get(edge.to_id)
+    const isInteraction = edge.kind === 'interaction'
+    const sourceId = isInteraction ? edge.sourceId : edge.from_id
+    const targetId = isInteraction ? edge.targetId : edge.to_id
+    const sourcePoint = positions.get(sourceId)
+    const targetPoint = positions.get(targetId)
     if (!sourcePoint || !targetPoint) return
 
-    const pair = [edge.from_id, edge.to_id].sort().join(':')
+    const pair = [sourceId, targetId].sort().join(':')
     const parallelIndex = pairEdges.get(pair) ?? 0
     pairEdges.set(pair, parallelIndex + 1)
     const span = Math.abs(targetPoint.x - sourcePoint.x)
@@ -675,25 +690,26 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
       (sourcePoint.isMacro || targetPoint.isMacro) &&
       (edge.edge_type === 'macro_sequence' || edge.edge_type === 'branch_sequence')
     const isMacroStoryEdge = sourcePoint.isMacro || targetPoint.isMacro
-    const stroke = edgeStroke(edge)
-    const inspectorPayload = buildStoryGraphEdgeInspector(edge)
-    const relationKind = edge.relation_semantics.relation_kind
+    const stroke = isInteraction ? '#146c64' : edgeStroke(edge)
+    const inspectorPayload = isInteraction ? edge : buildStoryGraphEdgeInspector(edge)
+    const relationKind = edge.relation_semantics?.relation_kind
     const showLabel =
       relationKind === 'temporal_overlap' ||
       (relationKind === 'event_progression_signal' && edge.edge_type !== 'analysis_context') ||
       (relationKind === 'temporal_sequence' && LABELED_TEMPORAL_TYPES.has(edge.edge_type))
 
     edges.push({
-      id: `edge-${edge.from_id}-${edge.to_id}-${edge.edge_type}-${edge.layer || 'story'}`,
-      source: edge.from_id,
-      target: edge.to_id,
-      ariaLabel: [inspectorPayload.title, eventTitles.get(edge.from_id), eventTitles.get(edge.to_id)]
+      id: isInteraction ? edge.id : `edge-${sourceId}-${targetId}-${edge.edge_type}-${edge.layer || 'story'}`,
+      source: sourceId,
+      target: targetId,
+      ariaLabel: [inspectorPayload.title, eventTitles.get(sourceId), eventTitles.get(targetId)]
         .filter(Boolean).join('，'),
       sourceHandle: `source-${handles.source}`,
       targetHandle: `target-${handles.target}`,
       type: 'intelEdge',
       className: [
         'story-rf-edge',
+        isInteraction ? 'story-rf-edge--interaction' : '',
         isContext ? 'story-rf-edge--context' : 'story-rf-edge--story',
         isMacroStoryEdge ? 'story-rf-edge--macro' : '',
         isMacroSequence ? 'story-rf-edge--macro-sequence' : '',
@@ -706,28 +722,23 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
         height: 11,
         color: stroke,
       },
-      zIndex: 1,
+      zIndex: isInteraction ? 3 : 1,
       data: {
         payload: inspectorPayload,
-        label:
-          relationKind === 'layout_only'
-            ? LAYOUT_EDGE_LABELS[edge.edge_type]
-            : showLabel ? inspectorPayload.title : undefined,
+        label: isInteraction || showLabel
+          ? inspectorPayload.title
+          : relationKind === 'layout_only' ? LAYOUT_EDGE_LABELS[edge.edge_type] : undefined,
         layer: edge.layer || 'story',
         route: 'bezier',
         edgeType: edge.edge_type,
         relationReason: edge.relation_reason,
         weight: null,
         stroke,
-        strokeWidth: isContext ? 1.8 : 2.1,
-        dashArray: isContext
-          ? '7 10'
-          : isMacroSequence
-            ? ''
-            : edge.layer === 'story'
-              ? '11 8'
-              : '9 8',
-        opacity: isContext ? 0.54 : 0.62,
+        strokeWidth: isInteraction ? 3 : isContext ? 1.8 : 2.1,
+        dashArray: isInteraction || isMacroSequence
+          ? undefined
+          : isContext ? '7 10' : edge.layer === 'story' ? '11 8' : '9 8',
+        opacity: isInteraction ? 1 : isContext ? 0.54 : 0.62,
         arc,
         curvature: isContext ? 0.34 : isMacroStoryEdge ? (isMacroSequence ? 0.22 : 0.3) : 0.22,
       },
@@ -1055,9 +1066,14 @@ function applyViewportToEventNodes(instance, nodes, container, options = FIT_VIE
 
   const { clientWidth: width, clientHeight: height } = container
   if (!width || !height || measuredNodes.length !== nodes.length) return false
-  const fitNodes = options.initial
-    ? measuredNodes.slice(0, Math.max(2, Math.floor(width / 320)))
-    : measuredNodes
+  const interaction = options.interaction
+  const interactionNodes = interaction
+    ? measuredNodes.filter((node) => node.id === interaction.sourceId || node.id === interaction.targetId)
+    : []
+  const focusInteraction = interactionNodes.length === 2
+  const fitNodes = focusInteraction
+    ? interactionNodes
+    : options.initial ? measuredNodes.slice(0, Math.max(2, Math.floor(width / 320))) : measuredNodes
   const bounds = getNodesBounds(fitNodes)
   if (
     !Number.isFinite(bounds.x) ||
@@ -1068,6 +1084,15 @@ function applyViewportToEventNodes(instance, nodes, container, options = FIT_VIE
     return false
   }
 
+  if (focusInteraction) {
+    const zoom = Math.min(0.9, (width - 32) / bounds.width, (height - 140) / bounds.height)
+    if (zoom <= 0) return false
+    instance.setCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, {
+      zoom,
+      duration: options.initial ? 0 : 160,
+    })
+    return true
+  }
   if (options.initial) {
     const fitWidth = width < 520 ? bounds.width : measuredNodes[0].width
     const zoom = Math.min(0.96, (width - 32) / fitWidth, (height - 72) / bounds.height)

@@ -52,6 +52,17 @@
   stroke: #a8b9cc;
 }
 
+.story-rf-edge-label--interaction .react-flow__edge-textbg {
+  fill: #e8f5ef;
+  stroke: #146c64;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.story-rf-edge-label--interaction .react-flow__edge-text {
+  fill: #104842;
+}
+
 .story-rf-root .react-flow__node-groupNode {
   pointer-events: none;
 }
