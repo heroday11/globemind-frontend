@@ -515,9 +515,12 @@ export function semanticTrendProjection(payload) {
   const stance = opinionSemanticSnapshot(payload).stance
   const dates = Array.isArray(payload?.dates) ? payload.dates : []
   const values = Array.isArray(payload?.values) ? payload.values : []
-  const preserveCalendar = empty.meta.method?.index_version === 'event_balanced_daily_stance_v1'
+  const indexVersion = empty.meta.method?.index_version
+  const acceptsGaps = indexVersion === 'event_balanced_daily_stance_v1'
+  const diffusion = indexVersion === 'event_balanced_diffusion_stance_v1'
+  const activeInfluence = payload?.active_influence
   const invalidValue = values.some((value) => (
-    value === null ? !preserveCalendar : finiteNumber(value) === null || value < -100 || value > 100
+    value === null ? !acceptsGaps : finiteNumber(value) === null || value < -100 || value > 100
   ))
   const latest = finiteNumber(values[values.length - 1])
   if (
@@ -527,6 +530,9 @@ export function semanticTrendProjection(payload) {
     || !dates.length
     || dates.length !== values.length
     || invalidValue
+    || (diffusion && (!Array.isArray(activeInfluence) || activeInfluence.length !== values.length
+      || activeInfluence.some((active, index) => typeof active !== 'boolean'
+        || (!active && values[index] !== 0))))
     || latest === null
     || Math.abs(latest - stance.score) > 1e-9
   ) return empty
@@ -534,7 +540,8 @@ export function semanticTrendProjection(payload) {
     ...empty,
     dates,
     values,
-    preserveCalendar,
+    preserveCalendar: acceptsGaps || diffusion,
+    ...(diffusion ? { activeInfluence } : {}),
     heat: Array.isArray(payload?.heat) ? payload.heat : [],
   }
 }

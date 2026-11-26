@@ -20,7 +20,11 @@ export function trimTrendData(trend) {
     : []
   if (!dates.length) return { dates: [], values: [] }
   if (trend.preserveCalendar === true && dates.length === values.length) {
-    return { dates, values }
+    return {
+      dates,
+      values,
+      ...(trend.activeInfluence ? { activeInfluence: trend.activeInfluence } : {}),
+    }
   }
   const zeroThreshold = 0.01
   let start = 0
@@ -200,7 +204,10 @@ export function buildSentimentChartOption({
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'cross', label: { backgroundColor: '#1e293b' } },
-      valueFormatter: (value) => (value != null ? Number(value).toFixed(1) : ''),
+      valueFormatter(value, dataIndex) {
+        if (data.activeInfluence?.[dataIndex] === false) return '0.0（无在传播信号）'
+        return value != null ? Number(value).toFixed(1) : ''
+      },
     },
     grid: { left: '3%', right: '4%', bottom: 78, top: 52, containLabel: true },
     yAxis: {

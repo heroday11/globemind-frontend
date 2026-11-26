@@ -103,6 +103,7 @@ export function normalizeTrendResponse(payload) {
     dates: Array.isArray(payload?.dates) ? payload.dates : [],
     values: Array.isArray(payload?.values) ? payload.values : [],
     heat: Array.isArray(payload?.heat) ? payload.heat : [],
+    ...(Array.isArray(payload?.active_influence) ? { active_influence: payload.active_influence } : {}),
     metric_id: payload?.metric_id,
     semantic_contract: payload?.semantic_contract,
     semantic_dimensions: payload?.semantic_dimensions,
