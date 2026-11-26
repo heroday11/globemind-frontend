@@ -75,9 +75,17 @@ function authChanged() {
   schedules.value = []
   void load()
 }
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener(getAuthChangedEventName(), authChanged)
-  void load()
+  await load()
+  await nextTick()
+  if (window.parent !== window) {
+    window.parent.postMessage({
+      channel: 'globemind-page-v1',
+      type: 'briefing-content-ready',
+      url: location.href,
+    }, location.origin)
+  }
 })
 onBeforeUnmount(() => {
   generation++
@@ -277,7 +285,7 @@ function formatTime(value, timeZone) {
 <style scoped>
 .briefings {
   --briefing-accent: #135a72; --briefing-muted: #526575; --briefing-muted-bg: #f2f6f8;
-  width: min(calc(100% - 40px), 1280px); margin: 0 auto; padding: 16px 0;
+  width: min(calc(100% - 40px), 1280px); margin: 0 auto; padding: 32px 0 16px;
   color: var(--text-primary, #1d2932); font-size: .875rem;
 }
 .briefing-header {
@@ -363,7 +371,7 @@ dialog::backdrop { background: #18253066; }
   .tasks li { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px 8px; padding: 10px 0; }
   .topic, .row-actions { grid-column: 1 / -1; }
   .mobile-label { display: block; color: var(--briefing-muted); font-size: .9em; }
-  .briefings { width: calc(100% - 24px); }
+  .briefings { width: calc(100% - 24px); padding-top: 24px; }
   .entries button { font-size: .875em; padding-inline: 7px; }
 }
 </style>
