@@ -124,6 +124,7 @@
         <div v-if="currentStory && workspaceView === 'graph'" class="intel-graph-legend" aria-label="图例">
           <span v-if="graphMode !== 'l3' && showTimelineLinks"><i class="intel-graph-legend__timeline" aria-hidden="true"></i>时间脉络</span>
           <span v-if="graphMode === 'l3' && currentStory.nodes.length > 1"><i aria-hidden="true"></i>基础演化</span>
+          <span v-if="currentStory.relatedLinks?.length"><i class="intel-graph-legend__related" aria-hidden="true"></i>共同主体与议题</span>
           <span v-if="storyInteractions.length"><i class="intel-graph-legend__interaction" aria-hidden="true"></i>有报道支持的关系</span>
         </div>
 
@@ -501,7 +502,7 @@ const focusMeta = computed(() => {
   if (item?.kind === 'interaction') {
     return [item.converges && '汇总', item.diverges && '发散'].filter(Boolean).join(' · ') || '事件关系'
   }
-  if (!item || item.kind === 'edge' || item.kind === 'evolution') return ''
+  if (!item || ['edge', 'evolution', 'related'].includes(item.kind)) return ''
   return [
     storyDateRange(item.startDate, item.endDate),
     nodeCategory(item),
@@ -629,12 +630,14 @@ const focusEvidenceText = computed(() => {
 
 const focusDetailRows = computed(() => {
   const item = selectedInspector.value
-  if (!['edge', 'interaction', 'evolution'].includes(item?.kind)) return []
+  if (!['edge', 'interaction', 'evolution', 'related'].includes(item?.kind)) return []
   const rows = [
     ['起点', findStoryNodeTitle(item.sourceId)],
     ['终点', findStoryNodeTitle(item.targetId)],
   ]
-  if (item.kind === 'evolution') {
+  if (item.kind === 'related') {
+    rows.push(['连线依据', `共同主体 ${item.actors} 个，共同议题 ${item.topics} 个`])
+  } else if (item.kind === 'evolution') {
     rows.push(['连线依据', '同一大事件中的相邻节点，按时间衔接'])
   } else if (item.kind === 'edge') {
     rows.push(['主张 ID', item.claimId], ['引用定位', item.citationLocator])
@@ -1697,6 +1700,10 @@ function clampText(value, max = 11000) {
 .intel-graph-legend i {
   width: 18px;
   border-top: 2px solid #8390a1;
+}
+
+.intel-graph-legend .intel-graph-legend__related {
+  border-top: 2px dashed #725d87;
 }
 
 .intel-graph-legend .intel-graph-legend__interaction {

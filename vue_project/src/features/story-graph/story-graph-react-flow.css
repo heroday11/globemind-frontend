@@ -75,6 +75,16 @@
   font-size: 19px;
 }
 
+.story-rf-edge-label--related .react-flow__edge-textbg {
+  fill: #f4eff7;
+  stroke: #725d87;
+}
+
+.story-rf-edge-label--related .react-flow__edge-text {
+  fill: #513d64;
+  font-size: 16px;
+}
+
 .story-rf-edge-label--interaction:active .react-flow__edge-textbg {
   cursor: grabbing;
 }

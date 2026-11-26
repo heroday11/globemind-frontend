@@ -39,7 +39,7 @@ import {
   transformL3MacroResponse,
 } from '../src/features/story-graph/index.js'
 
-import { buildMacroEvolutionEdges } from '../src/features/story-graph/flow-model.js'
+import { buildMacroEvolutionEdges, buildMacroRelatedLinks } from '../src/features/story-graph/flow-model.js'
 
 const boundedRelationSemantics = (publicEdgeType, overrides = {}) => ({
   schema_version: 'story-relation-semantics-v1',
@@ -492,6 +492,32 @@ test('L3 evolution connects chronological neighbors and reuses a direct relation
     ['c', 'd'],
   ])
   assert.deepEqual(buildMacroEvolutionEdges(nodes.slice(0, 1), []), [])
+})
+
+test('L3 related links require strong shared signals and distinct nonadjacent endpoints', () => {
+  const nodes = ['a', 'b', 'c', 'd', 'e', 'f'].map((id, index) => ({ id, node_order: index }))
+  const candidate = (from, to, score, topics = 3) => ({
+    from_chain_id: from,
+    to_chain_id: to,
+    edge_type: 'parallel',
+    edge_weight: score,
+    shared_actor_count: 2,
+    shared_topic_count: topics,
+    relation_semantics: boundedRelationSemantics('parallel'),
+  })
+  const links = buildMacroRelatedLinks(nodes, [
+    candidate('a', 'b', 1),
+    candidate('a', 'c', 0.99),
+    candidate('a', 'd', 0.98),
+    candidate('d', 'a', 0.96),
+    candidate('b', 'e', 0.95, 1),
+    candidate('c', 'f', 0.92),
+    candidate('b', 'f', 0.7),
+  ], [{ sourceId: 'c', targetId: 'a' }])
+  assert.deepEqual(links.map(({ sourceId, targetId, kind }) => [sourceId, targetId, kind]), [
+    ['a', 'd', 'related'],
+    ['c', 'f', 'related'],
+  ])
 })
 
 test('relation ontology rejects influence, causal, malformed, and synthetic upgrades', () => {

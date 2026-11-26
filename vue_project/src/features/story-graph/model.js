@@ -1,3 +1,4 @@
+import { buildMacroRelatedLinks } from './flow-model.js'
 import { getStoryInteractions } from './interactions.js'
 import { L2_RUN_ID, L3_RUN_ID } from './config.js'
 import { normalizeStoryRelationClaim } from './claims.js'
@@ -127,6 +128,8 @@ export function transformL3MacroResponse(payload) {
       evidence_status: claim.citation_status,
     }
   })
+  const interactions = getStoryInteractions(runId, storyNodes)
+  const relatedLinks = buildMacroRelatedLinks(storyNodes, payload.edges || [], interactions)
   const sampling = normalizeGraphSampling(payload.sampling, {
     unit: 'l2_chain_node',
     returnedCount: storyNodes.length,
@@ -141,7 +144,8 @@ export function transformL3MacroResponse(payload) {
     end_date: macro.end_date,
     nodes: storyNodes,
     edges: storyEdges,
-    interactions: getStoryInteractions(runId, macroId, storyNodes),
+    interactions,
+    relatedLinks,
     related_stories: [],
     sampling,
     l3_macro: macro,

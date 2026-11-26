@@ -59,6 +59,63 @@ export function buildMacroDisplayEdges(story, visibleEdges) {
   return displayEdges
 }
 
+export function buildMacroRelatedLinks(nodes, rawEdges, interactions) {
+  const order = new Map(nodes.slice().sort(compareMacroChronology).map((node, index) => [node.id, index]))
+  const usedPairs = new Set(interactions.map(({ sourceId, targetId }) =>
+    JSON.stringify([sourceId, targetId].sort()),
+  ))
+  const candidates = rawEdges.flatMap((raw) => {
+    const edge = normalizeStoryRelation(raw)
+    const sourceId = raw.from_chain_id
+    const targetId = raw.to_chain_id
+    const score = raw.edge_weight
+    const actors = raw.shared_actor_count
+    const topics = raw.shared_topic_count
+    if (
+      edge.relation_semantics.evidence_role !== 'derived_signal' ||
+      !order.has(sourceId) || !order.has(targetId) ||
+      Math.abs(order.get(sourceId) - order.get(targetId)) < 2 ||
+      !Number.isFinite(score) || score < 0.55 ||
+      !Number.isInteger(actors) || actors < 1 ||
+      !Number.isInteger(topics) || topics < 2
+    ) return []
+
+    return [{
+      sourceId,
+      targetId,
+      score,
+      actors,
+      topics,
+      pair: JSON.stringify([sourceId, targetId].sort()),
+    }]
+  })
+
+  const limit = Math.max(2, Math.ceil(nodes.length / 4))
+  const degrees = new Map()
+  const links = []
+  candidates.sort((a, b) => b.score - a.score || b.topics - a.topics || a.pair.localeCompare(b.pair))
+  for (const candidate of candidates) {
+    if (links.length >= limit) break
+    const { sourceId, targetId, pair, actors, topics } = candidate
+    const sourceDegree = degrees.get(sourceId) || 0
+    const targetDegree = degrees.get(targetId) || 0
+    if (usedPairs.has(pair) || sourceDegree >= 2 || targetDegree >= 2) continue
+    usedPairs.add(pair)
+    degrees.set(sourceId, sourceDegree + 1)
+    degrees.set(targetId, targetDegree + 1)
+    links.push({
+      id: `related-${pair}`,
+      kind: 'related',
+      sourceId,
+      targetId,
+      title: '共同主体与议题',
+      actors,
+      topics,
+    })
+  }
+  return links
+}
+
 export function buildMacroEvolutionEdges(nodes, interactions) {
   const ordered = nodes.slice().sort(compareMacroChronology)
   const relatedPairs = new Set(interactions.map(({ sourceId, targetId }) =>

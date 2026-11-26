@@ -1,6 +1,6 @@
-const IRAN_MACRO = 'fast_l3_v1_046b120031562a86'
+import { L3_RUN_ID } from './config.js'
 
-const IRAN_INTERACTIONS = [
+const SOURCED_INTERACTIONS = [
   {
     id: 'lebanon-strikes-ceasefire-risk',
     sourceId: 'fast_l2_v1_47090fc6cacc9d15',
@@ -123,10 +123,10 @@ const IRAN_INTERACTIONS = [
   },
 ]
 
-export function getStoryInteractions(runId, storyId, nodes) {
-  if (runId !== 'fast_l3_v1' || storyId !== IRAN_MACRO) return []
+export function getStoryInteractions(runId, nodes) {
+  if (runId !== L3_RUN_ID) return []
   const nodeIds = new Set(nodes.map((node) => node.id))
-  const interactions = IRAN_INTERACTIONS.filter((interaction) =>
+  const interactions = SOURCED_INTERACTIONS.filter((interaction) =>
     nodeIds.has(interaction.sourceId) && nodeIds.has(interaction.targetId),
   )
   const outgoing = new Map()

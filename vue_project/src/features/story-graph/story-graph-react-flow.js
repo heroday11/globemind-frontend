@@ -179,7 +179,10 @@ function StoryGraphCanvas({
             instance,
             eventNodes,
             canvasRef.current,
-            { ...INITIAL_FIT_VIEW_OPTIONS, interaction: storyGraph?.interactions?.[0] },
+            {
+              ...INITIAL_FIT_VIEW_OPTIONS,
+              interaction: storyGraph?.interactions?.[0] || storyGraph?.relatedLinks?.[0],
+            },
           )
           if (applied) {
             didAutoFitRef.current = true
@@ -467,7 +470,7 @@ function IntelEdge(props) {
     h(BaseEdge, {
       id,
       path,
-      markerEnd,
+      markerEnd: data.payload.kind === 'related' ? undefined : markerEnd,
       className,
       interactionWidth: 44,
       style: {
@@ -480,12 +483,13 @@ function IntelEdge(props) {
     data.label && h(StoryEdgeLabel, {
       label: data.label,
       path,
-      movable: data.payload.kind === 'interaction',
+      movable: data.payload.kind === 'interaction' || data.payload.kind === 'related',
+      related: data.payload.kind === 'related',
     }),
   )
 }
 
-function StoryEdgeLabel({ label, path, movable }) {
+function StoryEdgeLabel({ label, path, movable, related }) {
   const [fraction, setFraction] = useState(0.5)
   const [point, setPoint] = useState(null)
   const labelRef = useRef(null)
@@ -551,9 +555,11 @@ function StoryEdgeLabel({ label, path, movable }) {
     {
       ref: labelRef,
       'aria-hidden': true,
-      className: movable
-        ? 'story-rf-edge-label story-rf-edge-label--interaction nodrag nopan'
-        : 'story-rf-edge-label',
+      className: [
+        'story-rf-edge-label',
+        movable && 'story-rf-edge-label--interaction nodrag nopan',
+        related && 'story-rf-edge-label--related',
+      ].filter(Boolean).join(' '),
       transform: point ? `translate(${point.x} ${point.y})` : undefined,
       ...(movable && {
         onPointerDown: start,
@@ -742,13 +748,14 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
   const baseEdges = isMacro
     ? buildMacroEvolutionEdges(primaryStory.orderedNodes, interactions)
     : showTimelineLinks ? visibleEdges : []
-  const flowEdges = [...interactions, ...baseEdges]
+  const flowEdges = [...interactions, ...(storyGraph.relatedLinks || []), ...baseEdges]
   const eventTitles = new Map(eventNodes.map((node) => [node.id, node.data.title]))
   const pairEdges = new Map()
 
   flowEdges.forEach((edge) => {
     const isInteraction = edge.kind === 'interaction'
     const isEvolution = edge.kind === 'evolution'
+    const isRelated = edge.kind === 'related'
     const sourceId = edge.sourceId ?? edge.from_id
     const targetId = edge.targetId ?? edge.to_id
     const sourcePoint = positions.get(sourceId)
@@ -772,14 +779,14 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
       (sourcePoint.isMacro || targetPoint.isMacro) &&
       (edge.edge_type === 'macro_sequence' || edge.edge_type === 'branch_sequence')
     const isMacroStoryEdge = sourcePoint.isMacro || targetPoint.isMacro
-    const stroke = isEvolution
+    const stroke = isRelated ? '#725d87' : isEvolution
       ? '#75879b'
       : isInteraction ? edge.turningPoint ? '#234a78' : '#657689' : edgeStroke(edge)
-    const inspectorPayload = isInteraction || isEvolution ? edge : buildStoryGraphEdgeInspector(edge)
+    const inspectorPayload = edge.kind ? edge : buildStoryGraphEdgeInspector(edge)
     const relationKind = edge.relation_semantics?.relation_kind
     const sourceMatches = perspectiveNodeIds.has(sourceId)
     const targetMatches = perspectiveNodeIds.has(targetId)
-    const matchesPerspective = isInteraction
+    const matchesPerspective = isInteraction || isRelated
       ? sourceMatches || targetMatches
       : sourceMatches && targetMatches
     const showLabel = !isMacro && (
@@ -801,6 +808,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
         'story-rf-edge',
         isInteraction ? 'story-rf-edge--interaction' : '',
         isEvolution ? 'story-rf-edge--evolution' : '',
+        isRelated ? 'story-rf-edge--related' : '',
         matchesPerspective ? '' : 'story-rf-edge--muted',
         isContext ? 'story-rf-edge--context' : 'story-rf-edge--story',
         isMacroStoryEdge ? 'story-rf-edge--macro' : '',
@@ -808,16 +816,16 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
       ]
         .filter(Boolean)
         .join(' '),
-      markerEnd: {
+      markerEnd: isRelated ? undefined : {
         type: MarkerType.ArrowClosed,
         width: 11,
         height: 11,
         color: stroke,
       },
-      zIndex: isInteraction ? 3 : 1,
+      zIndex: isInteraction ? 3 : isRelated ? 2 : 1,
       data: {
         payload: inspectorPayload,
-        label: edge.turningPoint || showLabel
+        label: isRelated || edge.turningPoint || showLabel
           ? inspectorPayload.title
           : !isMacro && relationKind === 'layout_only' ? LAYOUT_EDGE_LABELS[edge.edge_type] : undefined,
         layer: edge.layer || 'story',
@@ -827,7 +835,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
         weight: null,
         stroke,
         strokeWidth: edge.turningPoint ? 3 : isEvolution || isContext ? 1.8 : 2.1,
-        dashArray: isInteraction || isEvolution || isMacroSequence
+        dashArray: isRelated ? '7 6' : isInteraction || isEvolution || isMacroSequence
           ? undefined
           : isContext ? '7 10' : edge.layer === 'story' ? '11 8' : '9 8',
         opacity: isInteraction ? 1 : isEvolution ? 0.7 : isContext ? 0.54 : 0.62,
