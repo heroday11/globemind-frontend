@@ -444,13 +444,22 @@ test('flow model orders nodes and synthesizes stable macro lane edges', () => {
   ]
   const displayEdges = buildMacroDisplayEdges(
     { storyId: 'macro-1', orderedNodes },
-    [{ from_id: 'd2', to_id: 'c2', edge_type: 'influence', layer: 'story' }],
+    [
+      { from_id: 'd2', to_id: 'c2', edge_type: 'influence', layer: 'story' },
+      {
+        from_id: 'c2',
+        to_id: 'd2',
+        edge_type: 'parallel',
+        layer: 'context',
+        relation_semantics: boundedRelationSemantics('parallel'),
+      },
+    ],
   )
   assert.ok(displayEdges.some((edge) => edge.edge_type === 'macro_sequence' && edge.synthetic))
   assert.ok(displayEdges.some((edge) => edge.edge_type === 'branch_sequence' && edge.synthetic))
-  assert.ok(displayEdges.some((edge) => edge.edge_type === 'branch' && edge.synthetic))
-  assert.ok(displayEdges.some((edge) => edge.edge_type === 'relation_unknown' && !edge.synthetic))
-  assert.equal(displayEdges.some((edge) => edge.edge_type === 'influence'), false)
+  assert.deepEqual(displayEdges.map((edge) => edge.edge_type).sort(), [
+    'branch_sequence', 'macro_sequence', 'parallel',
+  ])
   for (const edge of displayEdges.filter((item) => item.synthetic)) {
     assert.match(edge.claim.claim_id, /^sgc_[0-9a-f]{64}$/)
     assert.equal(edge.claim.citation_locator, null)

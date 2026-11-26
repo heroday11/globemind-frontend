@@ -49,64 +49,12 @@ export function buildMacroDisplayEdges(story, visibleEdges) {
     })
   })
 
-  const trunkNodes = laneMap.get(trunkLane) || ordered
-  laneMap.forEach((laneNodes, lane) => {
-    if (lane === trunkLane || !laneNodes.length || !trunkNodes.length) return
-    const firstNode = laneNodes[0]
-    const anchor = findNearestEarlierMacroNode(firstNode, trunkNodes) || trunkNodes[0]
-    const branchEdge = normalizeLayoutStoryRelation({
-      from_id: anchor.id,
-      to_id: firstNode.id,
-      source_story_id: story.storyId,
-      target_story_id: story.storyId,
-      edge_type: 'branch',
-      layer: 'story',
-      edge_weight: 0.82,
-      weight: 0.82,
-      relation_reason: `${macroLaneLabel(lane)}分支`,
-      evidence_status: 'unavailable',
-      synthetic: true,
-    })
-    branchEdge.claim = buildLayoutStoryRelationClaim({
-      graphScopeId: `client-layout:${story.storyId}`,
-      fromId: branchEdge.from_id,
-      toId: branchEdge.to_id,
-      relationKind: branchEdge.edge_type,
-    })
-    addEdge(branchEdge)
-
-    if (laneNodes.length >= 5) {
-      const midNode = laneNodes[Math.floor(laneNodes.length / 2)]
-      const midAnchor = findNearestEarlierMacroNode(midNode, trunkNodes)
-      if (midAnchor && midAnchor.id !== anchor.id) {
-        const contextEdge = normalizeLayoutStoryRelation({
-          from_id: midAnchor.id,
-          to_id: midNode.id,
-          source_story_id: story.storyId,
-          target_story_id: story.storyId,
-          edge_type: 'context',
-          layer: 'story',
-          edge_weight: 0.66,
-          weight: 0.66,
-          relation_reason: `${macroLaneLabel(lane)}布局连接`,
-          evidence_status: 'unavailable',
-          synthetic: true,
-        })
-        contextEdge.claim = buildLayoutStoryRelationClaim({
-          graphScopeId: `client-layout:${story.storyId}`,
-          fromId: contextEdge.from_id,
-          toId: contextEdge.to_id,
-          relationKind: contextEdge.edge_type,
-        })
-        addEdge(contextEdge)
-      }
-    }
-  })
-
   visibleEdges
     .map((edge) => normalizeStoryRelation(edge))
-    .filter((edge) => edge.edge_type !== 'macro_sequence')
-    .forEach((edge) => addEdge(edge))
+    .filter(({ relation_semantics: semantics }) =>
+      semantics.relation_kind === 'temporal_overlap' || semantics.relation_kind === 'temporal_sequence',
+    )
+    .forEach(addEdge)
 
   return displayEdges
 }
@@ -264,25 +212,6 @@ function selectMacroTrunkLane(laneMap) {
     if (countDiff !== 0) return countDiff
     return priority.indexOf(left) - priority.indexOf(right)
   })[0]
-}
-
-function findNearestEarlierMacroNode(node, candidates) {
-  const nodeTime = macroNodeTime(node)
-  const nodeOrder = Number(node.node_order || 0)
-  const sorted = candidates.slice().sort((left, right) => {
-    const leftBefore = macroNodeTime(left) <= nodeTime || Number(left.node_order || 0) <= nodeOrder
-    const rightBefore =
-      macroNodeTime(right) <= nodeTime || Number(right.node_order || 0) <= nodeOrder
-    if (leftBefore !== rightBefore) return leftBefore ? -1 : 1
-    const leftDistance =
-      Math.abs(macroNodeTime(left) - nodeTime) +
-      Math.abs(Number(left.node_order || 0) - nodeOrder) * 86400000
-    const rightDistance =
-      Math.abs(macroNodeTime(right) - nodeTime) +
-      Math.abs(Number(right.node_order || 0) - nodeOrder) * 86400000
-    return leftDistance - rightDistance
-  })
-  return sorted[0] || null
 }
 
 function clamp(value, min, max) {
