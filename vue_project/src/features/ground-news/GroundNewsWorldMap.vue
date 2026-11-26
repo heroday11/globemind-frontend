@@ -321,9 +321,14 @@ async function fetchGeometry(url) {
   return response.json()
 }
 
-watch(() => props.selection?.country, (country, previousCountry) => {
-  if (country === 'CN' || previousCountry === 'CN') zoom.value = 1
-})
+watch(
+  [() => props.selection?.country, () => props.selection?.place],
+  ([country, place], [previousCountry]) => {
+    if (country === 'CN' && place?.startsWith('region-chn-')) zoom.value = Math.max(2, zoom.value)
+    else if ((country === 'CN' && !place) || (country !== 'CN' && previousCountry === 'CN')) zoom.value = 1
+  },
+  { immediate: true },
+)
 watch(() => [props.countries, props.places, props.selection, zoom.value, china.value], scheduleDraw)
 onMounted(async () => {
   void fetchGeometry(chinaGeometryUrl)

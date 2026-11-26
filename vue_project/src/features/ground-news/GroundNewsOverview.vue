@@ -172,7 +172,7 @@ function selectCountry(code) {
 function selectPlace(id) {
   const item = places.value.find((entry) => entry.id === id)
   if (item) selectFocus({ country: item.country, place: id, coordinates: item.coordinates })
-  else selectCountry(country.value)
+  else selectFocus({ country: country.value, place: '', coordinates: activeCountry.value?.coordinates })
 }
 
 function searchKeyword(term) {
