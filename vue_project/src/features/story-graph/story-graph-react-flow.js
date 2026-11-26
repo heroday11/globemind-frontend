@@ -5,12 +5,14 @@ import ReactFlow, {
   applyNodeChanges,
   Background,
   BaseEdge,
+  EdgeText,
   getNodesBounds,
   Handle,
   MarkerType,
   MiniMap,
   Position,
   getBezierPath,
+  useStore,
 } from 'reactflow'
 
 import 'reactflow/dist/style.css'
@@ -56,6 +58,13 @@ const nodeTypes = {
 const edgeTypes = {
   intelEdge: IntelEdge,
 }
+
+const LABELED_TEMPORAL_TYPES = new Set([
+  'transition',
+  'response',
+  'same_thread',
+  'event_to_outcome',
+])
 
 export function createStoryGraphRenderer(container) {
   const root = createRoot(container)
@@ -411,6 +420,7 @@ function IntelEdge(props) {
     markerEnd,
     className,
   } = props
+  const zoom = useStore((state) => (data.label ? state.transform[2] : 1))
 
   const pathArgs = {
     sourceX,
@@ -420,7 +430,7 @@ function IntelEdge(props) {
     sourcePosition,
     targetPosition,
   }
-  const [directPath] = getBezierPath({
+  const [directPath, directLabelX, directLabelY] = getBezierPath({
     ...pathArgs,
     curvature: data.curvature ?? (data.layer === 'context' ? 0.36 : 0.24),
   })
@@ -430,20 +440,42 @@ function IntelEdge(props) {
   const path = data.arc
     ? `M ${sourceX} ${sourceY} C ${sourceX} ${railY}, ${targetX} ${railY}, ${targetX} ${targetY}`
     : directPath
+  const labelX = data.arc ? (sourceX + targetX) / 2 : directLabelX
+  const labelY = data.arc ? (sourceY + 6 * railY + targetY) / 8 : directLabelY
 
-  return h(BaseEdge, {
-    id,
-    path,
-    markerEnd,
-    className,
-    interactionWidth: 44,
-    style: {
-      stroke: data.stroke,
-      strokeWidth: data.strokeWidth,
-      strokeDasharray: data.dashArray,
-      opacity: data.opacity,
-    },
-  })
+  return h(
+    React.Fragment,
+    null,
+    h(BaseEdge, {
+      id,
+      path,
+      markerEnd,
+      className,
+      interactionWidth: 44,
+      style: {
+        stroke: data.stroke,
+        strokeWidth: data.strokeWidth,
+        strokeDasharray: data.dashArray,
+        opacity: data.opacity,
+      },
+    }),
+    data.label &&
+      h(
+        'g',
+        {
+          'aria-hidden': true,
+          className: 'story-rf-edge-label',
+          transform: `translate(${labelX} ${labelY}) scale(${1 / zoom})`,
+        },
+        h(EdgeText, {
+          x: 0,
+          y: 0,
+          label: data.label,
+          labelBgPadding: [5, 2],
+          labelBgBorderRadius: 4,
+        }),
+      ),
+  )
 }
 
 function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
@@ -636,6 +668,11 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
     const isMacroStoryEdge = sourcePoint.isMacro || targetPoint.isMacro
     const stroke = edgeStroke(edge)
     const inspectorPayload = buildStoryGraphEdgeInspector(edge)
+    const relationKind = edge.relation_semantics.relation_kind
+    const showLabel =
+      relationKind === 'temporal_overlap' ||
+      (relationKind === 'event_progression_signal' && edge.edge_type !== 'analysis_context') ||
+      (relationKind === 'temporal_sequence' && LABELED_TEMPORAL_TYPES.has(edge.edge_type))
 
     edges.push({
       id: `edge-${edge.from_id}-${edge.to_id}-${edge.edge_type}-${edge.layer || 'story'}`,
@@ -663,6 +700,7 @@ function buildFlowModel(storyGraph, includeContext, positionOverrides = {}) {
       zIndex: 1,
       data: {
         payload: inspectorPayload,
+        label: showLabel ? inspectorPayload.title : '',
         layer: edge.layer || 'story',
         route: 'bezier',
         edgeType: edge.edge_type,
