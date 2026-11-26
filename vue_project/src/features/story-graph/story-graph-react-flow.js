@@ -30,12 +30,11 @@ import {
 } from './config.js'
 import {
   avoidMacroCollisions,
-  buildMacroDisplayEdges,
+  compareMacroChronology,
   buildMacroLaneMap,
   buildMacroLaneOffsets,
   buildMacroTimelineX,
-  compareMacroNodes,
-  macroLaneXPull,
+
   normalizeMacroLane,
   orderStoryNodes,
 } from './flow-model.js'
@@ -479,24 +478,73 @@ function IntelEdge(props) {
         opacity: data.opacity,
       },
     }),
-    data.label &&
-      h(
-        'g',
-        {
-          'aria-hidden': true,
-          className: data.payload.kind === 'interaction'
-            ? 'story-rf-edge-label story-rf-edge-label--interaction'
-            : 'story-rf-edge-label',
-          transform: `translate(${labelX} ${labelY}) scale(${1 / zoom})`,
+    data.label && h(StoryEdgeLabel, {
+      label: data.label,
+      x: labelX,
+      y: labelY,
+      zoom,
+      movable: data.payload.kind === 'interaction',
+    }),
+  )
+}
+
+function StoryEdgeLabel({ label, x, y, zoom, movable }) {
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const gesture = useRef(null)
+  const moved = useRef(false)
+
+  function start(event) {
+    if (event.button !== 0) return
+    event.stopPropagation()
+    moved.current = false
+    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, offset }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function move(event) {
+    const active = gesture.current
+    if (active?.id !== event.pointerId) return
+    const dx = event.clientX - active.x
+    const dy = event.clientY - active.y
+    if (!moved.current && Math.hypot(dx, dy) < 4) return
+    moved.current = true
+    setOffset({ x: active.offset.x + dx / zoom, y: active.offset.y + dy / zoom })
+  }
+
+  function stop(event) {
+    if (gesture.current?.id === event.pointerId) gesture.current = null
+  }
+
+  return h(
+    'g',
+    {
+      'aria-hidden': true,
+      className: movable
+        ? 'story-rf-edge-label story-rf-edge-label--interaction nodrag nopan'
+        : 'story-rf-edge-label',
+      transform: `translate(${x} ${y})`,
+      ...(movable && {
+        onPointerDown: start,
+        onPointerMove: move,
+        onPointerUp: stop,
+        onPointerCancel: stop,
+        onLostPointerCapture: stop,
+        onMouseDown: (event) => event.stopPropagation(),
+        onClick(event) {
+          if (moved.current) event.stopPropagation()
+          moved.current = false
         },
-        h(EdgeText, {
-          x: 0,
-          y: 0,
-          label: data.label,
-          labelBgPadding: [5, 2],
-          labelBgBorderRadius: 4,
-        }),
-      ),
+      }),
+    },
+    (offset.x !== 0 || offset.y !== 0) && h('line', {
+      x2: offset.x,
+      y2: offset.y,
+      className: 'story-rf-edge-label__leader',
+      vectorEffect: 'non-scaling-stroke',
+    }),
+    h('g', { transform: `translate(${offset.x} ${offset.y}) scale(${1 / zoom})` },
+      h(EdgeText, { x: 0, y: 0, label, labelBgPadding: [5, 2], labelBgBorderRadius: 4 }),
+    ),
   )
 }
 
@@ -666,10 +714,8 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
   })
 
   const isMacro = isMacroStory(primaryStory)
-  const timelineEdges = isMacro
-    ? buildMacroDisplayEdges(primaryStory, visibleEdges)
-    : visibleEdges
-  const flowEdges = [...(storyGraph.interactions || []), ...(showTimelineLinks ? timelineEdges : [])]
+  const timelineEdges = !isMacro && showTimelineLinks ? visibleEdges : []
+  const flowEdges = [...(storyGraph.interactions || []), ...timelineEdges]
   const eventTitles = new Map(eventNodes.map((node) => [node.id, node.data.title]))
   const pairEdges = new Map()
 
@@ -698,7 +744,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
       (sourcePoint.isMacro || targetPoint.isMacro) &&
       (edge.edge_type === 'macro_sequence' || edge.edge_type === 'branch_sequence')
     const isMacroStoryEdge = sourcePoint.isMacro || targetPoint.isMacro
-    const stroke = isInteraction ? '#146c64' : edgeStroke(edge)
+    const stroke = isInteraction ? edge.turningPoint ? '#234a78' : '#657689' : edgeStroke(edge)
     const inspectorPayload = isInteraction ? edge : buildStoryGraphEdgeInspector(edge)
     const relationKind = edge.relation_semantics?.relation_kind
     const sourceMatches = perspectiveNodeIds.has(sourceId)
@@ -740,7 +786,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
       zIndex: isInteraction ? 3 : 1,
       data: {
         payload: inspectorPayload,
-        label: isInteraction || showLabel
+        label: edge.turningPoint || showLabel
           ? inspectorPayload.title
           : !isMacro && relationKind === 'layout_only' ? LAYOUT_EDGE_LABELS[edge.edge_type] : undefined,
         layer: edge.layer || 'story',
@@ -749,7 +795,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspe
         relationReason: edge.relation_reason,
         weight: null,
         stroke,
-        strokeWidth: isInteraction ? 3 : isContext ? 1.8 : 2.1,
+        strokeWidth: edge.turningPoint ? 3 : isContext ? 1.8 : 2.1,
         dashArray: isInteraction || isMacroSequence
           ? undefined
           : isContext ? '7 10' : edge.layer === 'story' ? '11 8' : '9 8',
@@ -802,7 +848,7 @@ function isMacroStory(story) {
 }
 
 function layoutMacroStory(story, positions) {
-  const ordered = story.orderedNodes.slice().sort(compareMacroNodes)
+  const ordered = story.orderedNodes.slice().sort(compareMacroChronology)
   const count = ordered.length
   if (!count) return
 
@@ -819,7 +865,7 @@ function layoutMacroStory(story, positions) {
       laneNodes.findIndex((item) => item.id === node.id),
     )
     const laneWave = staggerOffset(laneIndex, laneMap.size === 1 ? 154 : 94)
-    let x = (xById.get(node.id) || 0) + macroLaneXPull(lane)
+    let x = xById.get(node.id) || 0
     let y = (laneOffsets.get(lane) || 0) + laneWave
 
     const collision = avoidMacroCollisions(x, y, placed)

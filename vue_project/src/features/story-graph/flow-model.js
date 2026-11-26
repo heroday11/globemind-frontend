@@ -85,7 +85,7 @@ export function buildMacroTimelineX(nodes) {
   const xById = new Map()
   if (!nodes.length) return xById
 
-  const sorted = nodes.slice().sort(compareMacroNodes)
+  const sorted = nodes.slice().sort(compareMacroChronology)
   const points = []
   let cursor = 0
   sorted.forEach((node, index) => {
@@ -108,6 +108,10 @@ export function compareMacroNodes(left, right) {
   const dateDiff = macroNodeTime(left) - macroNodeTime(right)
   if (dateDiff !== 0) return dateDiff
   return String(left.id || '').localeCompare(String(right.id || ''))
+}
+
+export function compareMacroChronology(left, right) {
+  return macroNodeTime(left) - macroNodeTime(right) || compareMacroNodes(left, right)
 }
 
 export function macroNodeTime(node) {

@@ -122,8 +122,8 @@
         </header>
 
         <div v-if="currentStory && workspaceView === 'graph'" class="intel-graph-legend" aria-label="图例">
-          <span v-if="showTimelineLinks"><i class="intel-graph-legend__timeline" aria-hidden="true"></i>时间脉络</span>
-          <span v-if="storyInteractions.length"><i class="intel-graph-legend__interaction" aria-hidden="true"></i>报道支持的影响</span>
+          <span v-if="graphMode !== 'l3' && showTimelineLinks"><i class="intel-graph-legend__timeline" aria-hidden="true"></i>时间脉络</span>
+          <span v-if="storyInteractions.length"><i class="intel-graph-legend__interaction" aria-hidden="true"></i>事件关系</span>
         </div>
 
         <div v-if="graphLoadFailed" class="intel-graph-notice" role="status">
@@ -146,6 +146,7 @@
             <button
               class="intel-icon-btn"
               type="button"
+              v-if="graphMode !== 'l3'"
               :title="showTimelineLinks ? '隐藏脉络线' : '显示脉络线'"
               aria-label="脉络线"
               :aria-pressed="showTimelineLinks"
@@ -496,7 +497,9 @@ const selectedInspectorTitle = computed(() => {
 
 const focusMeta = computed(() => {
   const item = selectedInspector.value
-  if (item?.kind === 'interaction') return '报道中的作用关系'
+  if (item?.kind === 'interaction') {
+    return [item.converges && '汇总', item.diverges && '发散'].filter(Boolean).join(' · ') || '事件关系'
+  }
   if (!item || item.kind === 'edge') return ''
   return [
     storyDateRange(item.startDate, item.endDate),
@@ -1694,7 +1697,7 @@ function clampText(value, max = 11000) {
 }
 
 .intel-graph-legend .intel-graph-legend__interaction {
-  border-top: 3px solid #146c64;
+  border-top: 3px solid #234a78;
 }
 
 .intel-interaction-select {

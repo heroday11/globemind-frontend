@@ -6,6 +6,7 @@ const IRAN_INTERACTIONS = [
     sourceId: 'fast_l2_v1_47090fc6cacc9d15',
     targetId: 'fast_l2_v1_584be832d1a81e8d',
     title: '威胁停火',
+    turningPoint: true,
     summary: '联合国秘书长发言人表示，以色列在黎巴嫩的持续军事行动给美伊停火带来严重风险。',
     evidence: {
       title: 'Israeli strikes on Lebanon pose grave risk to Iran-US ceasefire — UN',
@@ -34,12 +35,37 @@ const IRAN_INTERACTIONS = [
       url: 'https://www.cbsnews.com/news/trump-nato-could-try-to-pull-us-out/',
     },
   },
+  {
+    id: 'iran-ceasefire-follow-up-talks',
+    sourceId: 'fast_l2_v1_584be832d1a81e8d',
+    targetId: 'fast_l2_v1_d901bb4b33d22b9a',
+    title: '停火后派团谈判',
+    summary: '美伊宣布临时停火后，白宫宣布派谈判团队赴巴基斯坦，就停火协议继续磋商。',
+    evidence: {
+      title: 'US dispatching negotiating team for Iran talks, Tehran signals willingness to hand over uranium',
+      url: 'https://www.jpost.com/international/article-892388',
+    },
+  },
 ]
 
 export function getStoryInteractions(runId, storyId, nodes) {
   if (runId !== 'fast_l3_v1' || storyId !== IRAN_MACRO) return []
   const nodeIds = new Set(nodes.map((node) => node.id))
-  return IRAN_INTERACTIONS.filter((interaction) =>
+  const interactions = IRAN_INTERACTIONS.filter((interaction) =>
     nodeIds.has(interaction.sourceId) && nodeIds.has(interaction.targetId),
-  ).map((interaction) => ({ ...interaction, kind: 'interaction' }))
+  )
+  const outgoing = new Map()
+  const incoming = new Map()
+  for (const { sourceId, targetId } of interactions) {
+    if (!outgoing.has(sourceId)) outgoing.set(sourceId, new Set())
+    if (!incoming.has(targetId)) incoming.set(targetId, new Set())
+    outgoing.get(sourceId).add(targetId)
+    incoming.get(targetId).add(sourceId)
+  }
+  return interactions.map((interaction) => ({
+    ...interaction,
+    kind: 'interaction',
+    converges: incoming.get(interaction.targetId).size > 1,
+    diverges: outgoing.get(interaction.sourceId).size > 1,
+  }))
 }

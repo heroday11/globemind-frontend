@@ -63,14 +63,25 @@
 }
 
 .story-rf-edge-label--interaction .react-flow__edge-textbg {
-  fill: #e8f5ef;
-  stroke: #146c64;
+  fill: #edf3fa;
+  stroke: #234a78;
   pointer-events: all;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
 }
 
 .story-rf-edge-label--interaction .react-flow__edge-text {
-  fill: #104842;
+  fill: #193b61;
+}
+
+.story-rf-edge-label--interaction:active .react-flow__edge-textbg {
+  cursor: grabbing;
+}
+
+.story-rf-edge-label__leader {
+  stroke: #657689;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
 }
 
 .story-rf-root .react-flow__node-groupNode {
