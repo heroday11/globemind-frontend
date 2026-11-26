@@ -678,7 +678,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
     pairEdges.set(pair, parallelIndex + 1)
     const span = Math.abs(targetPoint.x - sourcePoint.x)
     const arcDirection = ((sourcePoint.timelineIndex ?? 0) + parallelIndex) % 2 ? 1 : -1
-    const arc = span > 470 || parallelIndex
+    const arc = !isInteraction && (span > 470 || parallelIndex)
       ? arcDirection * (128 + Math.min(span * 0.13, 290) + 65 * parallelIndex)
       : 0
     const verticalHandle = arc > 0 ? 'bottom' : 'top'
