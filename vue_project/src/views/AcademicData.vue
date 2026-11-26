@@ -513,6 +513,7 @@ import {
 import { safeExpertSkillDocumentPath, safeExternalHttpUrl } from '@/utils/externalUrl.js'
 import { getToken } from '@/utils/auth.js'
 import { expertSkillGroups } from '@/features/assistant/expert-skill-market.js'
+import { capabilityFingerprint } from '@/bootstrap.js'
 
 const CATALOG_URL = '/datasets/expert-skills/catalog.json'
 const DB_STORAGE_KEY = 'globemind_academic_data_database_cards_v1'
@@ -557,6 +558,7 @@ const capabilitySyncUnavailable = ref(false)
 const capabilityLastSyncedAt = ref('')
 const capabilityNeedsMigration = ref(false)
 let capabilitySyncGeneration = 0
+let capabilitySave = Promise.resolve()
 
 const route = useRoute()
 const isPluginDomain = computed(() => activeDomainId.value === 'dsh-plugins')
@@ -779,19 +781,12 @@ function persistSelectedSkills() {
   void syncCapabilities()
 }
 
-function capabilityFingerprint(skillIds = selectedSkillIds.value, cards = databaseCards.value) {
-  return JSON.stringify({
-    skills: [...skillIds].sort(),
-    databases: cards.map((card) => card.id).filter(Boolean).sort(),
-  })
-}
-
 function readCapabilitySyncFingerprint() {
   try { return localStorage.getItem(CAPABILITIES_SYNC_KEY) || '' } catch { /* Storage may be unavailable. */ return '' }
 }
 
-function markCapabilitiesSynced() {
-  try { localStorage.setItem(CAPABILITIES_SYNC_KEY, capabilityFingerprint()) } catch { /* Storage is optional. */ }
+function markCapabilitiesSynced(fingerprint = capabilityFingerprint(selectedSkillIds.value, databaseCards.value)) {
+  try { localStorage.setItem(CAPABILITIES_SYNC_KEY, fingerprint) } catch { /* Storage is optional. */ }
 }
 
 function loadSelectedSkills() {
@@ -908,6 +903,8 @@ async function syncCapabilities() {
   const token = getToken()
   if (!token || catalogLoading.value || capabilitySyncUnavailable.value) return
   const generation = ++capabilitySyncGeneration
+  const cards = databaseCards.value.slice()
+  const fingerprint = capabilityFingerprint(selectedSkillIds.value, cards)
   capabilitySyncing.value = true
   capabilitySyncError.value = ''
   try {
@@ -922,11 +919,17 @@ async function syncCapabilities() {
       runtime: skill.runtime || '',
       content: await readSelectedSkillContent(skill),
     })))
-    const response = await fetch('/api/assistant/capabilities', {
-      method: 'PUT',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ skills, databaseCards: databaseCards.value }),
+    const save = capabilitySave.then(() => {
+      if (generation !== capabilitySyncGeneration || getToken() !== token) return
+      return fetch('/api/assistant/capabilities', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skills, databaseCards: cards }),
+      })
     })
+    capabilitySave = save.then(() => undefined, () => undefined)
+    const response = await save
+    if (!response || getToken() !== token) return
     const payload = await response.json().catch(() => ({}))
     if (response.status === 404 || response.status === 405) {
       if (generation === capabilitySyncGeneration) {
@@ -937,7 +940,7 @@ async function syncCapabilities() {
     }
     if (!response.ok) throw new Error(payload.detail || payload.error || '能力同步失败')
     if (generation === capabilitySyncGeneration) {
-      markCapabilitiesSynced()
+      markCapabilitiesSynced(fingerprint)
       capabilityLastSyncedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     }
   } catch (error) {
@@ -964,7 +967,7 @@ async function loadAccountCapabilities() {
     const hasAccountProfile = Boolean(profile.updatedAt)
     const hasPendingLocalChanges = Boolean(
       (selectedSkillIds.value.length || databaseCards.value.length)
-      && readCapabilitySyncFingerprint() !== capabilityFingerprint(),
+      && readCapabilitySyncFingerprint() !== capabilityFingerprint(selectedSkillIds.value, databaseCards.value),
     )
     if (hasAccountProfile && Array.isArray(profile.skills) && !hasPendingLocalChanges) {
       selectedSkillIds.value = profile.skills.map((skill) => skill.id).filter(Boolean)
