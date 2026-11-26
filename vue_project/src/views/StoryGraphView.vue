@@ -1353,15 +1353,17 @@ function clampText(value, max = 11000) {
   --muted: #506175;
   --accent: #1c568d;
   --tint: #eaf1f8;
-  --rule: #e1e7ee;
-  --sidebar: #f7f9fb;
+  --rule: #dbe4eb;
+  --surface: #f4f7f9;
+  --sidebar: #edf2f5;
+  --canvas: #e3ebf1;
   position: relative;
   display: flex;
   flex-direction: column;
   height: 100dvh;
   padding-top: 72px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   font-family: Inter, 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
@@ -1630,7 +1632,7 @@ function clampText(value, max = 11000) {
   position: relative;
   flex: 1;
   min-height: 0;
-  background: #f6f8fa;
+  background: var(--canvas);
 }
 
 .intel-canvas {
@@ -1646,7 +1648,7 @@ function clampText(value, max = 11000) {
   display: flex;
   flex-wrap: wrap;
   max-width: calc(100% - 32px);
-  background: #fff;
+  background: var(--surface);
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(31, 48, 67, 0.08);
 }
@@ -1783,7 +1785,7 @@ function clampText(value, max = 11000) {
   overflow: auto;
   overscroll-behavior: contain;
   padding: 22px 22px 90px;
-  background: #fff;
+  background: var(--surface);
   border-left: 1px solid var(--rule);
   box-shadow: -8px 0 28px rgba(31, 48, 67, 0.1);
   scrollbar-width: thin;
@@ -1918,7 +1920,7 @@ function clampText(value, max = 11000) {
   place-content: center;
   justify-items: center;
   gap: 12px;
-  background: #f6f8fa;
+  background: var(--canvas);
   padding: 16px;
   color: var(--muted);
   text-align: center;

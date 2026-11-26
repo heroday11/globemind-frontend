@@ -308,7 +308,7 @@ function StoryGraphCanvas({
           key: 'background',
           gap: 24,
           size: 1,
-          color: '#cdd7e2',
+          color: '#c6d2dd',
           variant: 'dots',
         }),
         h(MiniMap, {
