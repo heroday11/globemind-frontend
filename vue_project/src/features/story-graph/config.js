@@ -1,6 +1,15 @@
 export const L2_RUN_ID = 'fast_l2_v1'
 export const L3_RUN_ID = 'fast_l3_v1'
 
+export const L3_PERSPECTIVES = {
+  economy: '经济',
+  culture: '文化',
+  politics: '政治外交',
+  security: '安全冲突',
+  society: '社会民生',
+  other: '其他',
+}
+
 export const FIT_VIEW_OPTIONS = { padding: 0.12, duration: 0 }
 export const INITIAL_FIT_VIEW_OPTIONS = { initial: true }
 export const STORAGE_KEY_PREFIX = 'globemind:story-graph-layout:v2:'

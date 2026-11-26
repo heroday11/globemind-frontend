@@ -44,6 +44,31 @@ export function normalizeL2ChainSummary(chain) {
   }
 }
 
+const PERSPECTIVE_BY_CATEGORY = new Map([
+  ['economic_security', 'economy'],
+  ['economic_trade', 'economy'],
+  ['technology_industry', 'economy'],
+  ['economic', 'economy'],
+  ['culture', 'culture'],
+  ['culture_sports', 'culture'],
+  ['culture_religion', 'culture'],
+  ['political_diplomacy', 'politics'],
+  ['domestic_politics', 'politics'],
+  ['law_policy', 'politics'],
+  ['diplomacy', 'politics'],
+  ['political', 'politics'],
+  ['security', 'security'],
+  ['military_security', 'security'],
+  ['civil_unrest', 'security'],
+  ['security_crime', 'security'],
+  ['terrorism_espionage', 'security'],
+  ['conflict', 'security'],
+  ['humanitarian_public', 'society'],
+  ['human_rights_migration', 'society'],
+  ['public_development', 'society'],
+  ['disaster_environment', 'society'],
+])
+
 export function transformL3MacroResponse(payload) {
   const macro = payload.macro || {}
   const macroId = String(macro.macro_id || payload.macro_id || '')
@@ -61,6 +86,10 @@ export function transformL3MacroResponse(payload) {
     event_type: node.lane || node.family_group || node.event_family || 'macro_event',
     story_angle: node.lane,
     lane: node.lane,
+    perspective: PERSPECTIVE_BY_CATEGORY.get(node.event_family)
+      || PERSPECTIVE_BY_CATEGORY.get(node.family_group)
+      || PERSPECTIVE_BY_CATEGORY.get(node.lane)
+      || 'other',
     event_family: node.event_family || node.family_group,
     event_action: node.event_action,
     article_count: countOrNull(node.article_count),

@@ -37,6 +37,16 @@
   opacity: 1 !important;
 }
 
+.story-rf-root .story-rf-node--muted,
+.story-rf-root .story-rf-edge--muted {
+  opacity: 0.24;
+}
+
+.story-rf-root .story-rf-node--muted:is(:hover, :focus-visible, .selected),
+.story-rf-root .story-rf-edge--muted:is(:hover, :focus-visible, .selected) {
+  opacity: 1;
+}
+
 .story-rf-edge-label {
   pointer-events: none;
 }

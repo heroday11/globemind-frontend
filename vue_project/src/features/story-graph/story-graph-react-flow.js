@@ -24,6 +24,7 @@ import {
   FIT_VIEW_OPTIONS,
   HIDDEN_HANDLE_STYLE,
   INITIAL_FIT_VIEW_OPTIONS,
+  L3_PERSPECTIVES,
   STORAGE_KEY_PREFIX,
   VISIBLE_HANDLE_STYLE,
 } from './config.js'
@@ -134,7 +135,8 @@ export function createStoryGraphRenderer(container) {
 
 function StoryGraphCanvas({
   storyGraph,
-  showTimelineLinks,
+  showTimelineLinks = true,
+  perspective,
   onSelectInspector,
   onCanvasClick,
   onReady,
@@ -153,8 +155,8 @@ function StoryGraphCanvas({
   }, [storageKey])
 
   const model = useMemo(
-    () => buildFlowModel(storyGraph, showTimelineLinks, manualPositions),
-    [storyGraph, showTimelineLinks, manualPositions],
+    () => buildFlowModel(storyGraph, showTimelineLinks, manualPositions, perspective),
+    [storyGraph, showTimelineLinks, manualPositions, perspective],
   )
   const eventNodes = useMemo(() => nodes.filter((node) => node.type === 'eventNode'), [nodes])
 
@@ -498,10 +500,11 @@ function IntelEdge(props) {
   )
 }
 
-function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
+function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides, perspective) {
   const storyMap = new Map()
   const positions = new Map()
   const eventNodes = []
+  const perspectiveNodeIds = new Set()
   const groupNodes = []
   const edges = []
   const visibleEdges = (storyGraph?.edges || [])
@@ -625,8 +628,11 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
       const timeLabel = formatNodeTimeRange(node.start_date, node.end_date)
       const articleLabel = formatCountLabel(node.article_count, { unit: '条报道', unknown: '' })
 
+      const matchesPerspective = !perspective || node.perspective === perspective
+      if (matchesPerspective) perspectiveNodeIds.add(node.id)
       eventNodes.push({
         id: node.id,
+        className: matchesPerspective ? undefined : 'story-rf-node--muted',
         type: 'eventNode',
         position: {
           x: point.x - nodeWidth / 2,
@@ -644,6 +650,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
           width: nodeWidth,
           height: nodeHeight,
           eventTypeLabel:
+            L3_PERSPECTIVES[node.perspective] ||
             EVENT_TYPE_LABELS[node.event_type] ||
             String(node.event_type || '事件').replaceAll('_', ' '),
           title: inspectorPayload.title,
@@ -658,7 +665,8 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
     })
   })
 
-  const timelineEdges = isMacroStory(primaryStory)
+  const isMacro = isMacroStory(primaryStory)
+  const timelineEdges = isMacro
     ? buildMacroDisplayEdges(primaryStory, visibleEdges)
     : visibleEdges
   const flowEdges = [...(storyGraph.interactions || []), ...(showTimelineLinks ? timelineEdges : [])]
@@ -693,10 +701,16 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
     const stroke = isInteraction ? '#146c64' : edgeStroke(edge)
     const inspectorPayload = isInteraction ? edge : buildStoryGraphEdgeInspector(edge)
     const relationKind = edge.relation_semantics?.relation_kind
-    const showLabel =
+    const sourceMatches = perspectiveNodeIds.has(sourceId)
+    const targetMatches = perspectiveNodeIds.has(targetId)
+    const matchesPerspective = isInteraction
+      ? sourceMatches || targetMatches
+      : sourceMatches && targetMatches
+    const showLabel = !isMacro && (
       relationKind === 'temporal_overlap' ||
       (relationKind === 'event_progression_signal' && edge.edge_type !== 'analysis_context') ||
       (relationKind === 'temporal_sequence' && LABELED_TEMPORAL_TYPES.has(edge.edge_type))
+    )
 
     edges.push({
       id: isInteraction ? edge.id : `edge-${sourceId}-${targetId}-${edge.edge_type}-${edge.layer || 'story'}`,
@@ -710,6 +724,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
       className: [
         'story-rf-edge',
         isInteraction ? 'story-rf-edge--interaction' : '',
+        matchesPerspective ? '' : 'story-rf-edge--muted',
         isContext ? 'story-rf-edge--context' : 'story-rf-edge--story',
         isMacroStoryEdge ? 'story-rf-edge--macro' : '',
         isMacroSequence ? 'story-rf-edge--macro-sequence' : '',
@@ -727,7 +742,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
         payload: inspectorPayload,
         label: isInteraction || showLabel
           ? inspectorPayload.title
-          : relationKind === 'layout_only' ? LAYOUT_EDGE_LABELS[edge.edge_type] : undefined,
+          : !isMacro && relationKind === 'layout_only' ? LAYOUT_EDGE_LABELS[edge.edge_type] : undefined,
         layer: edge.layer || 'story',
         route: 'bezier',
         edgeType: edge.edge_type,
@@ -738,7 +753,7 @@ function buildFlowModel(storyGraph, showTimelineLinks, positionOverrides = {}) {
         dashArray: isInteraction || isMacroSequence
           ? undefined
           : isContext ? '7 10' : edge.layer === 'story' ? '11 8' : '9 8',
-        opacity: isInteraction ? 1 : isContext ? 0.54 : 0.62,
+        opacity: isInteraction ? 1 : isMacro ? 0.43 : isContext ? 0.54 : 0.62,
         arc,
         curvature: isContext ? 0.34 : isMacroStoryEdge ? (isMacroSequence ? 0.22 : 0.3) : 0.22,
       },

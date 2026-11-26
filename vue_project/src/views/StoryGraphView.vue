@@ -90,6 +90,17 @@
             </p>
           </div>
           <select
+            v-if="workspaceView === 'graph' && storyPerspectives.length > 1"
+            v-model="selectedPerspective"
+            class="intel-interaction-select"
+            aria-label="事件视角"
+          >
+            <option value="">全部视角</option>
+            <option v-for="[key, label] in storyPerspectives" :key="key" :value="key">
+              {{ label }}
+            </option>
+          </select>
+          <select
             v-if="workspaceView === 'graph' && storyInteractions.length"
             class="intel-interaction-select"
             aria-label="作用关系"
@@ -109,6 +120,11 @@
             </button>
           </div>
         </header>
+
+        <div v-if="currentStory && workspaceView === 'graph'" class="intel-graph-legend" aria-label="图例">
+          <span v-if="showTimelineLinks"><i class="intel-graph-legend__timeline" aria-hidden="true"></i>时间脉络</span>
+          <span v-if="storyInteractions.length"><i class="intel-graph-legend__interaction" aria-hidden="true"></i>报道支持的影响</span>
+        </div>
 
         <div v-if="graphLoadFailed" class="intel-graph-notice" role="status">
           <span>图谱暂时无法显示，已切换到时间线。</span>
@@ -275,6 +291,7 @@ import { graphMetricPresentation } from '@/governance/graphMetrics.js'
 import {
   L2_RUN_ID as l2RunId,
   L3_RUN_ID as l3RunId,
+  L3_PERSPECTIVES,
   angleLabel,
   buildGraphMetrics,
   buildStoryGraphEvidenceParams,
@@ -330,8 +347,13 @@ const queryStatus = ref(buildStoryGraphQueryStatus('idle', { mode: graphMode.val
 const leftCollapsed = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches)
 const workspaceView = ref('graph')
 const graphLoadFailed = ref(false)
-const showTimelineLinks = ref(false)
+const showTimelineLinks = ref(true)
+const selectedPerspective = ref('')
 const storyInteractions = computed(() => currentStory.value?.interactions || [])
+const storyPerspectives = computed(() => {
+  const available = new Set(currentStory.value?.nodes.map((node) => node.perspective))
+  return Object.entries(L3_PERSPECTIVES).filter(([key]) => available.has(key))
+})
 const layoutSaved = ref(false)
 const agentMessages = ref([])
 const assistantSessionId = ref('')
@@ -621,6 +643,7 @@ const focusAssistantQuestion = computed(() => {
 })
 
 watch(selectedStoryId, async (value) => {
+  selectedPerspective.value = ''
   if (!value) return
   await loadStoryWorkspace(value)
 })
@@ -629,7 +652,7 @@ watch(storySearch, () => {
   handleStorySearchChange()
 })
 
-watch(showTimelineLinks, async () => {
+watch([showTimelineLinks, selectedPerspective], async () => {
   if (currentStory.value) await renderWorkspaceGraph()
 })
 
@@ -947,6 +970,7 @@ async function renderWorkspaceGraph(requestToken = null, story = currentStory.va
   graph.value.render({
     storyGraph: story,
     showTimelineLinks: showTimelineLinks.value,
+    perspective: selectedPerspective.value,
     onSelectInspector: selectInspector,
     onCanvasClick() {
       selectedInspector.value = makeMainInspector(currentStory.value, graphMode.value)
@@ -1643,6 +1667,34 @@ function clampText(value, max = 11000) {
 
 .intel-workspace__title p {
   margin: 8px 0 0;
+}
+
+.intel-graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 0 20px 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.intel-graph-legend:empty {
+  display: none;
+}
+
+.intel-graph-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.intel-graph-legend i {
+  width: 18px;
+  border-top: 2px solid #8390a1;
+}
+
+.intel-graph-legend .intel-graph-legend__interaction {
+  border-top: 3px solid #146c64;
 }
 
 .intel-interaction-select {

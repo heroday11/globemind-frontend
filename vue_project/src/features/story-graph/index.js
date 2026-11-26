@@ -7,7 +7,7 @@ export {
   storyGraphApi,
 } from './api.js'
 
-export { L2_RUN_ID, L3_RUN_ID, storyGraphAdapterConfig } from './config.js'
+export { L2_RUN_ID, L3_RUN_ID, L3_PERSPECTIVES, storyGraphAdapterConfig } from './config.js'
 
 export {
   buildLayoutStoryRelationClaim,
