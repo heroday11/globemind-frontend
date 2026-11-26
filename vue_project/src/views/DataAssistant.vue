@@ -12,6 +12,7 @@ import { syncPendingCapabilities } from '@/bootstrap.js'
 import { useDisplayPreferences } from '@/composables/useDisplayPreferences.js'
 import { dshLaunchUrl, isDshFrame } from '@/utils/dshFrame.js'
 import { getCurrentUser, getToken, clearAuth, getAuthChangedEventName } from '@/utils/auth.js'
+import { takeInitialPageRequest } from '@/router/initialPageRequests.js'
 
 const ImageStudio = defineAsyncComponent(() => import('@/features/assistant/ImageStudio.vue'))
 
@@ -133,7 +134,7 @@ watch(() => route.query.skill, () => {
 })
 
 async function requestDshLaunch(token, signal) {
-  const response = await fetch('/api/assistant/dsh-launch', {
+  const response = await takeInitialPageRequest(token, signal) ?? await fetch('/api/assistant/dsh-launch', {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
     signal,

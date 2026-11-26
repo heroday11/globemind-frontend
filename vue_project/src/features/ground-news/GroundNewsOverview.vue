@@ -84,6 +84,7 @@
 import { CalendarDays, Globe, Search } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { groundOverviewKey, takeInitialPageRequest } from '@/router/initialPageRequests.js'
 import { groundNewsApi } from './api.js'
 import { homeFormatDate } from './home.js'
 import GroundNewsWorldMap from './GroundNewsWorldMap.vue'
@@ -110,7 +111,7 @@ const formatNumber = (value) => numberFormat.format(value)
 const country = computed(() => typeof route.query.country === 'string' ? route.query.country : '')
 const place = computed(() => country.value && typeof route.query.place === 'string' ? route.query.place : '')
 const query = computed(() => typeof route.query.q === 'string' ? route.query.q.slice(0, 100).trim() : '')
-const filterKey = computed(() => JSON.stringify([country.value, place.value, query.value]))
+const filterKey = computed(() => groundOverviewKey(country.value, place.value, query.value))
 const current = computed(() => (snapshotKey.value === filterKey.value ? snapshot.value : null))
 const countries = computed(() => snapshot.value?.countries ?? [])
 const countryGroups = computed(() => {
@@ -194,7 +195,8 @@ async function refresh() {
   error.value = false
   loading.value = true
   try {
-    const response = await groundNewsApi.getOverview({
+    const initial = await takeInitialPageRequest(key, controller.signal).catch(() => undefined)
+    const response = initial?.ok ? await initial.json() : await groundNewsApi.getOverview({
       country: selectedCountry,
       place: place.value,
       query: query.value,

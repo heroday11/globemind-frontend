@@ -1,5 +1,6 @@
 import { safeExpertSkillDocumentPath } from './utils/externalUrl.js'
 import { expertSkillGroups } from './features/assistant/expert-skill-market.js'
+import { primeInitialPageRequest } from './router/initialPageRequests.js'
 
 function loadApplication() {
   return import('./main.js')
@@ -88,4 +89,5 @@ async function syncPendingCapabilities(token, signal) {
 
 // The mounted assistant view owns its iframe and authenticated launch lifecycle.
 // Do not create a second fixed-position frame during application bootstrap.
+primeInitialPageRequest()
 void loadApplication()

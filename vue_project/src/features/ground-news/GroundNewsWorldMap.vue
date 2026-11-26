@@ -331,9 +331,11 @@ watch(
 )
 watch(() => [props.countries, props.places, props.selection, zoom.value, china.value], scheduleDraw)
 onMounted(async () => {
-  void fetchGeometry(chinaGeometryUrl)
+  const loadChina = () => fetchGeometry(chinaGeometryUrl)
     .then((geometry) => { china.value = geometry })
     .catch(() => {})
+  const chinaFirst = props.selection?.country === 'CN'
+  if (chinaFirst) void loadChina()
   try {
     features.value = (await fetchGeometry(geometryUrl)).features
     if (fetchController.signal.aborted) return
@@ -343,6 +345,8 @@ onMounted(async () => {
     scheduleDraw()
   } catch {
     if (!fetchController.signal.aborted) mapError.value = true
+  } finally {
+    if (!chinaFirst && !fetchController.signal.aborted) void loadChina()
   }
 })
 onBeforeUnmount(() => {

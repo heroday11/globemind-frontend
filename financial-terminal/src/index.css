@@ -1,5 +1,3 @@
-@import "../../shared/world-state-fonts.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -221,8 +219,7 @@ body {
 /* Page typography follows the approved larger, rounded, bold treatment. */
 .world-state-header,
 .world-state-dashboard {
-  --gm-font-world: "GlobeMind Harmony", "Microsoft YaHei", sans-serif;
-  --gm-font-sans: var(--gm-font-world);
+  --gm-font-world: var(--gm-font-sans);
   --gm-font-mono: var(--gm-font-world);
   font-family: var(--gm-font-world);
   font-weight: 500;

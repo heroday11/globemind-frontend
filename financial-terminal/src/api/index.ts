@@ -97,7 +97,10 @@ export async function fetchDashboard(): Promise<DashboardData> {
     return mockDashboard('mock')
   }
   try {
-    return sanitizeFinancialDashboard(await get<DashboardData>('/financial/dashboard'))
+    // The dashboard is public, and this request can use its document preload.
+    const response = await fetch(apiUrl('/financial/dashboard'), { mode: 'cors', credentials: 'same-origin' })
+    if (!response.ok) throw safeFinancialApiError(response)
+    return sanitizeFinancialDashboard(await response.json())
   } catch (e: any) {
     if (!allowMockFallback()) throw e
     return mockDashboard('mock-fallback', 'live API unavailable')
