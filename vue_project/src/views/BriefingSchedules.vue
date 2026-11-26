@@ -285,7 +285,7 @@ function formatTime(value, timeZone) {
 <style scoped>
 .briefings {
   --briefing-accent: #135a72; --briefing-muted: #526575; --briefing-muted-bg: #f2f6f8;
-  width: min(calc(100% - 40px), 1280px); margin: 0 auto; padding: 16dvh 0 16px;
+  width: min(calc(100% - 40px), 1280px); margin: 0 auto; padding: 13dvh 0 16px;
   color: var(--text-primary, #1d2932); font-size: .875rem;
 }
 .briefing-header {
