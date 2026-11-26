@@ -197,12 +197,10 @@ function formatTime(value, timeZone) {
   <main class="briefings" @click="moreMenu = ''" @keydown.esc="moreMenu = ''">
     <header class="briefing-header">
       <div class="overview">
-        <span class="overview-icon"><ListChecks :size="28" aria-hidden="true" /></span>
+        <span class="overview-icon"><ListChecks :size="19" aria-hidden="true" /></span>
         <div class="overview-copy">
-          <p class="section-label" aria-hidden="true">定期简报</p>
           <h1>定期简报</h1>
           <p class="intro">选一个想持续关注的话题，数据助手会定时调查，生成不超过200字的简报，保存到你的简报目录。</p>
-          <p class="example">例如，每天早上8:30跟踪全球半导体出口管制，了解过去24小时的新变化。</p>
         </div>
       </div>
       <section v-if="signedIn || !loading" class="creation-card" aria-labelledby="briefing-create-heading">
@@ -279,36 +277,29 @@ function formatTime(value, timeZone) {
 <style scoped>
 .briefings {
   --briefing-accent: #135a72; --briefing-muted: #526575; --briefing-muted-bg: #f2f6f8;
-  --briefing-top-padding: 24px;
-  width: min(85%, 1280px); margin: 0 auto; padding: var(--briefing-top-padding) 0 36px;
-  color: var(--text-primary, #1d2932);
+  width: min(calc(100% - 40px), 1280px); margin: 0 auto; padding: 16px 0;
+  color: var(--text-primary, #1d2932); font-size: .875rem;
 }
 .briefing-header {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 24px;
-  padding-bottom: 30px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 16px;
+  padding-bottom: 12px;
 }
 .overview {
-  --overview-scale: 1.1;
-  --overview-icon-size: calc(54px * var(--overview-scale));
-  display: grid; grid-template-columns: var(--overview-icon-size) minmax(0, 1fr); align-items: start;
-  gap: calc(14px * var(--overview-scale));
-  padding: 12px 14px; border: 1px solid #c9dbf4; border-radius: 8px;
+  display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center;
+  gap: 10px;
+  padding: 10px 12px; border: 1px solid #c9dbf4; border-radius: 8px;
   background: #e1ecff;
 }
 .overview-icon, .creation-icon { display: grid; place-items: center; }
 .overview-icon {
-  width: var(--overview-icon-size); height: var(--overview-icon-size);
+  width: 36px; height: 36px;
   border-radius: 6px; background: #cfe2ff; color: #1759ba;
 }
-.overview-icon svg {
-  width: calc(28px * var(--overview-scale)); height: calc(28px * var(--overview-scale));
-}
-.section-label { margin: 0 0 2px; color: #1759ba; font-size: .5em; font-weight: 650; line-height: 1.35; }
 h1, h2, h3 { margin: 0; line-height: 1.35; font-weight: 650; overflow-wrap: anywhere; }
-.overview h1 { font-size: calc(1.85em * var(--overview-scale)); }
+.overview h1 { font-size: 1.4em; }
 .creation-card {
-  display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 8px 9px;
-  justify-self: end; max-width: 100%; padding: 16px 20px; border: 1px solid #dbe3e8;
+  display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 5px 8px;
+  max-width: 100%; padding: 8px 12px; border: 1px solid #dbe3e8;
   border-radius: 8px; background: #fff;
 }
 .creation-icon { width: 30px; height: 30px; border-radius: 6px; background: #e5f3f4; color: var(--briefing-accent); }
@@ -326,26 +317,18 @@ h3 { font-size: 1em; }
 .action-link { padding-inline: 4px; background: transparent; color: var(--briefing-accent); }
 .action-link:hover:not(:disabled) { background: var(--briefing-muted-bg); }
 button:disabled { opacity: .55; cursor: default; }
-.intro, .example {
-  max-width: 46em; margin: calc(8px * var(--overview-scale)) 0 0; color: var(--briefing-muted);
-  line-height: 1.65; overflow-wrap: anywhere;
-}
-.intro { font-size: calc(1em * var(--overview-scale)); }
-.example { position: relative; font-size: calc(.9em * var(--overview-scale)); }
-.example::before {
-  position: absolute; inset: .15em auto .15em -4px; width: 1px; background: #bbd7fb; content: '';
-}
+.intro { margin: 3px 0 0; color: var(--briefing-muted); line-height: 1.5; overflow-wrap: anywhere; }
 .task-section { border-top: 1px solid #dbe3e8; }
-.task-section > h2 { padding: 14px 0; }
+.task-section > h2 { padding: 9px 0; }
 .task-section > h2 span { color: var(--briefing-muted); font-weight: 450; }
-.list-message { margin: 0; padding: 16px 0; border-top: 1px solid #dbe3e8; color: var(--briefing-muted); }
+.list-message { margin: 0; padding: 10px 0; border-top: 1px solid #dbe3e8; color: var(--briefing-muted); }
 .task-columns, .tasks li {
   display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, .9fr) minmax(0, .85fr) minmax(0, 1.3fr) max-content;
-  align-items: center; gap: 12px; padding: 10px 8px; border-top: 1px solid #dbe3e8;
+  align-items: center; gap: 10px; padding: 5px 8px; border-top: 1px solid #dbe3e8;
 }
 .task-columns { color: var(--briefing-muted); font-size: .85em; }
 .task-columns span:last-child { min-width: 115px; text-align: right; }
-.tasks { padding: 0; margin: 0 0 14px; list-style: none; border-bottom: 1px solid #dbe3e8; }
+.tasks { padding: 0; margin: 0; list-style: none; border-bottom: 1px solid #dbe3e8; }
 .tasks .selected { background: var(--briefing-muted-bg); }
 .topic p { margin: 3px 0 0; color: var(--briefing-muted); font-size: .85em; overflow-wrap: anywhere; }
 .task-cell, .row-actions { font-size: .875em; overflow-wrap: anywhere; }
@@ -372,31 +355,8 @@ dialog::backdrop { background: #18253066; }
 .report-dialog { width: min(100% - 24px, 720px); }
 .report-heading { display: flex; gap: 12px; align-items: start; justify-content: space-between; }
 .report-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0 0 16px; }
-@media (min-width: 981px) {
-  .briefing-header {
-    /* The iframe starts below the workbench tabs. */
-    box-sizing: border-box; min-height: calc(100vh / 3 - var(--briefing-top-padding));
-  }
-  .overview {
-    align-self: stretch; align-content: center; padding: clamp(12px, 2.5vh, 24px) 24px;
-  }
-  .section-label { margin-bottom: 6px; }
-  .intro { margin-top: 12px; }
-  .example { margin-top: 14px; }
-}
-@media (min-width: 981px) and (max-width: 1200px) {
-  .briefing-header { column-gap: 12px; padding-bottom: 14px; }
-  .overview { --overview-scale: 1.08; row-gap: 0; padding: 10px 12px; }
-  .overview-copy { display: contents; }
-  .overview-icon { grid-row: 1 / 3; }
-  .intro, .example { grid-column: 1 / -1; }
-  .intro { margin-top: 9px; }
-  .example { margin-top: 10px; }
-}
-@media (max-width: 980px) {
-  .briefing-header { grid-template-columns: minmax(0, 1fr); }
-  .overview { --overview-scale: .88; }
-  .creation-card { justify-self: start; }
+@media (max-width: 740px) {
+  .briefing-header { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 }
 @media (max-width: 680px) {
   .task-columns { display: none; }
@@ -404,9 +364,6 @@ dialog::backdrop { background: #18253066; }
   .topic, .row-actions { grid-column: 1 / -1; }
   .mobile-label { display: block; color: var(--briefing-muted); font-size: .9em; }
   .briefings { width: calc(100% - 24px); }
-  .briefing-header { gap: 14px; }
-  .creation-card { padding: 12px; }
-  .overview { --overview-scale: .75; gap: 8px; }
   .entries button { font-size: .875em; padding-inline: 7px; }
 }
 </style>

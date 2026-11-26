@@ -52,6 +52,7 @@ const briefingEmail = ref('')
 let briefingStartId = '', briefingDraftSession = '', briefingRequestId = ''
 
 let openedBriefings = false
+const openingBriefings = ref(false)
 let skillRequested = !props.embedded && route.query.skill === 'create-periodic-briefing'
 
 function showBriefings(task = '') {
@@ -179,7 +180,7 @@ function onBridgeMessage(event) {
     return
   }
   if (data.type === 'available') {
-    if (isDshFrame(dshFrame.value)) {
+    if (isDshFrame(dshFrame.value) && !openingBriefings.value) {
       clearFrameTimeout()
       loading.value = false
     }
@@ -194,12 +195,16 @@ function onBridgeMessage(event) {
     bridgeFailed.value = false
     sessionId.value = data.sessionId || ''
     launchBriefingSkill()
-    if (!openedBriefings && !props.embedded && route.query.section === 'briefings') {
+    if (!openedBriefings && openingBriefings.value) {
       openedBriefings = true
       showBriefings(typeof route.query.task === 'string' ? route.query.task : '')
     }
     bridgeStatus.value = '助手已连接，检索会同步到本页'
     if (bridge.context) bridgePost('context', { requestId: bridge.requestId, prompt: bridge.context.prompt })
+  } else if (data.type === 'briefings-ready' && openingBriefings.value) {
+    openingBriefings.value = false
+    clearFrameTimeout()
+    loading.value = false
   } else if (data.type === 'image-job-ack') {
     if (!bridge.imageRequests.has(data.requestId)) return
     bridge.imageRequests.delete(data.requestId)
@@ -288,8 +293,10 @@ function onFrameLoad(event) {
     failFrame('助手页面未正确加载，请重新连接；若仍失败，请联系管理员。')
     return
   }
-  clearFrameTimeout()
-  loading.value = false
+  if (!openingBriefings.value) {
+    clearFrameTimeout()
+    loading.value = false
+  }
   if (!bridge.ready) connectBridge()
 }
 function onFrameError() {
@@ -317,6 +324,7 @@ async function loadDsh() {
   capabilitySyncFailed.value = false
   bridge.ready = false
   openedBriefings = false
+  openingBriefings.value = !props.embedded && route.query.section === 'briefings'
   briefingStartId = ''
   clearFrameTimeout()
   window.clearInterval(bridge.timer)
@@ -346,7 +354,7 @@ async function loadDsh() {
   try {
     const payload = await requestDshLaunch(token, controller.signal)
     if (current !== generation) return
-    error.value = '正在加载对话界面…'
+    error.value = openingBriefings.value ? '正在加载定期简报…' : '正在加载对话界面…'
     frameUrl.value = dshLaunchUrl(payload.url, location.origin, `${Date.now()}-${current}`)
     frameTimeout = window.setTimeout(() => {
       if (current === generation) failFrame('助手加载超时，请重新连接。')
@@ -456,6 +464,7 @@ onBeforeUnmount(() => {
       :key="frameUrl"
       class="dsh-frame"
       :style="{ '--dsh-frame-zoom': fontSize / 16 }"
+      :class="{ 'dsh-frame--pending': loading && openingBriefings }"
       :inert="loading"
       :aria-hidden="loading"
       data-globemind-assistant
@@ -576,6 +585,7 @@ onBeforeUnmount(() => {
   /* Keep anchor measurements and fixed positioning in the same frame coordinates. */
   zoom: var(--dsh-frame-zoom, 1);
 }
+.dsh-frame--pending { visibility: hidden; }
 .assistant-status {
   position: absolute;
   inset: 0;
