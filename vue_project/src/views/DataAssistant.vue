@@ -24,12 +24,6 @@ const showImageStudio = ref(false), imageInitial = ref(null)
 const imageDelivery = ref('')
 const dshFrame = ref(null)
 const { fontSize } = useDisplayPreferences()
-
-function applyFrameFontSize() {
-  const frame = dshFrame.value
-  if (isDshFrame(frame)) frame.contentDocument.documentElement.style.zoom = String(fontSize.value / 16)
-}
-watch(fontSize, applyFrameFontSize)
 const bridgeNonce = ref('')
 const bridgeStatus = ref('')
 const bridgeFailed = ref(false)
@@ -296,7 +290,6 @@ function onFrameLoad(event) {
   }
   clearFrameTimeout()
   loading.value = false
-  applyFrameFontSize()
   if (!bridge.ready) connectBridge()
 }
 function onFrameError() {
@@ -462,6 +455,7 @@ onBeforeUnmount(() => {
       v-if="frameUrl"
       :key="frameUrl"
       class="dsh-frame"
+      :style="{ '--dsh-frame-zoom': fontSize / 16 }"
       :inert="loading"
       :aria-hidden="loading"
       data-globemind-assistant
@@ -579,6 +573,8 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   border: 0;
+  /* Keep anchor measurements and fixed positioning in the same frame coordinates. */
+  zoom: var(--dsh-frame-zoom, 1);
 }
 .assistant-status {
   position: absolute;
