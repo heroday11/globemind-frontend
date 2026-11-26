@@ -224,7 +224,7 @@ test('feedback and trend helpers preserve unavailable values instead of fabricat
     [{ pub_time: '2026-08-09T01:00:00Z' }],
     { dates: ['2026-08-09'], values: [null] },
   ), [])
-  assert.deepEqual(yAxisRange([null, 5, 10], 0, 100), { min: -3, max: 18 })
+  assert.deepEqual(yAxisRange([null, 5, 10], 0, 100), { min: -100, max: 100 })
   assert.equal(sparklinePoints([1, null, 3]), '')
 })
 
@@ -387,7 +387,7 @@ test('trend, date range, KPI, and chart models are pure and boundary-safe', () =
     resolveDataZoomEventRange({}, { start: 12, end: 46 }),
     { start: 12, end: 46 },
   )
-  assert.deepEqual(yAxisRange([10, 20, 30], 50, 100), { min: 12, max: 38 })
+  assert.deepEqual(yAxisRange([10, 20, 30], 50, 100), { min: -100, max: 100 })
   assert.equal(sparklinePoints([5], 100, 20), '')
   assert.equal(resolveAutoEndDate('', '', '2026-08-08'), '2026-08-08')
   assert.equal(

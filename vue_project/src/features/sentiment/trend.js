@@ -153,20 +153,8 @@ export function resolveDataZoomEventRange(event, fallback = { start: 0, end: 100
   }
 }
 
-export function yAxisRange(values, startPercent, endPercent) {
-  if (!values?.length) return { min: -10, max: 10 }
-  const total = values.length - 1
-  const startIndex = Math.max(0, Math.floor((startPercent / 100) * total))
-  const endIndex = Math.min(total, Math.ceil((endPercent / 100) * total))
-  const visible = values
-    .slice(startIndex, endIndex + 1)
-    .map(finiteOptionalNumber)
-    .filter((value) => value !== null)
-  if (!visible.length) return { min: -10, max: 10 }
-  const minimum = Math.min(...visible)
-  const maximum = Math.max(...visible)
-  const padding = Math.max((maximum - minimum) * 0.2, 8)
-  return { min: Math.floor(minimum - padding), max: Math.ceil(maximum + padding) }
+export function yAxisRange() {
+  return { min: -100, max: 100 }
 }
 
 export function sparklinePoints(values, width = 120, height = 36) {
@@ -205,7 +193,7 @@ export function buildSentimentChartOption({
   end = 100,
   searchMarkPoints = [],
   start = 0,
-  yRange = { min: -10, max: 10 },
+  yRange = yAxisRange(),
 } = {}) {
   return {
     backgroundColor: 'transparent',

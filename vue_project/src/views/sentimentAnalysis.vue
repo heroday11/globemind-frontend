@@ -872,7 +872,6 @@ import {
   sentimentApi,
   semanticTrendProjection,
   formatSemanticAxis,
-  sparklinePoints,
   tagBarWidth as calculateTagBarWidth,
   tagStyle,
   trimTrendData,
@@ -1792,14 +1791,7 @@ watch(
   { immediate: true },
 )
 
-// 动态 Y 轴范围：跟随 dataZoom 可视区间变化
-const yAxisRange = computed(() => {
-  return calculateYAxisRange(
-    fullData.value.values,
-    zoomStartPercent.value,
-    zoomEndPercent.value,
-  )
-})
+const yAxisRange = calculateYAxisRange()
 
 // ECharts 图表配置选项
 const chartOption = computed(() => (
@@ -1809,7 +1801,7 @@ const chartOption = computed(() => (
     end: zoomEndPercent.value,
     searchMarkPoints: searchChartMarkPoints.value,
     start: zoomStartPercent.value,
-    yRange: yAxisRange.value,
+    yRange: yAxisRange,
   })
 ))
 
@@ -2059,18 +2051,11 @@ const onDataZoom = (event) => {
   zoomStartPercent.value = range.start
   zoomEndPercent.value = range.end
   void nextTick(() => {
-    if (!chartInstance) return
-    chartInstance.setOption({
-      yAxis: {
-        min: yAxisRange.value.min,
-        max: yAxisRange.value.max,
-      },
-    }, { lazyUpdate: true })
     if (generation === chartZoomGeneration) isUserZooming = false
   })
 }
 
-// 数据或预设范围变化时重建图表；用户拖动期间仅更新 Y 轴。
+// 数据或预设范围变化时重建图表，用户拖动期间由 ECharts 处理横轴缩放。
 watch(
   chartOption,
   (newOption) => {
