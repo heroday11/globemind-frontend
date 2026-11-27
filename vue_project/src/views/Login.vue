@@ -70,7 +70,7 @@
           {{ error }}
         </p>
         <p v-if="needsEmailVerification" class="verification-link">
-          <router-link :to="verificationRoute">验证邮箱或重新发送验证邮件</router-link>
+          <router-link :to="verificationRoute">输入或重新获取邮箱验证码</router-link>
         </p>
         <p
           v-if="success"

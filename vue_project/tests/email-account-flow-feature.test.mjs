@@ -16,15 +16,16 @@ test('registration routes users into the email verification flow', async () => {
   assert.match(router, /VerifyEmail\.vue/)
 })
 
-test('verification page consumes tokens with POST and supports safe resend', async () => {
+test('verification page submits an email and code and supports safe resend', async () => {
   const verify = await source('../src/views/VerifyEmail.vue')
 
   assert.match(verify, /\/auth\/verify-email/)
   assert.match(verify, /method: 'POST'/)
-  assert.match(verify, /body: JSON\.stringify\(\{ token \}\)/)
+  assert.match(verify, /body: JSON\.stringify\(\{ email: email\.value, code: code\.value\.toUpperCase\(\) \}\)/)
   assert.match(verify, /\/auth\/resend-verification/)
   assert.match(verify, /若该邮箱存在待验证账号/)
   assert.match(verify, /autocomplete="email"/)
+  assert.match(verify, /autocomplete="one-time-code"/)
 })
 
 test('login exposes recovery only for the unverified-email response code', async () => {
@@ -32,7 +33,7 @@ test('login exposes recovery only for the unverified-email response code', async
 
   assert.match(login, /EMAIL_NOT_VERIFIED/)
   assert.match(login, /needsEmailVerification/)
-  assert.match(login, /验证邮箱或重新发送验证邮件/)
+  assert.match(login, /输入或重新获取邮箱验证码/)
 })
 
 test('profile email changes surface their new verification state', async () => {

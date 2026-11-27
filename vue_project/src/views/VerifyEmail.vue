@@ -5,23 +5,25 @@
     <section class="verify-panel" aria-labelledby="verify-email-title">
       <img src="/imgs/logo.png" alt="GlobeMind" class="brand-logo" />
 
-      <div class="status-icon" :class="`status-icon--${state}`" aria-hidden="true">
-        <LoaderCircle v-if="state === 'verifying'" :size="30" class="spin" />
-        <CircleCheck v-else-if="state === 'verified'" :size="30" />
-        <MailWarning v-else-if="state === 'error'" :size="30" />
+      <div class="status-icon" :class="{ 'status-icon--verified': verified }" aria-hidden="true">
+        <CircleCheck v-if="verified" :size="30" />
         <MailCheck v-else :size="30" />
       </div>
 
-      <h1 id="verify-email-title">{{ title }}</h1>
-      <p class="status-copy" role="status" aria-live="polite">{{ statusCopy }}</p>
+      <h1 id="verify-email-title" ref="title" :tabindex="verified ? -1 : undefined">
+        {{ verified ? '邮箱验证成功' : '验证邮箱' }}
+      </h1>
+      <p class="status-copy" role="status">
+        {{ verified ? '你的 GlobeMind 邮箱已验证，现在可以登录。' : '请输入邮件中的 8 位验证码。验证码由字母和数字组成，10 分钟内有效。' }}
+      </p>
 
-      <router-link v-if="state === 'verified'" class="primary-link" to="/login">
+      <router-link v-if="verified" class="primary-link" to="/login">
         前往登录
         <ArrowRight :size="17" aria-hidden="true" />
       </router-link>
 
-      <form v-else-if="state !== 'verifying'" @submit.prevent="resend" :aria-busy="sending">
-        <label for="verification-email">注册邮箱</label>
+      <form v-else @submit.prevent="verify" :aria-busy="busy">
+        <label for="verification-email">待验证邮箱</label>
         <input
           id="verification-email"
           ref="emailField"
@@ -29,20 +31,37 @@
           type="email"
           name="email"
           autocomplete="email"
+          maxlength="255"
           required
-          placeholder="name@example.com"
         />
-        <p v-if="resendMessage" class="success" role="status" aria-live="polite">
-          {{ resendMessage }}
-        </p>
-        <p v-if="resendError" class="error" role="alert">{{ resendError }}</p>
-        <button type="submit" :disabled="sending">
+        <label class="code-label" for="verification-code">邮箱验证码</label>
+        <input
+          id="verification-code"
+          ref="codeField"
+          v-model.trim="code"
+          type="text"
+          name="code"
+          autocomplete="one-time-code"
+          autocapitalize="characters"
+          spellcheck="false"
+          minlength="8"
+          maxlength="8"
+          pattern="[A-Za-z2-9]{8}"
+          required
+        />
+        <p v-if="message" class="success" role="status">{{ message }}</p>
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
+        <button type="submit" :disabled="busy">
+          <CircleCheck :size="17" aria-hidden="true" />
+          {{ verifying ? '正在验证' : '验证邮箱' }}
+        </button>
+        <button class="resend-button" type="button" :disabled="busy" @click="resend">
           <RefreshCw :size="17" :class="{ spin: sending }" aria-hidden="true" />
-          {{ sending ? '正在发送' : '重新发送验证邮件' }}
+          {{ sending ? '正在发送' : '重新发送验证码' }}
         </button>
       </form>
 
-      <p class="secondary-link"><router-link to="/login">返回登录</router-link></p>
+      <p v-if="!verified" class="secondary-link"><router-link to="/login">返回登录</router-link></p>
     </section>
   </main>
 </template>
@@ -50,14 +69,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import {
-  ArrowRight,
-  CircleCheck,
-  LoaderCircle,
-  MailCheck,
-  MailWarning,
-  RefreshCw,
-} from 'lucide-vue-next'
+import { ArrowRight, CircleCheck, MailCheck, RefreshCw } from 'lucide-vue-next'
 
 import { API_PREFIX } from '@/config/api'
 import { formatApiErrorDetail } from '@/utils/apiError'
@@ -65,53 +77,50 @@ import { formatApiErrorDetail } from '@/utils/apiError'
 defineOptions({ name: 'VerifyEmail' })
 
 const route = useRoute()
-const token = String(route.query.token || '').trim()
-const email = ref(String(route.query.email || '').trim())
-const state = ref(token ? 'verifying' : 'idle')
-const verificationError = ref('')
+const email = ref(typeof route.query.email === 'string' ? route.query.email.trim() : '')
+const code = ref('')
+const verified = ref(false)
+const verifying = ref(false)
 const sending = ref(false)
-const resendMessage = ref('')
-const resendError = ref('')
+const busy = computed(() => verifying.value || sending.value)
+const message = ref('')
+const error = ref('')
 const emailField = ref(null)
-
-const title = computed(() => ({
-  verifying: '正在验证邮箱',
-  verified: '邮箱验证成功',
-  error: '验证链接不可用',
-  idle: '查收验证邮件',
-}[state.value]))
-
-const statusCopy = computed(() => {
-  if (state.value === 'verifying') return '正在确认验证链接，请稍候。'
-  if (state.value === 'verified') return '你的 GlobeMind 账号已启用，现在可以登录。'
-  if (state.value === 'error') return verificationError.value
-  return '打开注册邮箱中的验证链接即可完成账号注册。'
-})
+const codeField = ref(null)
+const title = ref(null)
 
 async function verify() {
+  if (busy.value) return
+  verifying.value = true
+  message.value = ''
+  error.value = ''
   try {
     const response = await fetch(`${API_PREFIX}/auth/verify-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ email: email.value, code: code.value.toUpperCase() }),
     })
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
-      verificationError.value = formatApiErrorDetail(data)
-      state.value = 'error'
+      error.value = formatApiErrorDetail(data)
+      codeField.value?.select()
       return
     }
-    state.value = 'verified'
+    verified.value = true
+    await nextTick()
+    title.value?.focus()
   } catch {
-    verificationError.value = '网络错误，请稍后重新打开验证链接'
-    state.value = 'error'
+    error.value = '网络错误，请稍后重试'
+  } finally {
+    verifying.value = false
   }
 }
 
 async function resend() {
+  if (busy.value || !emailField.value?.reportValidity()) return
   sending.value = true
-  resendMessage.value = ''
-  resendError.value = ''
+  message.value = ''
+  error.value = ''
   try {
     const response = await fetch(`${API_PREFIX}/auth/resend-verification`, {
       method: 'POST',
@@ -120,28 +129,20 @@ async function resend() {
     })
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
-      resendError.value = formatApiErrorDetail(data)
+      error.value = formatApiErrorDetail(data)
       return
     }
-    resendMessage.value = data.message || '若该邮箱存在待验证账号，将收到新的验证链接'
+    code.value = ''
+    message.value = data.message || '若该邮箱存在待验证账号，将收到新的验证码'
+    codeField.value?.focus()
   } catch {
-    resendError.value = '网络错误，请稍后重试'
+    error.value = '网络错误，请稍后重试'
   } finally {
     sending.value = false
   }
 }
 
-onMounted(async () => {
-  if (token) {
-    await verify()
-    if (state.value === 'error') {
-      await nextTick()
-      emailField.value?.focus()
-    }
-    return
-  }
-  emailField.value?.focus()
-})
+onMounted(() => (email.value ? codeField.value : emailField.value)?.focus())
 </script>
 
 <style scoped>
@@ -191,7 +192,6 @@ onMounted(async () => {
   color: #2563eb;
 }
 .status-icon--verified { background: #edf8f1; color: #18733d; }
-.status-icon--error { background: #fff1f0; color: #b42318; }
 h1 {
   margin: 0;
   color: #102b4e;
@@ -213,6 +213,7 @@ label {
   font-size: 0.9rem;
   font-weight: 650;
 }
+.code-label { margin-top: 14px; }
 input {
   width: 100%;
   min-height: 48px;
@@ -242,6 +243,11 @@ button,
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
+}
+.resend-button {
+  border: 1px solid #b8cbe6;
+  background: #f3f7ff;
+  color: #2456a6;
 }
 button:disabled { opacity: 0.62; cursor: not-allowed; }
 .success,

@@ -20,7 +20,7 @@
         <div class="form-item">
           <label for="register-email">邮箱</label>
           <input id="register-email" v-model.trim="form.email" name="email" type="email" required autocomplete="email" aria-describedby="register-email-hint" />
-          <p id="register-email-hint" class="field-hint">验证邮件将发送到此地址。</p>
+          <p id="register-email-hint" class="field-hint">邮箱验证码将发送到此地址。</p>
         </div>
         <div class="form-item">
           <label for="register-phone">手机号（可选）</label>
@@ -125,7 +125,7 @@ async function handleRegister() {
       await showError(formatApiErrorDetail(data))
       return
     }
-    success.value = data.message || '注册成功，请查收验证邮件'
+    success.value = data.message || '注册成功，请查收邮件并输入验证码'
     await nextTick()
     successMessage.value?.focus()
     setTimeout(() => router.replace({ path: '/verify-email', query: { email: form.email } }), 700)

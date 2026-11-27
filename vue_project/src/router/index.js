@@ -153,7 +153,7 @@ const router = createRouter({
       path: '/verify-email',
       name: 'VerifyEmail',
       component: () => import('@/views/VerifyEmail.vue'),
-      meta: { hideNavbar: true, public: true }
+      meta: { hideNavbar: true, public: true, hideGuestAccessBanner: true }
     },
     {
       path: '/privacy',
