@@ -139,10 +139,10 @@ async function handleRegister() {
 
 <style scoped>
 .auth-page {
-  --auth-text: #edf3ef;
-  --auth-muted: #b5c7c5;
-  --auth-link: #a8e3d0;
-  color-scheme: dark;
+  --auth-text: #17365e;
+  --auth-muted: #495f7c;
+  --auth-link: #2456a6;
+  color-scheme: light;
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
@@ -153,9 +153,9 @@ async function handleRegister() {
   padding: 28px 18px 40px;
   box-sizing: border-box;
   background:
-    linear-gradient(150deg, rgba(10, 28, 36, 0.9), rgba(12, 46, 47, 0.84)),
+    linear-gradient(145deg, rgba(237, 244, 255, 0.86), rgba(218, 231, 250, 0.72)),
     url('/imgs/home/hero-bg.webp') center / cover no-repeat,
-    #102d34;
+    #e3edfb;
   color: var(--auth-text);
 }
 
@@ -175,10 +175,10 @@ async function handleRegister() {
 .auth-card {
   min-width: 0;
   padding: 32px;
-  border: 1px solid #3b585d;
+  border: 1px solid #cbd9ee;
   border-radius: 8px;
-  background: #1b3339;
-  box-shadow: 0 18px 44px rgba(6, 17, 24, 0.34);
+  background: #f5f8fe;
+  box-shadow: 0 18px 44px rgba(38, 73, 122, 0.15);
 }
 
 h1 {
@@ -221,16 +221,16 @@ form {
   min-height: 46px;
   padding: 10px 12px;
   box-sizing: border-box;
-  border: 1px solid #648482;
+  border: 1px solid #758aa9;
   border-radius: 8px;
-  background: #13282f;
+  background: #e9f0fa;
   color: var(--auth-text);
   font-size: 1rem;
 }
 
 .form-item input:focus {
   border-color: var(--auth-link);
-  background: #163137;
+  background: #f0f5ff;
 }
 
 .auth-page :is(a, input, button):focus-visible {
@@ -257,7 +257,7 @@ form {
   gap: 10px;
   align-items: start;
   padding-top: 16px;
-  border-top: 1px solid #3b585d;
+  border-top: 1px solid #cbd9ee;
   font-size: 0.92rem;
   line-height: 1.6;
 }
@@ -266,7 +266,7 @@ form {
   width: 20px;
   height: 20px;
   margin: 2px 0 0;
-  accent-color: #9ddcc5;
+  accent-color: #2456a6;
 }
 
 .consent-item a,
@@ -288,8 +288,8 @@ button {
   padding: 10px 14px;
   border: 0;
   border-radius: 8px;
-  background: #a5dfc9;
-  color: #112e2a;
+  background: linear-gradient(135deg, #315fba, #234c9d);
+  color: #fff;
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -297,7 +297,7 @@ button {
 }
 
 button:not(:disabled):hover {
-  background: #bcebd8;
+  background: linear-gradient(135deg, #2b55aa, #1d428b);
 }
 
 button:disabled {
@@ -315,8 +315,8 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
-.error { background: #472e38; color: #ffd1cb; }
-.success { background: #20463d; color: #b9edd4; }
+.error { background: #fbe9eb; color: #922c38; }
+.success { background: #e5f3ed; color: #245d44; }
 
 .error:focus,
 .success:focus {
