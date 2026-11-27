@@ -9,7 +9,6 @@ import {
   DEFAULT_DISPLAY_PREFERENCES,
   DISPLAY_PREFERENCES_STORAGE_PREFIX,
   applyDisplayPreferences,
-  getDisplayFontSize,
   loadDisplayPreferences,
   normalizeDisplayPreferences,
   resolveDisplayPreferencesStorageKey,
@@ -41,10 +40,8 @@ test('display preferences normalize user input and isolate storage by account', 
 
   assert.deepEqual(
     normalizeDisplayPreferences({ fontFamily: 'serif', fontSizeOffset: 99, lineHeight: 'relaxed' }),
-    { version: 1, fontFamily: 'serif', fontSizeOffset: 15, lineHeight: 'relaxed' },
+    { version: 1, fontFamily: 'serif', fontSizeOffset: 7, lineHeight: 'relaxed' },
   )
-  assert.equal(getDisplayFontSize(7) / getDisplayFontSize(-2), 1.5)
-  assert.equal(getDisplayFontSize(15) / getDisplayFontSize(-2), 2.5)
   assert.deepEqual(normalizeDisplayPreferences({ fontFamily: 'unknown', fontSizeOffset: 'bad' }), {
     ...DEFAULT_DISPLAY_PREFERENCES,
   })

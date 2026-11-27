@@ -63,7 +63,7 @@ output {
   inline-size: var(--font-size-button-height, 36px);
   block-size: var(--font-size-button-height, 36px);
   background: var(--font-size-readout-background, #f8fafc);
-  font-size: min(.6875rem, 15px);
+  font-size: .6875rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
