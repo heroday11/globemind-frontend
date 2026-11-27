@@ -4,7 +4,7 @@ export const DISPLAY_PREFERENCES_STORAGE_PREFIX =
 export const DISPLAY_PREFERENCES_EVENT = "globemind:display-preferences";
 
 export const FONT_SIZE_OFFSET_MIN = -2;
-export const FONT_SIZE_OFFSET_MAX = 7;
+export const FONT_SIZE_OFFSET_MAX = 15;
 
 const SYSTEM_SANS =
   'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
@@ -85,6 +85,14 @@ const ROOT_FONT_SIZES = Object.freeze({
   5: 20,
   6: 21,
   7: 21.75,
+  8: 23.5,
+  9: 25,
+  10: 27,
+  11: 29,
+  12: 31,
+  13: 33,
+  14: 35,
+  15: 36.25,
 });
 
 export const DEFAULT_DISPLAY_PREFERENCES = Object.freeze({
