@@ -135,7 +135,7 @@ const router = createRouter({
       path: '/register',
       name: 'Register',
       component: () => import('@/views/Register.vue'),
-      meta: { hideNavbar: true, public: true }
+      meta: { hideNavbar: true, public: true, hideGuestAccessBanner: true }
     },
     {
       path: '/forgot-password',

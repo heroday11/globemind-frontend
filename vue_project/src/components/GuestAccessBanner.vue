@@ -30,7 +30,7 @@ const actionStatus = ref('')
 
 const hidden = computed(() => {
   const authPage = ['/login', '/register', '/forgot-password', '/reset-password'].includes(route.path)
-  return hasToken.value || dismissed.value || authPage || route.meta.hideGuestAccessBanner === true
+  return route.matched.length === 0 || hasToken.value || dismissed.value || authPage || route.meta.hideGuestAccessBanner === true
 })
 
 function syncAuth() {
@@ -65,7 +65,7 @@ onUnmounted(() => window.removeEventListener(getAuthChangedEventName(), syncAuth
 </script>
 
 <template>
-  <Transition name="guest-access">
+  <Transition name="guest-access" :css="route.meta.hideGuestAccessBanner !== true">
     <aside
       v-if="!hidden"
       class="guest-access"
