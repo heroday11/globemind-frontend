@@ -282,7 +282,7 @@ watch(mfaMethod, async () => {
   box-sizing: border-box;
   overflow: auto;
   overscroll-behavior: contain;
-  background: rgba(15, 23, 42, 0.52);
+  background: rgba(15, 36, 67, 0.45);
   z-index: 9999;
 }
 
@@ -293,16 +293,19 @@ watch(mfaMethod, async () => {
   margin: auto;
   padding: 28px;
   box-sizing: border-box;
-  border: 1px solid #dbe3ee;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 20px;
+  background: rgba(247, 250, 255, 0.88);
+  box-shadow: 0 24px 56px rgba(20, 57, 109, 0.28), inset 0 1px 0 #fff;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   color: #172b46;
 }
 
 .login-modal-title {
   margin: 0 0 6px;
-  font-size: 24px;
+  color: #173d6a;
+  font-size: 30px;
   font-weight: 700;
   line-height: 1.25;
 }
@@ -334,15 +337,20 @@ watch(mfaMethod, async () => {
   min-height: 44px;
   padding: 9px 12px;
   box-sizing: border-box;
-  border: 1px solid #b9c6d6;
-  border-radius: 6px;
-  background: #fff;
+  border: 1px solid #b4c3d7;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
   color: inherit;
   font-size: 16px;
 }
 
 .login-modal-item input::placeholder {
   color: #64748b;
+}
+
+.login-modal-item input:focus {
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(73, 103, 204, 0.14);
 }
 
 .login-modal-item input:focus,
@@ -399,29 +407,30 @@ watch(mfaMethod, async () => {
   min-height: 44px;
   padding: 8px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 12px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
 }
 
 .login-modal-submit {
-  background: #1d4ed8;
+  background: linear-gradient(135deg, #4f66d6, #3c52bd);
+  box-shadow: 0 4px 12px rgba(60, 82, 189, 0.23);
   color: #fff;
 }
 
 .login-modal-submit:hover:not(:disabled) {
-  background: #1e40af;
+  background: linear-gradient(135deg, #465cc9, #344aaf);
 }
 
 .login-modal-buttons .login-modal-cancel {
-  border-color: #b9c6d6;
-  background: #fff;
+  border-color: #b4c3d7;
+  background: rgba(255, 255, 255, 0.56);
   color: #314663;
 }
 
 .login-modal-cancel:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .login-modal-buttons button:disabled {
@@ -431,7 +440,7 @@ watch(mfaMethod, async () => {
 
 .login-modal-register {
   padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid rgba(107, 132, 166, 0.26);
   text-align: center;
 }
 
@@ -453,6 +462,10 @@ watch(mfaMethod, async () => {
 @media (max-width: 480px) {
   .login-modal-card {
     padding: 20px;
+  }
+
+  .login-modal-title {
+    font-size: 24px;
   }
 }
 </style>
