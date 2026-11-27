@@ -59,6 +59,7 @@
         <p v-if="success" id="register-success" ref="successMessage" class="success" role="status" aria-live="polite" tabindex="-1">{{ success }}</p>
         <button type="submit" :disabled="loading" :aria-disabled="loading">{{ loading ? '提交中...' : '注册' }}</button>
       </form>
+      <p class="tips">注册还未完成？<router-link :to="{ path: '/verify-email', query: form.email ? { email: form.email } : {} }">继续验证邮箱</router-link></p>
       <p class="tips">已有账号？<router-link to="/login">去登录</router-link></p>
     </div>
   </div>
@@ -125,7 +126,7 @@ async function handleRegister() {
       await showError(formatApiErrorDetail(data))
       return
     }
-    success.value = data.message || '注册成功，请查收邮件并输入验证码'
+    success.value = data.message || '请查收邮件并输入验证码'
     await nextTick()
     successMessage.value?.focus()
     setTimeout(() => router.replace({ path: '/verify-email', query: { email: form.email } }), 700)
