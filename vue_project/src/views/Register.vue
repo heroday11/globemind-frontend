@@ -153,9 +153,9 @@ async function handleRegister() {
   padding: 28px 18px 40px;
   box-sizing: border-box;
   background:
-    linear-gradient(145deg, rgba(237, 244, 255, 0.86), rgba(218, 231, 250, 0.72)),
+    linear-gradient(145deg, rgba(193, 211, 233, 0.92), rgba(165, 187, 216, 0.88)),
     url('/imgs/home/hero-bg.webp') center / cover no-repeat,
-    #e3edfb;
+    #b5c9e2;
   color: var(--auth-text);
 }
 
@@ -175,10 +175,10 @@ async function handleRegister() {
 .auth-card {
   min-width: 0;
   padding: 32px;
-  border: 1px solid #cbd9ee;
+  border: 1px solid #91a8c7;
   border-radius: 8px;
-  background: #f5f8fe;
-  box-shadow: 0 18px 44px rgba(38, 73, 122, 0.15);
+  background: #edf3fb;
+  box-shadow: 0 4px 12px rgba(27, 54, 93, 0.09), 0 20px 48px rgba(27, 54, 93, 0.21);
 }
 
 h1 {
@@ -223,14 +223,14 @@ form {
   box-sizing: border-box;
   border: 1px solid #758aa9;
   border-radius: 8px;
-  background: #e9f0fa;
+  background: #e4edf8;
   color: var(--auth-text);
   font-size: 1rem;
 }
 
 .form-item input:focus {
   border-color: var(--auth-link);
-  background: #f0f5ff;
+  background: #edf4fd;
 }
 
 .auth-page :is(a, input, button):focus-visible {
