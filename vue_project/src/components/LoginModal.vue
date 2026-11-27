@@ -162,317 +162,297 @@ watch(mfaMethod, async () => {
 </script>
 
 <template>
-  <div v-if="visible" class="login-modal-overlay" @click.self="closeDialog">
-    <div
-      ref="dialogCard"
-      class="login-modal-card"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="login-modal-title"
-      aria-describedby="login-modal-subtitle"
-      tabindex="-1"
-      @click.stop
-      @keydown="handleDialogKeydown"
-    >
-      <h2 id="login-modal-title" class="login-modal-title">
-        {{ mfaChallenge ? '完成双因素验证' : '登录 GlobeMind' }}
-      </h2>
-      <p id="login-modal-subtitle" class="login-modal-subtitle">
-        {{
-          mfaChallenge
-            ? '密码已验证；动态码或单枚恢复码验证成功后才会签发访问令牌。'
-            : '同步收藏、使用数据助手并管理你的研究报告'
-        }}
-      </p>
-      <form class="login-modal-form" :aria-busy="loginLoading" @submit.prevent="handleLogin">
-        <div v-if="!mfaChallenge" class="login-modal-item">
-          <label for="login-modal-username">用户名或邮箱</label>
-          <input
-            id="login-modal-username"
-            ref="usernameField"
-            v-model.trim="loginUsername"
-            name="username"
-            type="text"
-            required
-            autocomplete="username"
-            placeholder="请输入用户名或邮箱"
-          />
-        </div>
-        <div v-if="!mfaChallenge" class="login-modal-item">
-          <label for="login-modal-password">密码</label>
-          <input
-            id="login-modal-password"
-            v-model="loginPassword"
-            name="password"
-            type="password"
-            required
-            autocomplete="current-password"
-            placeholder="请输入密码"
-          />
-        </div>
-        <template v-else>
-          <fieldset class="login-modal-mfa-methods">
-            <legend>验证方式</legend>
-            <label><input v-model="mfaMethod" type="radio" value="totp" />动态验证码</label>
-            <label><input v-model="mfaMethod" type="radio" value="recovery" />恢复码</label>
-          </fieldset>
-          <div class="login-modal-item">
-            <label for="login-modal-mfa-code">{{
-              mfaMethod === 'totp' ? '6 位动态验证码' : '恢复码'
-            }}</label>
+  <Teleport to="body">
+    <div v-if="visible" class="login-modal-overlay" @click.self="closeDialog">
+      <div
+        ref="dialogCard"
+        class="login-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="login-modal-title"
+        aria-describedby="login-modal-subtitle"
+        tabindex="-1"
+        @click.stop
+        @keydown="handleDialogKeydown"
+      >
+        <h2 id="login-modal-title" class="login-modal-title">
+          {{ mfaChallenge ? '完成双因素验证' : '登录 GlobeMind' }}
+        </h2>
+        <p id="login-modal-subtitle" class="login-modal-subtitle">
+          {{
+            mfaChallenge
+              ? '请输入动态验证码或恢复码以完成登录。'
+              : '同步收藏、使用数据助手并管理你的研究报告'
+          }}
+        </p>
+        <form class="login-modal-form" :aria-busy="loginLoading" @submit.prevent="handleLogin">
+          <div v-if="!mfaChallenge" class="login-modal-item">
+            <label for="login-modal-username">用户名或邮箱</label>
             <input
-              id="login-modal-mfa-code"
-              ref="mfaField"
-              v-model="mfaValue"
-              :inputmode="mfaMethod === 'totp' ? 'numeric' : 'text'"
-              :autocomplete="mfaMethod === 'totp' ? 'one-time-code' : 'off'"
-              :pattern="
-                mfaMethod === 'totp' ? '[0-9]{6}' : '[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}'
-              "
+              id="login-modal-username"
+              ref="usernameField"
+              v-model.trim="loginUsername"
+              name="username"
+              type="text"
               required
+              autocomplete="username"
+              placeholder="请输入用户名或邮箱"
             />
           </div>
-        </template>
-        <div class="login-modal-buttons">
-          <button type="submit" class="login-modal-submit" :disabled="loginLoading">
-            {{ loginLoading ? '验证中...' : mfaChallenge ? '验证并登录' : '登录' }}
-          </button>
-          <button
-            type="button"
-            class="login-modal-cancel"
-            @click="mfaChallenge ? restartPasswordLogin() : closeDialog()"
-            :disabled="loginLoading"
+          <div v-if="!mfaChallenge" class="login-modal-item">
+            <label for="login-modal-password">密码</label>
+            <input
+              id="login-modal-password"
+              v-model="loginPassword"
+              name="password"
+              type="password"
+              required
+              autocomplete="current-password"
+              placeholder="请输入密码"
+            />
+          </div>
+          <template v-else>
+            <fieldset class="login-modal-mfa-methods">
+              <legend>验证方式</legend>
+              <label><input v-model="mfaMethod" type="radio" value="totp" />动态验证码</label>
+              <label><input v-model="mfaMethod" type="radio" value="recovery" />恢复码</label>
+            </fieldset>
+            <div class="login-modal-item">
+              <label for="login-modal-mfa-code">{{
+                mfaMethod === 'totp' ? '6 位动态验证码' : '恢复码'
+              }}</label>
+              <input
+                id="login-modal-mfa-code"
+                ref="mfaField"
+                v-model="mfaValue"
+                :inputmode="mfaMethod === 'totp' ? 'numeric' : 'text'"
+                :autocomplete="mfaMethod === 'totp' ? 'one-time-code' : 'off'"
+                :pattern="
+                  mfaMethod === 'totp' ? '[0-9]{6}' : '[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}'
+                "
+                required
+              />
+            </div>
+          </template>
+          <p
+            v-if="loginError"
+            id="login-modal-error"
+            ref="errorMessage"
+            class="login-modal-error"
+            role="alert"
+            aria-live="assertive"
+            tabindex="-1"
           >
-            {{ mfaChallenge ? '返回密码登录' : '取消' }}
-          </button>
-        </div>
-        <div class="login-modal-register">
-          <router-link
-            to="/register"
-            :aria-disabled="loginLoading"
-            :tabindex="loginLoading ? -1 : undefined"
-            @click="handleRegisterClick"
-            >注册账号</router-link
-          >
-        </div>
-        <p
-          v-if="loginError"
-          id="login-modal-error"
-          ref="errorMessage"
-          class="login-modal-error"
-          role="alert"
-          aria-live="assertive"
-          tabindex="-1"
-        >
-          {{ loginError }}
-        </p>
-      </form>
+            {{ loginError }}
+          </p>
+          <div class="login-modal-buttons">
+            <button type="submit" class="login-modal-submit" :disabled="loginLoading">
+              {{ loginLoading ? '验证中...' : mfaChallenge ? '验证并登录' : '登录' }}
+            </button>
+            <button
+              type="button"
+              class="login-modal-cancel"
+              @click="mfaChallenge ? restartPasswordLogin() : closeDialog()"
+              :disabled="loginLoading"
+            >
+              {{ mfaChallenge ? '返回密码登录' : '取消' }}
+            </button>
+          </div>
+          <div class="login-modal-register">
+            <router-link
+              to="/register"
+              :aria-disabled="loginLoading"
+              :tabindex="loginLoading ? -1 : undefined"
+              @click="handleRegisterClick"
+              >注册账号</router-link
+            >
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
 .login-modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100vw;
-  height: 100vh;
+  inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(15, 36, 67, 0.45);
-  z-index: 9999;
+  padding: 16px;
+  box-sizing: border-box;
   overflow: auto;
+  overscroll-behavior: contain;
+  background: rgba(15, 23, 42, 0.52);
+  z-index: 9999;
 }
 
 .login-modal-card {
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  padding: 28px 30px;
-  border-radius: 20px;
-  box-shadow: 0 24px 56px rgba(20, 57, 109, 0.26);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  width: 400px;
-  min-height: 460px;
-  max-width: 90vw;
+  width: 100%;
+  max-width: 420px;
+  min-width: 0;
   margin: auto;
-  position: relative;
-  display: flex;
-  flex-direction: column;
+  padding: 28px;
+  box-sizing: border-box;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
+  color: #172b46;
 }
 
 .login-modal-title {
-  margin: 0 0 7px 0;
-  text-align: left;
-  font-size: 34px;
+  margin: 0 0 6px;
+  font-size: 24px;
   font-weight: 700;
-  color: #173d6a;
+  line-height: 1.25;
 }
 
 .login-modal-subtitle {
-  margin: 0 0 18px;
-  color: #55708f;
-  font-size: 13px;
-  line-height: 1.55;
+  margin: 0 0 22px;
+  color: #53647a;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .login-modal-form {
-  display: flex;
-  margin-top: 10px;
-  flex-direction: column;
-  gap: 24px;
-  flex: 1;
-  position: relative;
+  display: grid;
+  gap: 16px;
 }
 
 .login-modal-item {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  gap: 6px;
 }
 
 .login-modal-item label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
-  color: #1f436e;
 }
 
 .login-modal-item input {
   width: 100%;
-  min-height: 48px;
-  padding: 10px 14px;
-  border: 1px solid rgba(47, 92, 145, 0.3);
-  border-radius: 12px;
+  min-height: 44px;
+  padding: 9px 12px;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.84);
-  outline: none;
-  color: #17375f;
-  font-size: 18px;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    background 0.2s ease;
-}
-
-.login-modal-item input:focus {
-  border-color: rgba(34, 99, 182, 0.58);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
-  background: rgba(255, 255, 255, 0.96);
-  outline: none;
+  border: 1px solid #b9c6d6;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font-size: 16px;
 }
 
 .login-modal-item input::placeholder {
-  color: #999;
+  color: #64748b;
 }
+
+.login-modal-item input:focus,
+.login-modal-card :is(button, a, input[type='radio']):focus-visible {
+  border-color: #2563eb;
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
 .login-modal-mfa-methods {
   display: flex;
-  gap: 16px;
-  border: 1px solid rgba(47, 92, 145, 0.3);
-  border-radius: 12px;
-  padding: 12px 14px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 12px 12px;
+  border: 1px solid #b9c6d6;
+  border-radius: 6px;
 }
+
 .login-modal-mfa-methods legend {
-  padding: 0 6px;
-  color: #1f436e;
+  padding: 0 4px;
   font-weight: 600;
 }
+
 .login-modal-mfa-methods label {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #1f436e;
 }
 
 .login-modal-error {
-  position: relative;
-  top: 8px;
-  color: #b42318;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #fff1f0;
+  color: #9e2118;
   font-size: 14px;
-  text-align: center;
-  font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .login-modal-error:focus-visible {
-  outline: 3px solid rgba(180, 35, 24, 0.25);
-  outline-offset: 3px;
+  outline: 2px solid #9e2118;
+  outline-offset: 2px;
 }
 
 .login-modal-buttons {
-  position: absolute;
-  bottom: 54px;
-  left: 0;
-  right: 0;
-  display: flex;
-  gap: 12px;
-  padding: 0 10px;
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 10px;
 }
 
-.login-modal-submit {
-  flex: 1;
-  min-height: 46px;
-  border: none;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #667eea, #4e67d8);
-  color: #fff;
+.login-modal-buttons button {
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.login-modal-submit:hover {
-  background: linear-gradient(135deg, #5d74df, #435ecf);
-}
-
-.login-modal-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.login-modal-cancel {
-  flex: 1;
-  min-height: 46px;
-  border-radius: 12px;
-  border: 1px solid rgba(88, 111, 196, 0.45);
-  background: rgba(255, 255, 255, 0.72);
-  cursor: pointer;
-  font-size: 16px;
-  color: #375b86;
+  font-size: 14px;
   font-weight: 600;
 }
 
-.login-modal-cancel:hover {
-  background: rgba(255, 255, 255, 0.92);
+.login-modal-submit {
+  background: #1d4ed8;
+  color: #fff;
 }
 
-.login-modal-cancel:disabled {
+.login-modal-submit:hover:not(:disabled) {
+  background: #1e40af;
+}
+
+.login-modal-buttons .login-modal-cancel {
+  border-color: #b9c6d6;
+  background: #fff;
+  color: #314663;
+}
+
+.login-modal-cancel:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.login-modal-buttons button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 .login-modal-register {
-  position: absolute;
-  bottom: 12px;
-  left: 0;
-  right: 0;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
   text-align: center;
-  padding: 0 20px;
 }
 
 .login-modal-register a {
-  color: #355f95;
-  text-decoration: none;
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  color: #1d4ed8;
+  font-size: 14px;
   font-weight: 600;
-  transition: color 0.3s ease;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .login-modal-register a:hover {
-  color: #1a4f95;
-  text-decoration: underline;
+  color: #1e40af;
+}
+
+@media (max-width: 480px) {
+  .login-modal-card {
+    padding: 20px;
+  }
 }
 </style>
