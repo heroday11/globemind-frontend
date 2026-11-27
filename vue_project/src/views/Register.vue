@@ -1,34 +1,41 @@
 <template>
   <div class="auth-page">
-    <router-link class="home-link" to="/">← 返回首页</router-link>
-    <div class="auth-card glass-panel">
+    <router-link class="home-link" to="/">
+      <ArrowLeft :size="16" aria-hidden="true" /> 返回首页
+    </router-link>
+    <div class="auth-card">
       <h1>创建账号</h1>
       <p class="auth-subtitle">创建账号前，请先了解信息处理方式和实验性使用边界</p>
       <form @submit.prevent="handleRegister" :aria-busy="loading">
         <div class="form-item">
           <label for="register-username">用户名</label>
-          <input id="register-username" ref="firstField" v-model.trim="form.username" name="username" required autocomplete="username" placeholder="请输入用户名" />
+          <input id="register-username" ref="firstField" v-model.trim="form.username" name="username" required autocomplete="username" aria-describedby="register-username-hint" />
+          <p id="register-username-hint" class="field-hint">登录时可使用用户名或邮箱。</p>
         </div>
         <div class="form-item">
           <label for="register-full-name">姓名（可选）</label>
-          <input id="register-full-name" v-model.trim="form.full_name" name="full_name" autocomplete="name" placeholder="可稍后在个人中心填写" />
+          <input id="register-full-name" v-model.trim="form.full_name" name="full_name" autocomplete="name" aria-describedby="register-full-name-hint" />
+          <p id="register-full-name-hint" class="field-hint">可稍后在个人中心填写。</p>
         </div>
         <div class="form-item">
           <label for="register-email">邮箱</label>
-          <input id="register-email" v-model.trim="form.email" name="email" type="email" required autocomplete="email" placeholder="请输入邮箱" />
+          <input id="register-email" v-model.trim="form.email" name="email" type="email" required autocomplete="email" aria-describedby="register-email-hint" />
+          <p id="register-email-hint" class="field-hint">验证邮件将发送到此地址。</p>
         </div>
         <div class="form-item">
           <label for="register-phone">手机号（可选）</label>
-          <input id="register-phone" v-model.trim="form.phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" pattern="1[3-9][0-9]{9}" placeholder="可稍后在个人中心填写" />
+          <input id="register-phone" v-model.trim="form.phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" pattern="1[3-9][0-9]{9}" aria-describedby="register-phone-hint" />
+          <p id="register-phone-hint" class="field-hint">填写时请输入 11 位中国大陆手机号。</p>
         </div>
         <div class="form-item">
           <label for="register-password">密码</label>
-          <input id="register-password" v-model="form.password" name="password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="register-password-hint" placeholder="至少 8 位，包含字母和数字" />
+          <input id="register-password" v-model="form.password" name="password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="register-password-hint" />
           <p id="register-password-hint" class="field-hint">至少 8 位，且同时包含字母和数字。</p>
         </div>
         <div class="form-item">
           <label for="register-confirm-password">确认密码</label>
-          <input id="register-confirm-password" v-model="form.confirm_password" name="confirm_password" type="password" required minlength="8" autocomplete="new-password" placeholder="请再次输入密码" />
+          <input id="register-confirm-password" v-model="form.confirm_password" name="confirm_password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="register-confirm-password-hint" />
+          <p id="register-confirm-password-hint" class="field-hint">请再次输入上方设置的密码。</p>
         </div>
         <div class="consent-item">
           <input
@@ -60,6 +67,7 @@
 <script setup>
 import { nextTick, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ArrowLeft } from 'lucide-vue-next'
 import { API_PREFIX } from '@/config/api'
 import { formatApiErrorDetail } from '@/utils/apiError'
 
@@ -131,23 +139,33 @@ async function handleRegister() {
 
 <style scoped>
 .auth-page {
-  position: relative;
+  --auth-text: #edf3ef;
+  --auth-muted: #b5c7c5;
+  --auth-link: #a8e3d0;
+  color-scheme: dark;
   min-height: 100vh;
-  display: flex;
-  align-items: center;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 660px);
   justify-content: center;
-  padding: 36px 18px;
+  align-content: center;
+  gap: 18px;
+  padding: 28px 18px 40px;
   box-sizing: border-box;
   background:
-    linear-gradient(rgba(244, 248, 255, 0.78), rgba(239, 245, 255, 0.78)),
-    url('/imgs/home/hero-bg.webp') center center / cover no-repeat;
+    linear-gradient(150deg, rgba(10, 28, 36, 0.9), rgba(12, 46, 47, 0.84)),
+    url('/imgs/home/hero-bg.webp') center / cover no-repeat,
+    #102d34;
+  color: var(--auth-text);
 }
 
 .home-link {
-  position: absolute;
-  top: 22px;
-  left: 28px;
-  color: #214d84;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  color: var(--auth-link);
   font-weight: 600;
   text-decoration: none;
 }
@@ -155,234 +173,182 @@ async function handleRegister() {
 .home-link:hover { text-decoration: underline; }
 
 .auth-card {
-  width: min(100%, 620px);
-  padding: 40px 40px 34px;
-  border-radius: 24px;
-}
-
-.glass-panel {
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.84);
-  box-shadow:
-    0 26px 60px rgba(22, 62, 121, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  min-width: 0;
+  padding: 32px;
+  border: 1px solid #3b585d;
+  border-radius: 8px;
+  background: #1b3339;
+  box-shadow: 0 18px 44px rgba(6, 17, 24, 0.34);
 }
 
 h1 {
   margin: 0;
-  font-size: 2.15rem;
-  line-height: 1.2;
-  color: #14345d;
+  color: var(--auth-text);
+  font-size: 1.85rem;
+  line-height: 1.25;
   font-weight: 700;
 }
 
 .auth-subtitle {
-  margin: 10px 0 26px;
-  font-size: 1.05rem;
-  color: #3f5f87;
-  line-height: 1.65;
+  margin: 8px 0 24px;
+  color: var(--auth-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 16px;
+  gap: 17px 18px;
 }
 
 .form-item {
-  margin: 0;
-}
-
-.form-item:nth-last-child(-n + 2) {
-  grid-column: span 1;
+  min-width: 0;
 }
 
 .form-item label {
   display: block;
-  margin-bottom: 8px;
-  font-size: 1rem;
+  margin-bottom: 7px;
+  color: var(--auth-text);
+  font-size: 0.95rem;
   font-weight: 600;
-  color: #1e3a61;
 }
 
 .form-item input {
+  display: block;
   width: 100%;
-  min-height: 50px;
-  padding: 11px 14px;
-  border: 1px solid rgba(47, 92, 145, 0.26);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.86);
-  color: #17375f;
-  font-size: 1rem;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 12px;
   box-sizing: border-box;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  border: 1px solid #648482;
+  border-radius: 8px;
+  background: #13282f;
+  color: var(--auth-text);
+  font-size: 1rem;
 }
 
 .form-item input:focus {
-  outline: none;
-  border-color: rgba(34, 99, 182, 0.55);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
-  background: rgba(255, 255, 255, 0.96);
+  border-color: var(--auth-link);
+  background: #163137;
+}
+
+.auth-page :is(a, input, button):focus-visible {
+  outline: 2px solid var(--auth-link);
+  outline-offset: 3px;
+}
+
+.field-hint,
+.registration-data-note {
+  color: var(--auth-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .field-hint {
-  margin: 6px 2px 0;
-  color: #59708e;
-  font-size: 0.82rem;
-  line-height: 1.5;
+  margin: 6px 0 0;
 }
 
 .consent-item {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: 20px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
-  color: #344f72;
+  padding-top: 16px;
+  border-top: 1px solid #3b585d;
   font-size: 0.92rem;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 
 .consent-item input {
   width: 20px;
   height: 20px;
   margin: 2px 0 0;
-  accent-color: #1767c6;
-}
-
-.consent-item input:focus-visible {
-  outline: 3px solid rgba(59, 130, 246, 0.35);
-  outline-offset: 3px;
+  accent-color: #9ddcc5;
 }
 
 .consent-item a,
-.registration-data-note a {
-  color: #1257ad;
+.tips a {
+  color: var(--auth-link);
   font-weight: 650;
+  text-underline-offset: 3px;
 }
 
 .registration-data-note {
   grid-column: 1 / -1;
-  margin: -6px 0 0 32px;
-  color: #647792;
-  font-size: 0.82rem;
-  line-height: 1.65;
+  margin: -7px 0 0 30px;
 }
 
 button {
   grid-column: 1 / -1;
   width: 100%;
-  margin-top: 2px;
+  min-height: 48px;
+  padding: 10px 14px;
   border: 0;
-  background: linear-gradient(135deg, #1976d2, #0f56b3);
-  color: #fff;
-  min-height: 52px;
-  border-radius: 12px;
-  font-size: 1.08rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  border-radius: 8px;
+  background: #a5dfc9;
+  color: #112e2a;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
 
 button:not(:disabled):hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(17, 80, 160, 0.35);
+  background: #bcebd8;
 }
 
 button:disabled {
-  opacity: 0.6;
+  opacity: 0.65;
   cursor: not-allowed;
 }
 
 .error,
 .success {
   grid-column: 1 / -1;
-  font-size: 0.97rem;
-  margin: -4px 0 0;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
 }
 
-.error { color: #b42318; }
-.success { color: #1f7a39; }
+.error { background: #472e38; color: #ffd1cb; }
+.success { background: #20463d; color: #b9edd4; }
 
 .error:focus,
 .success:focus {
-  outline: 3px solid currentColor;
-  outline-offset: 4px;
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
 }
 
 .tips {
-  margin: 16px 0 0;
-  font-size: 0.98rem;
+  margin: 15px 0 0;
+  color: var(--auth-muted);
+  font-size: 0.92rem;
   text-align: center;
-  color: #385578;
 }
 
-.tips a {
-  color: #1257ad;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.tips a:hover {
-  text-decoration: underline;
-}
-
-@media (max-width: 700px) {
-  .auth-card {
-    padding: 30px 20px 24px;
-    border-radius: 18px;
+@media (max-width: 600px) {
+  .auth-page {
+    align-content: start;
+    gap: 12px;
+    padding: 14px 12px 24px;
   }
 
-  h1 {
-    font-size: 1.8rem;
+  .auth-card {
+    padding: 22px 16px;
   }
 
   form {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
   }
 
   .registration-data-note {
     margin-left: 0;
-  }
-}
-
-@media (max-width: 480px) {
-  .auth-page {
-    padding: 64px 12px 24px;
-  }
-
-  .home-link { top: 18px; left: 18px; }
-
-  .auth-card {
-    padding: 24px 16px 20px;
-    border-radius: 14px;
-  }
-
-  h1 {
-    font-size: 1.5rem;
-  }
-
-  .auth-subtitle {
-    font-size: 0.92rem;
-    margin: 8px 0 20px;
-  }
-
-  .form-item label {
-    font-size: 0.9rem;
-  }
-
-  .form-item input {
-    min-height: 44px;
-    font-size: 0.95rem;
-  }
-
-  button {
-    min-height: 46px;
-    font-size: 1rem;
   }
 }
 </style>
